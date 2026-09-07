@@ -1,19 +1,21 @@
-import type { ReactNode } from "react";
+import type { ElementType, ReactNode } from "react";
 import { cx } from "@/lib/cx";
 
 type GridProps = {
   children: ReactNode;
   className?: string;
   variant?: "page" | "product";
+  as?: ElementType;
 };
 
 export function Grid({
   children,
   className,
   variant = "page",
+  as: Component = "div",
 }: GridProps) {
   return (
-    <div
+    <Component
       className={cx(
         "grid",
         variant === "product" && "grid--product",
@@ -21,7 +23,7 @@ export function Grid({
       )}
     >
       {children}
-    </div>
+    </Component>
   );
 }
 
@@ -29,10 +31,18 @@ type GridItemProps = {
   children: ReactNode;
   className?: string;
   spanAll?: boolean;
+  as?: ElementType;
 };
 
-export function GridItem({ children, className, spanAll }: GridItemProps) {
+export function GridItem({
+  children,
+  className,
+  spanAll,
+  as: Component = "div",
+}: GridItemProps) {
   return (
-    <div className={cx(spanAll && "grid__span-all", className)}>{children}</div>
+    <Component className={cx(spanAll && "grid__span-all", className)}>
+      {children}
+    </Component>
   );
 }

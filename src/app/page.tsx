@@ -4,6 +4,11 @@ import { Grid, GridItem } from "@/components/layout/Grid";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/Button";
+import { ProductGrid } from "@/components/product/ProductGrid";
+import {
+  assertDemoCatalogueIntegrity,
+  getProducts,
+} from "@/services/catalogue";
 import styles from "./page.module.css";
 
 const colours = [
@@ -25,6 +30,8 @@ const colours = [
 const spaces = [4, 8, 12, 16, 24, 32, 48, 64, 80, 96, 120] as const;
 
 export default function FoundationPreviewPage() {
+  assertDemoCatalogueIntegrity();
+
   return (
     <PageContainer>
       <main id="main">
@@ -156,6 +163,21 @@ export default function FoundationPreviewPage() {
                 <Button disabled>Unavailable</Button>
                 <Button loading>Add to bag</Button>
               </div>
+            </div>
+          </Section>
+
+          <hr className={styles.rule} />
+
+          <Section labelledBy="catalogue-heading" compact>
+            <div className={styles.stack}>
+              <h2 id="catalogue-heading" className="text-h2">
+                Catalogue
+              </h2>
+              <p className={`text-body ${styles.note}`}>
+                Demo fixtures for the reusable product card and grid. This is
+                not a collection page. No live inventory or product photography.
+              </p>
+              <ProductGrid products={getProducts()} />
             </div>
           </Section>
         </ContentWidth>

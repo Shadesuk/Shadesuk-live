@@ -1,0 +1,36 @@
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status {
+  margin: 0;
+}
+
+.footer {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-32);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.skeletonMedia {
+  aspect-ratio: 1 / 1;
+  background: var(--color-stone);
+}
+
+.skeletonLine {
+  height: 0.75rem;
+  width: 70%;
+  background: var(--color-stone);
+}
+
+.skeletonLineShort {
+  width: 40%;
+}

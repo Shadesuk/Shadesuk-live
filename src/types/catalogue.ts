@@ -1,37 +1,116 @@
+export const GENDERS = ["men", "women", "unisex"] as const;
+export type Gender = (typeof GENDERS)[number];
+
+export const SHAPES = [
+  "aviator",
+  "rectangle",
+  "square",
+  "round",
+  "cat-eye",
+] as const;
+export type Shape = (typeof SHAPES)[number];
+
 /**
- * Catalogue shape for later phases. No mock product data lives here.
- * Fields follow the locked SHADESUK demo catalogue contract.
+ * Style is reserved for a future catalogue-backed taxonomy.
+ * Do not populate demo values while Classic/Sport vs Everyday remains unresolved.
  */
+export type Style = string;
+
+export const AVAILABILITIES = [
+  "in_stock",
+  "out_of_stock",
+  "sold_out",
+] as const;
+export type Availability = (typeof AVAILABILITIES)[number];
+
+export const PRODUCT_IMAGE_ROLES = [
+  "front",
+  "side",
+  "detail",
+  "back",
+  "temple",
+  "on-model",
+  "packaging",
+] as const;
+export type ProductImageRole = (typeof PRODUCT_IMAGE_ROLES)[number];
+
+export type Brand = {
+  id: string;
+  slug: string;
+  name: string;
+  isDemo: boolean;
+};
+
 export type ProductColour = {
   id: string;
-  name: string;
   slug: string;
+  name: string;
+  /** Frame/lens colour only — not a UI accent token. */
+  hex?: string;
+  available: boolean;
 };
 
 export type ProductImage = {
-  src: string;
+  id: string;
+  role: ProductImageRole;
   alt: string;
   width: number;
   height: number;
+  /** Omit until a legitimate asset exists. */
+  src?: string;
+};
+
+export type ProductMeasurements = {
+  lensMm?: number;
+  bridgeMm?: number;
+  templeMm?: number;
+};
+
+export type ProductVariant = {
+  id: string;
+  colourId: string;
+  availability: Availability;
+  sku?: string;
 };
 
 export type Product = {
   id: string;
   slug: string;
   name: string;
-  brand: string;
-  gender: Array<"men" | "women" | "unisex">;
-  shape: string[];
-  style: string[];
+  brandId: string;
+  gender: Gender[];
+  shape: Shape[];
+  /** Structural only. Leave empty until styles are approved and data-backed. */
+  style: Style[];
   colours: ProductColour[];
   price: number;
   currency: "GBP";
-  availability: "in_stock" | "out_of_stock" | "sold_out";
+  availability: Availability;
   isNewArrival: boolean;
   isBestSeller: boolean;
   images: ProductImage[];
+  isDemo: boolean;
   compareAtPrice?: number;
-  colourCount?: number;
+  variants?: ProductVariant[];
+  sizes?: string[];
+  measurements?: ProductMeasurements;
   description?: string;
   details?: string;
+};
+
+export type Catalogue = {
+  brands: Brand[];
+  products: Product[];
+};
+
+export type CatalogueFilters = {
+  genders: Gender[];
+  brands: Brand[];
+  shapes: Shape[];
+  colours: ProductColour[];
+  availability: Availability[];
+  price: {
+    min: number;
+    max: number;
+  };
 };
