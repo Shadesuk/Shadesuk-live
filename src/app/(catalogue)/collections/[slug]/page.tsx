@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
-import { renderCollectionBySlug } from "@/components/discovery/renderCollectionPage";
-import { getCollectionBySlug } from "@/services/collections";
+import { notFound } from "next/navigation";
+import { CollectionTemplate } from "@/components/discovery/CollectionTemplate";
+import {
+  getCollectionBySlug,
+  parseCollectionQuery,
+  queryCollection,
+} from "@/services/collections";
 import { SHAPES } from "@/types/catalogue";
 
 type PageProps = {
@@ -15,7 +20,10 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const collection = getCollectionBySlug(slug);
-  return { title: collection?.title ?? "Collection" };
+  if (!collection) {
+    return { title: "Collection" };
+  }
+  return { title: collection.title };
 }
 
 export default async function CollectionSlugPage({
@@ -23,5 +31,21 @@ export default async function CollectionSlugPage({
   searchParams,
 }: PageProps) {
   const { slug } = await params;
-  return renderCollectionBySlug(slug, await searchParams);
+  const collection = getCollectionBySlug(slug);
+  if (!collection) {
+    notFound();
+  }
+  const query = parseCollectionQuery(await searchParams);
+  const result = queryCollection(collection, query);
+
+  return (
+    <CollectionTemplate
+      collection={collection}
+      query={query}
+      products={result.products}
+      total={result.total}
+      hasMore={result.hasMore}
+      filterOptions={result.filterOptions}
+    />
+  );
 }
