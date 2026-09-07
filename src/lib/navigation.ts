@@ -69,6 +69,10 @@ export const footerNav = {
   ],
 } as const;
 
+export function productPath(slug: string): string {
+  return `/product/${slug}`;
+}
+
 export function isCurrentPath(pathname: string, href: string): boolean {
   if (href === routes.home) {
     return pathname === routes.home;

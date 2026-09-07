@@ -1,0 +1,177 @@
+import { demoCatalogue } from "@/data/catalogue";
+import { productPath } from "@/lib/navigation";
+import {
+  AVAILABILITIES,
+  GENDERS,
+  SHAPES,
+  type Availability,
+  type Brand,
+  type CatalogueFilters,
+  type Gender,
+  type Product,
+  type ProductColour,
+  type ProductImage,
+  type ProductImageRole,
+  type Shape,
+} from "@/types/catalogue";
+
+const IMAGE_FALLBACK: Record<ProductImageRole, string> = {
+  front: "Product image",
+  side: "Product image",
+  detail: "Product detail",
+  back: "Product image",
+  temple: "Product image",
+  "on-model": "On-model image",
+  packaging: "Product image",
+};
+
+function hasAsset(image: ProductImage): boolean {
+  return Boolean(image.src);
+}
+
+export function getProducts(): Product[] {
+  return demoCatalogue.products;
+}
+
+export function getBrands(): Brand[] {
+  return demoCatalogue.brands;
+}
+
+export function getShapes(): Shape[] {
+  return [...SHAPES];
+}
+
+export function getBrandById(id: string): Brand | undefined {
+  return demoCatalogue.brands.find((brand) => brand.id === id);
+}
+
+export function getBrandName(product: Product): string {
+  return getBrandById(product.brandId)?.name ?? product.brandId;
+}
+
+export function getProductBySlug(slug: string): Product | undefined {
+  return demoCatalogue.products.find((product) => product.slug === slug);
+}
+
+export function getProductHref(product: Product): string {
+  return productPath(product.slug);
+}
+
+export function getColourCount(product: Product): number {
+  return product.colours.length;
+}
+
+export function getAvailableColours(product: Product): ProductColour[] {
+  return product.colours.filter((colour) => colour.available);
+}
+
+export function isProductAvailable(product: Product): boolean {
+  return product.availability === "in_stock";
+}
+
+export function getAvailabilityLabel(availability: Availability): string {
+  if (availability === "sold_out") {
+    return "Sold out";
+  }
+  if (availability === "out_of_stock") {
+    return "Out of stock";
+  }
+  return "In stock";
+}
+
+export function getPrimaryImage(product: Product): ProductImage | undefined {
+  return (
+    product.images.find((image) => image.role === "front" && hasAsset(image)) ??
+    product.images.find((image) => hasAsset(image))
+  );
+}
+
+export function getSecondaryImage(product: Product): ProductImage | undefined {
+  const primary = getPrimaryImage(product);
+  return product.images.find(
+    (image) => hasAsset(image) && image.id !== primary?.id,
+  );
+}
+
+export function getImageFallbackLabel(role: ProductImageRole = "front"): string {
+  return IMAGE_FALLBACK[role];
+}
+
+export function getNewArrivals(): Product[] {
+  return demoCatalogue.products.filter((product) => product.isNewArrival);
+}
+
+export function getBestSellers(): Product[] {
+  return demoCatalogue.products.filter((product) => product.isBestSeller);
+}
+
+export function getProductsByGender(gender: Gender): Product[] {
+  return demoCatalogue.products.filter((product) =>
+    product.gender.includes(gender),
+  );
+}
+
+export function getProductsByShape(shape: Shape): Product[] {
+  return demoCatalogue.products.filter((product) =>
+    product.shape.includes(shape),
+  );
+}
+
+export function getProductsByBrand(brandSlugOrId: string): Product[] {
+  const brand = demoCatalogue.brands.find(
+    (item) => item.slug === brandSlugOrId || item.id === brandSlugOrId,
+  );
+  if (!brand) {
+    return [];
+  }
+  return demoCatalogue.products.filter((product) => product.brandId === brand.id);
+}
+
+export function getAvailableFilters(): CatalogueFilters {
+  const colourMap = new Map<string, ProductColour>();
+  let min = Number.POSITIVE_INFINITY;
+  let max = 0;
+
+  for (const product of demoCatalogue.products) {
+    min = Math.min(min, product.price);
+    max = Math.max(max, product.price);
+    for (const colour of product.colours) {
+      colourMap.set(colour.id, colour);
+    }
+  }
+
+  return {
+    genders: [...GENDERS],
+    brands: getBrands(),
+    shapes: [...SHAPES],
+    colours: [...colourMap.values()],
+    availability: [...AVAILABILITIES],
+    price: {
+      min: Number.isFinite(min) ? min : 0,
+      max,
+    },
+  };
+}
+
+export function assertDemoCatalogueIntegrity(products = getProducts()): void {
+  for (const product of products) {
+    if (product.style.length > 0) {
+      throw new Error(
+        `Demo product ${product.slug} must not invent style values.`,
+      );
+    }
+    if (!product.isDemo) {
+      throw new Error(`Demo product ${product.slug} must be marked isDemo.`);
+    }
+    for (const shape of product.shape) {
+      if (!SHAPES.includes(shape)) {
+        throw new Error(`Unsupported public shape on ${product.slug}: ${shape}`);
+      }
+    }
+    if (product.images.some((image) => image.src)) {
+      throw new Error(
+        `Demo product ${product.slug} must not invent product photography.`,
+      );
+    }
+  }
+}
