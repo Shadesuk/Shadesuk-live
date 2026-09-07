@@ -12,7 +12,7 @@ type ShopMenuProps = {
 export function ShopMenu({ id, onNavigate }: ShopMenuProps) {
   return (
     <div className={styles.menu} id={id}>
-      <div className={styles.group} >
+      <div className={styles.group}>
         <p className={`text-micro ${styles.heading}`} id={`${id}-gender`}>
           Gender
         </p>
@@ -25,7 +25,7 @@ export function ShopMenu({ id, onNavigate }: ShopMenuProps) {
         </div>
       </div>
 
-      <div className={styles.group} >
+      <div className={styles.group}>
         <p className={`text-micro ${styles.heading}`} id={`${id}-brands`}>
           Brands
         </p>
@@ -34,7 +34,7 @@ export function ShopMenu({ id, onNavigate }: ShopMenuProps) {
         </NavLink>
       </div>
 
-      <div className={styles.group} >
+      <div className={styles.group}>
         <p className={`text-micro ${styles.heading}`} id={`${id}-shapes`}>
           Shapes
         </p>
@@ -47,7 +47,7 @@ export function ShopMenu({ id, onNavigate }: ShopMenuProps) {
         </div>
       </div>
 
-      <div className={styles.group} >
+      <div className={styles.group}>
         <p className={`text-micro ${styles.heading}`} id={`${id}-styles`}>
           Styles
         </p>
@@ -56,7 +56,7 @@ export function ShopMenu({ id, onNavigate }: ShopMenuProps) {
         </NavLink>
       </div>
 
-      <div className={styles.group} >
+      <div className={styles.group}>
         <NavLink href={routes.shop} onClick={onNavigate}>
           All shades
         </NavLink>
