@@ -83,6 +83,10 @@
   --radius: 0;
   --duration: 160ms;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --z-header: 40;
+  --z-overlay: 50;
+  --z-drawer: 60;
 }
 
 @media (min-width: 768px) {

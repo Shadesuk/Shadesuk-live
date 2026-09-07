@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
+import { SiteChrome } from "@/components/navigation/SiteChrome";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        {children}
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   );

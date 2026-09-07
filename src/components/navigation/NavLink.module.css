@@ -1,0 +1,20 @@
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: var(--text-micro-size);
+  font-weight: var(--text-micro-weight);
+  letter-spacing: var(--text-micro-tracking);
+  line-height: var(--text-micro-line);
+  text-transform: uppercase;
+}
+
+.link:hover {
+  color: var(--color-navy);
+}
+
+.current {
+  box-shadow: inset 0 -1px 0 var(--color-navy);
+}

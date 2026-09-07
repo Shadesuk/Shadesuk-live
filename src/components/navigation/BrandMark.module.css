@@ -1,0 +1,18 @@
+.mark {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  text-decoration: none;
+}
+
+.image {
+  width: auto;
+  height: 1.75rem;
+  object-fit: contain;
+}
+
+@media (min-width: 1200px) {
+  .image {
+    height: 2rem;
+  }
+}

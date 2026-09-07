@@ -28,7 +28,7 @@ export default function FoundationPreviewPage() {
   return (
     <PageContainer>
       <main id="main">
-        <ContentWidth as="header" className={styles.intro}>
+        <ContentWidth className={styles.intro}>
           <div className={styles.stack}>
             <Image
               src="/brand/shadesuk-wordmark.jpg"

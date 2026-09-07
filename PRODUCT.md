@@ -23,4 +23,4 @@
 - WCAG 2.2 AA.
 - Approved SHADESUK specification files are the source of truth.
 
-**Out of scope for the current phase:** Homepage, header, navigation, product surfaces, search, cart, checkout, and account.
+**Out of scope for later phases:** Homepage, product surfaces, search experience, cart, checkout, and account functionality.

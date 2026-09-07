@@ -1,0 +1,32 @@
+.menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1;
+  min-width: 16rem;
+  padding: var(--space-24);
+  background: var(--color-off-white);
+  border: 1px solid var(--color-stone);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+.group + .group {
+  margin-top: var(--space-24);
+}
+
+.heading {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12) var(--space-16);
+}

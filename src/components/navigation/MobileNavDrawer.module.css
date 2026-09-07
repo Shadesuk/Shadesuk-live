@@ -1,0 +1,56 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  margin-bottom: var(--space-24);
+}
+
+.title {
+  margin: 0;
+}
+
+.close,
+.back,
+.item,
+.advance {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  font-size: var(--text-small-size);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.close,
+.back {
+  width: auto;
+  font-size: var(--text-micro-size);
+  letter-spacing: var(--text-micro-tracking);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.advance {
+  justify-content: space-between;
+}
+
+.advance::after {
+  content: ">";
+  color: var(--color-navy);
+}
