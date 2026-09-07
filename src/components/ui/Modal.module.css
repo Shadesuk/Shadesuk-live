@@ -1,0 +1,45 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-navy) 32%, transparent);
+  cursor: pointer;
+}
+
+.dialog {
+  position: fixed;
+  z-index: var(--z-drawer);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(calc(100% - var(--space-32)), 28rem);
+  max-height: min(80vh, 32rem);
+  overflow: auto;
+  background: var(--color-off-white);
+  color: var(--color-text);
+  padding: var(--space-24);
+}
+
+.overlay,
+.dialog {
+  animation: fade-in var(--duration) var(--ease);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .dialog {
+    animation: none;
+  }
+}
