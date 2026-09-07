@@ -1,0 +1,20 @@
+.insert {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding-block: var(--space-24);
+}
+
+.insert p {
+  margin: 0;
+}
+
+.image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 12rem;
+  background: var(--color-stone);
+  color: var(--color-navy);
+  text-transform: uppercase;
+}

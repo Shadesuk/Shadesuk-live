@@ -12,6 +12,7 @@ import {
   getSecondaryImage,
   isProductAvailable,
 } from "@/services/catalogue";
+import { recordProductView } from "@/lib/recently-viewed";
 import type { Product } from "@/types/catalogue";
 import styles from "./ProductCard.module.css";
 
@@ -32,7 +33,11 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
 
   return (
     <article className={cx(styles.card, !available && styles.unavailable)}>
-      <Link className={styles.link} href={href}>
+      <Link
+        className={styles.link}
+        href={href}
+        onClick={() => recordProductView(product.id)}
+      >
         <div className={styles.media}>
           {primary?.src ? (
             <Image

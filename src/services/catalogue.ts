@@ -127,23 +127,35 @@ export function getProductsByBrand(brandSlugOrId: string): Product[] {
   return demoCatalogue.products.filter((product) => product.brandId === brand.id);
 }
 
-export function getAvailableFilters(): CatalogueFilters {
+export function getAvailableFilters(
+  products: Product[] = getProducts(),
+): CatalogueFilters {
   const colourMap = new Map<string, ProductColour>();
+  const genderSet = new Set<Gender>();
+  const brandIds = new Set<string>();
+  const shapeSet = new Set<Shape>();
   let min = Number.POSITIVE_INFINITY;
   let max = 0;
 
-  for (const product of demoCatalogue.products) {
+  for (const product of products) {
     min = Math.min(min, product.price);
     max = Math.max(max, product.price);
+    for (const gender of product.gender) {
+      genderSet.add(gender);
+    }
+    brandIds.add(product.brandId);
+    for (const shape of product.shape) {
+      shapeSet.add(shape);
+    }
     for (const colour of product.colours) {
       colourMap.set(colour.id, colour);
     }
   }
 
   return {
-    genders: [...GENDERS],
-    brands: getBrands(),
-    shapes: [...SHAPES],
+    genders: GENDERS.filter((gender) => genderSet.has(gender)),
+    brands: getBrands().filter((brand) => brandIds.has(brand.id)),
+    shapes: SHAPES.filter((shape) => shapeSet.has(shape)),
     colours: [...colourMap.values()],
     availability: [...AVAILABILITIES],
     price: {

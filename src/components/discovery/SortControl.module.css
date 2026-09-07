@@ -1,0 +1,20 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.label {
+  flex: none;
+}
+
+.select {
+  min-height: var(--touch-min);
+  min-width: 9.5rem;
+  max-width: 100%;
+  padding: 0 var(--space-12);
+  border: 1px solid var(--color-navy);
+  background: var(--color-off-white);
+  color: var(--color-text);
+}

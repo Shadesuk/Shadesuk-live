@@ -1,0 +1,11 @@
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-32);
+  padding-bottom: var(--space-64);
+}
+
+.end {
+  margin: 0;
+  text-align: center;
+}

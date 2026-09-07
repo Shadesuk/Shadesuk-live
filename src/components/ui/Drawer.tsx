@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cx } from "@/lib/cx";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useScrollLock } from "@/hooks/useScrollLock";
@@ -12,7 +13,7 @@ type DrawerProps = {
   titleId: string;
   id?: string;
   children: ReactNode;
-  side?: "left" | "right";
+  side?: "left" | "right" | "bottom";
 };
 
 export function Drawer({
@@ -31,16 +32,13 @@ export function Drawer({
   useScrollLock(open);
   useFocusTrap(open, panelRef, handleClose);
 
-  if (!open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
-  return (
+  return createPortal(
     <>
-      <div
-        className={styles.overlay}
-        onClick={handleClose}
-      />
+      <div className={styles.overlay} onClick={handleClose} />
       <div
         ref={panelRef}
         id={id}
@@ -52,6 +50,7 @@ export function Drawer({
       >
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

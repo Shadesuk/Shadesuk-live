@@ -5,6 +5,13 @@
   min-height: 100dvh;
 }
 
+.lock {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  min-height: 100dvh;
+}
+
 .page {
   flex: 1 0 auto;
 }
