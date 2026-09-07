@@ -68,7 +68,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
           <p className={`text-micro ${styles.brand}`}>{brand}</p>
           <h3 className={`text-small ${styles.name}`}>{product.name}</h3>
           <p className={`text-small ${styles.price}`}>{formatGbp(product.price)}</p>
-          <p className={`text-micro ${styles.count}`}>{colourLabel}</p>
+          <p className={`text-micro ${styles.count}`} data-colour-count={colourCount}>{colourLabel}</p>
           {!available ? (
             <p className={`text-micro ${styles.status}`}>
               {getAvailabilityLabel(product.availability)}
