@@ -65,7 +65,7 @@ export function ProductGrid({
   }
 
   return (
-    <div>
+    <div data-product-grid>
       <Grid variant="product" className={styles.list} as="ul">
         {products.flatMap((product, index) => {
           const insert = inserts.find((item) => item.afterIndex === index);
