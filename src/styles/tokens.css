@@ -1,0 +1,122 @@
+/* Locked SHADESUK design tokens. Do not invent additional permanent accents. */
+
+:root {
+  --color-navy: #0b1c2d;
+  --color-off-white: #f7f6f2;
+  --color-stone: #e9e7e1;
+  --color-near-black: #111111;
+  --color-white: #ffffff;
+
+  --color-bg: var(--color-off-white);
+  --color-surface: var(--color-white);
+  --color-surface-muted: var(--color-stone);
+  --color-text: var(--color-near-black);
+  --color-text-on-navy: var(--color-white);
+  --color-action: var(--color-navy);
+  --color-border: var(--color-stone);
+  --color-focus: var(--color-navy);
+
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+  --space-64: 64px;
+  --space-80: 80px;
+  --space-96: 96px;
+  --space-120: 120px;
+
+  --bp-tablet: 768px;
+  --bp-desktop: 1200px;
+  --bp-large: 1440px;
+
+  --grid-page-columns: 4;
+  --grid-product-columns: 2;
+  --grid-gap: var(--space-16);
+
+  --page-gutter: var(--space-16);
+  --content-max: 67.5rem;
+  --section-space: var(--space-64);
+
+  --font-sans: var(--font-inter), "Inter", "Helvetica Neue", Helvetica, Arial,
+    sans-serif;
+
+  --text-display-size: 2.5rem;
+  --text-display-line: 1.12;
+  --text-display-weight: 500;
+  --text-display-tracking: -0.03em;
+
+  --text-h1-size: 2rem;
+  --text-h1-line: 1.18;
+  --text-h1-weight: 500;
+  --text-h1-tracking: -0.025em;
+
+  --text-h2-size: 1.5rem;
+  --text-h2-line: 1.22;
+  --text-h2-weight: 500;
+  --text-h2-tracking: -0.02em;
+
+  --text-h3-size: 1.25rem;
+  --text-h3-line: 1.28;
+  --text-h3-weight: 500;
+  --text-h3-tracking: -0.015em;
+
+  --text-body-size: 1rem;
+  --text-body-line: 1.6;
+  --text-body-weight: 400;
+  --text-body-tracking: 0;
+
+  --text-small-size: 0.875rem;
+  --text-small-line: 1.45;
+  --text-small-weight: 400;
+  --text-small-tracking: 0.01em;
+
+  --text-micro-size: 0.75rem;
+  --text-micro-line: 1.4;
+  --text-micro-weight: 500;
+  --text-micro-tracking: 0.08em;
+
+  --measure: 68ch;
+  --touch-min: 44px;
+  --radius: 0;
+  --duration: 160ms;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --grid-page-columns: 8;
+    --grid-product-columns: 3;
+    --grid-gap: var(--space-24);
+    --page-gutter: var(--space-32);
+    --section-space: var(--space-80);
+    --text-display-size: 2.75rem;
+    --text-h1-size: 2.25rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  :root {
+    --grid-page-columns: 12;
+    --grid-product-columns: 4;
+    --grid-gap: var(--space-24);
+    --page-gutter: var(--space-48);
+    --content-max: 72rem;
+    --section-space: var(--space-96);
+    --text-display-size: 3rem;
+    --text-h1-size: 2.5rem;
+    --text-body-size: 1.0625rem;
+  }
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --grid-product-columns: 4;
+    --grid-gap: var(--space-32);
+    --page-gutter: var(--space-64);
+    --content-max: 80rem;
+    --section-space: var(--space-120);
+  }
+}
