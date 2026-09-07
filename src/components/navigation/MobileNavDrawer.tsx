@@ -17,6 +17,23 @@ type MobileNavDrawerProps = {
   onClose: () => void;
 };
 
+function AdvanceButton({
+  children,
+  onClick,
+}: {
+  children: string;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className={styles.advance} onClick={onClick}>
+      {children}
+      <span className={styles.chevron} aria-hidden="true">
+        {">"}
+      </span>
+    </button>
+  );
+}
+
 const titles: Record<Panel, string> = {
   root: "Menu",
   shop: "Shop",
@@ -76,13 +93,7 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
       {panel === "root" ? (
         <ul className={styles.list}>
           <li>
-            <button
-              type="button"
-              className={styles.advance}
-              onClick={() => setPanel("shop")}
-            >
-              Shop
-            </button>
+            <AdvanceButton onClick={() => setPanel("shop")}>Shop</AdvanceButton>
           </li>
           <li>
             <NavLink href={routes.newArrivals} className={styles.item} onClick={handleClose}>
@@ -95,13 +106,9 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
             </NavLink>
           </li>
           <li>
-            <button
-              type="button"
-              className={styles.advance}
-              onClick={() => setPanel("collections")}
-            >
+            <AdvanceButton onClick={() => setPanel("collections")}>
               Collections
-            </button>
+            </AdvanceButton>
           </li>
           <li>
             <NavLink href={routes.about} className={styles.item} onClick={handleClose}>
@@ -126,31 +133,13 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
             </li>
           ))}
           <li>
-            <button
-              type="button"
-              className={styles.advance}
-              onClick={() => setPanel("brands")}
-            >
-              Brands
-            </button>
+            <AdvanceButton onClick={() => setPanel("brands")}>Brands</AdvanceButton>
           </li>
           <li>
-            <button
-              type="button"
-              className={styles.advance}
-              onClick={() => setPanel("shapes")}
-            >
-              Shapes
-            </button>
+            <AdvanceButton onClick={() => setPanel("shapes")}>Shapes</AdvanceButton>
           </li>
           <li>
-            <button
-              type="button"
-              className={styles.advance}
-              onClick={() => setPanel("styles")}
-            >
-              Styles
-            </button>
+            <AdvanceButton onClick={() => setPanel("styles")}>Styles</AdvanceButton>
           </li>
         </ul>
       ) : null}
