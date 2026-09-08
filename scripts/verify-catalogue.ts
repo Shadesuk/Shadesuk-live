@@ -2,7 +2,10 @@ import {
   assertDemoCatalogueIntegrity,
   getBestSellers,
   getColourCount,
+  getEditorialProduct,
+  getHomepageFeatured,
   getNewArrivals,
+  getPopulatedShapes,
   getProductBySlug,
   getProductHref,
   getProducts,
@@ -45,6 +48,18 @@ if (getProductsByShape("aviator").length === 0) {
 }
 if (products.some((product) => product.style.length > 0)) {
   throw new Error("No invented style values");
+}
+if (getHomepageFeatured(4).length !== 4) {
+  throw new Error("Homepage featured should use four catalogue products");
+}
+if (!getEditorialProduct() || !isProductAvailable(getEditorialProduct()!)) {
+  throw new Error("Editorial product should be an in-stock catalogue item");
+}
+if (!getPopulatedShapes().includes("aviator")) {
+  throw new Error("Populated shapes should include catalogue-backed aviator");
+}
+if (getPopulatedShapes().length === 0) {
+  throw new Error("Expected populated shapes");
 }
 
 console.log(`Catalogue OK: ${products.length} demo products`);

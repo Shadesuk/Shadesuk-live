@@ -1,0 +1,77 @@
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { routes } from "@/lib/navigation";
+import type { Product, Shape } from "@/types/catalogue";
+import { EditorialBrandMoment } from "./EditorialBrandMoment";
+import { FinalCta } from "./FinalCta";
+import { GenderDiscovery } from "./GenderDiscovery";
+import { HeroCampaign } from "./HeroCampaign";
+import { ProductSection } from "./ProductSection";
+import { ProductStory } from "./ProductStory";
+import { ShapeDiscovery } from "./ShapeDiscovery";
+import { TrustSection } from "./TrustSection";
+import styles from "./Homepage.module.css";
+
+type HomepageProps = {
+  featured: Product[];
+  bestSellers: Product[];
+  newArrivals: Product[];
+  storyProduct?: Product;
+  shapes: Shape[];
+};
+
+export function Homepage({
+  featured,
+  bestSellers,
+  newArrivals,
+  storyProduct,
+  shapes,
+}: HomepageProps) {
+  return (
+    <PageContainer>
+      <main id="main" className={styles.main}>
+        <HeroCampaign />
+        <ProductSection
+          id="featured-heading"
+          title="The shades people are wearing"
+          products={featured}
+          mobileCount={2}
+          imagePriorityCount={2}
+          action={
+            <ButtonLink href={routes.shop} variant="tertiary">
+              Shop all shades
+            </ButtonLink>
+          }
+        />
+        <EditorialBrandMoment />
+        <GenderDiscovery />
+        <ProductSection
+          id="best-sellers-heading"
+          title="The most wanted"
+          products={bestSellers}
+          mobileCount={2}
+          action={
+            <ButtonLink href={routes.bestSellers} variant="tertiary">
+              View best sellers
+            </ButtonLink>
+          }
+        />
+        {storyProduct ? <ProductStory product={storyProduct} /> : null}
+        <ShapeDiscovery shapes={shapes} />
+        <ProductSection
+          id="new-arrivals-heading"
+          title="Just in"
+          products={newArrivals}
+          mobileCount={2}
+          action={
+            <ButtonLink href={routes.newArrivals} variant="tertiary">
+              View new arrivals
+            </ButtonLink>
+          }
+        />
+        <TrustSection />
+        <FinalCta />
+      </main>
+    </PageContainer>
+  );
+}

@@ -1,0 +1,32 @@
+.section {
+  border-top: 1px solid var(--color-stone);
+  padding-top: var(--space-48);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-32);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: 1fr;
+}
+
+.list h3,
+.list p {
+  margin: 0;
+}
+
+.list li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: 28ch;
+}
+
+@media (min-width: 768px) {
+  .list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-24);
+  }
+}

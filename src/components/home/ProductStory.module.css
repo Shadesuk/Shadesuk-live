@@ -1,0 +1,34 @@
+.story {
+  display: grid;
+  gap: var(--space-32);
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-12);
+}
+
+.copy h2,
+.copy p {
+  margin: 0;
+}
+
+.copy a {
+  margin-top: var(--space-12);
+}
+
+@media (min-width: 768px) {
+  .story {
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: var(--space-48);
+  }
+}
+
+@media (min-width: 1200px) {
+  .story {
+    gap: var(--space-64);
+  }
+}
