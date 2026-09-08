@@ -35,6 +35,15 @@
   left: auto;
 }
 
+.bottom {
+  top: auto;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  max-height: min(92dvh, 44rem);
+}
+
 .overlay,
 .panel {
   animation: fade-in var(--duration) var(--ease);
@@ -46,6 +55,10 @@
 
 .right {
   animation: slide-in-right var(--duration) var(--ease);
+}
+
+.bottom {
+  animation: slide-in-bottom var(--duration) var(--ease);
 }
 
 @keyframes fade-in {
@@ -75,11 +88,21 @@
   }
 }
 
+@keyframes slide-in-bottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .overlay,
   .panel,
   .left,
-  .right {
+  .right,
+  .bottom {
     animation: none;
   }
 }

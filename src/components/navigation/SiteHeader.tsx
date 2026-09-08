@@ -14,7 +14,7 @@ import { UtilityButton } from "./UtilityButton";
 import styles from "./SiteHeader.module.css";
 
 export function SiteHeader() {
-  const { setPageLocked } = useChrome();
+  const { acquirePageLock, releasePageLock } = useChrome();
   const [menuOpen, setMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -28,8 +28,12 @@ export function SiteHeader() {
   }, []);
 
   useEffect(() => {
-    setPageLocked(menuOpen || searchOpen);
-  }, [menuOpen, searchOpen, setPageLocked]);
+    if (!(menuOpen || searchOpen)) {
+      return;
+    }
+    acquirePageLock();
+    return () => releasePageLock();
+  }, [menuOpen, searchOpen, acquirePageLock, releasePageLock]);
 
   useEffect(() => {
     function handlePointer(event: MouseEvent) {

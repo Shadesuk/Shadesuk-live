@@ -15,8 +15,10 @@ type ProductGridProps = {
   products: Product[];
   loading?: boolean;
   emptyMessage?: string;
+  emptyContent?: ReactNode;
   inserts?: ProductGridInsert[];
   hasMore?: boolean;
+  loadingMore?: boolean;
   onLoadMore?: () => void;
   imagePriorityCount?: number;
 };
@@ -36,8 +38,10 @@ export function ProductGrid({
   products,
   loading = false,
   emptyMessage = "No shades to show yet.",
+  emptyContent,
   inserts = [],
   hasMore = false,
+  loadingMore = false,
   onLoadMore,
   imagePriorityCount = 0,
 }: ProductGridProps) {
@@ -57,6 +61,9 @@ export function ProductGrid({
   }
 
   if (!loading && products.length === 0) {
+    if (emptyContent) {
+      return <>{emptyContent}</>;
+    }
     return (
       <p className={`text-body ${styles.status}`} role="status">
         {emptyMessage}
@@ -92,7 +99,7 @@ export function ProductGrid({
       </Grid>
       {hasMore && onLoadMore ? (
         <div className={styles.footer}>
-          <LoadMoreButton onClick={onLoadMore} />
+          <LoadMoreButton onClick={onLoadMore} loading={loadingMore} />
         </div>
       ) : null}
     </div>

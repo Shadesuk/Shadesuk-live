@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useScrollLock } from "@/hooks/useScrollLock";
 import styles from "./Modal.module.css";
@@ -28,11 +29,11 @@ export function Modal({
   useScrollLock(open);
   useFocusTrap(open, dialogRef, handleClose);
 
-  if (!open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
-  return (
+  return createPortal(
     <>
       <div className={styles.overlay} onClick={handleClose} />
       <div
@@ -46,6 +47,7 @@ export function Modal({
       >
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

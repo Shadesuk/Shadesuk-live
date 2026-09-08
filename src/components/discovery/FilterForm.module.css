@@ -1,0 +1,42 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.group legend {
+  padding: 0;
+  margin-bottom: var(--space-8);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--touch-min);
+  cursor: pointer;
+}
+
+.option input {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--color-navy);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-16);
+  padding-top: var(--space-16);
+  background: var(--color-off-white);
+}
