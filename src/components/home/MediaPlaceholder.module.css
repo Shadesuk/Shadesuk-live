@@ -1,0 +1,44 @@
+.frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background: var(--color-stone);
+  color: var(--color-navy);
+  text-align: center;
+  padding: var(--space-16);
+}
+
+.campaign {
+  aspect-ratio: 4 / 5;
+}
+
+.editorial,
+.story {
+  aspect-ratio: 4 / 5;
+}
+
+.square {
+  aspect-ratio: 1 / 1;
+}
+
+@media (min-width: 768px) {
+  .campaign {
+    aspect-ratio: 16 / 9;
+  }
+
+  .editorial {
+    aspect-ratio: 16 / 9;
+  }
+
+  .story {
+    aspect-ratio: 4 / 5;
+  }
+}
+
+@media (min-width: 1200px) {
+  .campaign {
+    max-height: 80vh;
+    aspect-ratio: 16 / 9;
+  }
+}

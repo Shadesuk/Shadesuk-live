@@ -105,6 +105,21 @@ export function getBestSellers(): Product[] {
   return demoCatalogue.products.filter((product) => product.isBestSeller);
 }
 
+export function getHomepageFeatured(limit = 4): Product[] {
+  return getProducts().slice(0, limit);
+}
+
+export function getEditorialProduct(): Product | undefined {
+  return (
+    getBestSellers().find((product) => isProductAvailable(product)) ??
+    getProducts().find((product) => isProductAvailable(product))
+  );
+}
+
+export function getPopulatedShapes(): Shape[] {
+  return SHAPES.filter((shape) => getProductsByShape(shape).length > 0);
+}
+
 export function getProductsByGender(gender: Gender): Product[] {
   return demoCatalogue.products.filter((product) =>
     product.gender.includes(gender),
