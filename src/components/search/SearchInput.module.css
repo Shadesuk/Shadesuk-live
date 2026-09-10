@@ -1,0 +1,21 @@
+.field {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.label {
+  font-size: var(--text-micro-size);
+  font-weight: var(--text-micro-weight);
+  line-height: var(--text-micro-line);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+}
+
+.input {
+  width: 100%;
+  min-height: var(--touch-min);
+  padding: var(--space-12);
+  border: 1px solid var(--color-navy);
+  background: var(--color-white);
+  color: var(--color-text);
+}

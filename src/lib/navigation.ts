@@ -7,6 +7,7 @@ export const routes = {
   newArrivals: "/new-arrivals",
   bestSellers: "/best-sellers",
   collections: "/collections",
+  search: "/search",
   brands: "/brands",
   about: "/about",
   account: "/account",

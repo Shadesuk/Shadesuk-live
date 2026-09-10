@@ -44,6 +44,12 @@
   max-height: min(92dvh, 44rem);
 }
 
+.full {
+  inset: 0;
+  width: 100%;
+  max-height: none;
+}
+
 .overlay,
 .panel {
   animation: fade-in var(--duration) var(--ease);
@@ -102,7 +108,8 @@
   .panel,
   .left,
   .right,
-  .bottom {
+  .bottom,
+  .full {
     animation: none;
   }
 }

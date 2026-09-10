@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { getProducts } from "@/services/catalogue";
@@ -17,6 +18,7 @@ type CollectionTemplateProps = {
   total: number;
   hasMore: boolean;
   filterOptions: CatalogueFilters;
+  emptyContent?: ReactNode;
 };
 
 export function CollectionTemplate({
@@ -26,6 +28,7 @@ export function CollectionTemplate({
   total,
   hasMore,
   filterOptions,
+  emptyContent,
 }: CollectionTemplateProps) {
   return (
     <PageContainer>
@@ -53,6 +56,7 @@ export function CollectionTemplate({
             products={products}
             hasMore={hasMore}
             query={query}
+            emptyContent={emptyContent}
           />
           <RecentlyViewed products={getProducts()} />
         </ContentWidth>

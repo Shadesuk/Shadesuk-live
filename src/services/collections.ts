@@ -284,8 +284,8 @@ export function getFilteredProductCount(
 export function queryCollection(
   collection: CollectionDefinition,
   query: CollectionQuery,
+  scoped = getCollectionProducts(collection),
 ) {
-  const scoped = getCollectionProducts(collection);
   const filterQuery = contextualQuery(collection, query);
   const filtered = applySort(applyFilters(scoped, filterQuery), filterQuery.sort);
   return {
@@ -346,8 +346,13 @@ export function parseCollectionQuery(
     ? searchParams.limit[0]
     : searchParams.limit;
   const parsedLimit = Number.parseInt(limitValue ?? "", 10);
+  const qValue = Array.isArray(searchParams.q)
+    ? searchParams.q[0]
+    : searchParams.q;
+  const q = qValue?.trim().replace(/\s+/g, " ");
 
   return {
+    q: q || undefined,
     genders,
     brands: readList(searchParams.brand),
     shapes,
@@ -367,6 +372,9 @@ export function serializeCollectionQuery(
   options?: { resetLimit?: boolean },
 ): string {
   const params = new URLSearchParams();
+  if (query.q) {
+    params.set("q", query.q);
+  }
   if (query.genders.length) {
     params.set("gender", query.genders.join(","));
   }

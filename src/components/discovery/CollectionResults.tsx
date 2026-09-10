@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { COLLECTION_PAGE_SIZE, type CollectionDefinition, type CollectionQuery } from "@/types/collection";
@@ -14,6 +14,7 @@ type CollectionResultsProps = {
   products: Product[];
   hasMore: boolean;
   query: CollectionQuery;
+  emptyContent?: ReactNode;
 };
 
 export function CollectionResults({
@@ -21,6 +22,7 @@ export function CollectionResults({
   products,
   hasMore,
   query,
+  emptyContent,
 }: CollectionResultsProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -34,7 +36,11 @@ export function CollectionResults({
         hasMore={hasMore}
         loadingMore={pending}
         imagePriorityCount={4}
-        emptyContent={<CollectionEmptyState collection={collection} query={query} />}
+        emptyContent={
+          emptyContent ?? (
+            <CollectionEmptyState collection={collection} query={query} />
+          )
+        }
         onLoadMore={() => {
           startTransition(() => {
             router.push(

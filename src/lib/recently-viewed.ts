@@ -1,14 +1,15 @@
 const KEY = "shadesuk.recently-viewed";
 const MAX = 4;
-const EVENT = "shadesuk:recently-viewed";
 const EMPTY: string[] = [];
+const listeners = new Set<() => void>();
+let snapshot: string[] = EMPTY;
 
-let cached: string[] = EMPTY;
+function same(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((item, index) => item === b[index]);
+}
 
-function sameIds(left: string[], right: string[]): boolean {
-  return (
-    left.length === right.length && left.every((id, index) => id === right[index])
-  );
+function emit(): void {
+  listeners.forEach((listener) => listener());
 }
 
 function read(): string[] {
@@ -18,28 +19,28 @@ function read(): string[] {
   try {
     const raw = window.sessionStorage.getItem(KEY);
     if (!raw) {
-      cached = EMPTY;
+      snapshot = EMPTY;
       return EMPTY;
     }
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) {
-      cached = EMPTY;
+      snapshot = EMPTY;
       return EMPTY;
     }
     const next = parsed
       .filter((item): item is string => typeof item === "string")
       .slice(0, MAX);
     if (next.length === 0) {
-      cached = EMPTY;
+      snapshot = EMPTY;
       return EMPTY;
     }
-    if (sameIds(cached, next)) {
-      return cached;
+    if (same(snapshot, next)) {
+      return snapshot;
     }
-    cached = next;
-    return cached;
+    snapshot = next;
+    return snapshot;
   } catch {
-    cached = EMPTY;
+    snapshot = EMPTY;
     return EMPTY;
   }
 }
@@ -52,15 +53,16 @@ export function getRecentlyViewedServerSnapshot(): string[] {
   return EMPTY;
 }
 
-export function subscribeRecentlyViewed(onChange: () => void): () => void {
-  if (typeof window === "undefined") {
-    return () => undefined;
+export function subscribeRecentlyViewed(listener: () => void): () => void {
+  listeners.add(listener);
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", listener);
   }
-  window.addEventListener(EVENT, onChange);
-  window.addEventListener("storage", onChange);
   return () => {
-    window.removeEventListener(EVENT, onChange);
-    window.removeEventListener("storage", onChange);
+    listeners.delete(listener);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("storage", listener);
+    }
   };
 }
 
@@ -70,7 +72,7 @@ export function recordProductView(id: string): void {
   }
   const current = getRecentlyViewedIds().filter((item) => item !== id);
   const next = [id, ...current].slice(0, MAX);
-  window.sessionStorage.setItem(KEY, JSON.stringify(next));
-  cached = next;
-  window.dispatchEvent(new Event(EVENT));
+  snapshot = next.length ? next : EMPTY;
+  window.sessionStorage.setItem(KEY, JSON.stringify(snapshot));
+  emit();
 }
