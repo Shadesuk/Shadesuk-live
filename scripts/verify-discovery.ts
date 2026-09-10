@@ -16,6 +16,10 @@ import {
   queryCollection,
   getPopulatedCollections,
 } from "../src/services/collections";
+import {
+  getRecentlyViewedIds,
+  getRecentlyViewedServerSnapshot,
+} from "../src/lib/recently-viewed";
 
 const brands = getBrandIndex();
 if (brands.length !== getBrands().filter((brand) => brand.status === "active").length) {
@@ -98,6 +102,15 @@ if (!hub.some((collection) => collection.slug === "aviator")) {
 const menuBrands = getMenuBrandLinks();
 if (menuBrands.length !== brands.filter((brand) => brand.productCount > 0).length) {
   throw new Error("Compact shop menu should list current catalogue brands");
+}
+
+const snapshotA = getRecentlyViewedIds();
+const snapshotB = getRecentlyViewedIds();
+if (snapshotA !== snapshotB) {
+  throw new Error("Recently viewed snapshots must be referentially stable");
+}
+if (getRecentlyViewedServerSnapshot() !== getRecentlyViewedServerSnapshot()) {
+  throw new Error("Recently viewed server snapshot must be cached");
 }
 
 console.log(

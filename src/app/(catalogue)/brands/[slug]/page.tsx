@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { renderBrandPage } from "@/components/discovery/renderCollectionPage";
 import { getBrandBySlug, getPublishedBrands } from "@/services/catalogue";
 
-export const dynamicParams = true;
-
 type PageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
