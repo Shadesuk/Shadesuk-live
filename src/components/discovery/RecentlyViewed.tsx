@@ -2,7 +2,10 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 import { ProductGrid } from "@/components/product/ProductGrid";
-import { getRecentlyViewedIds } from "@/lib/recently-viewed";
+import {
+  getRecentlyViewedIds,
+  subscribeRecentlyViewed,
+} from "@/lib/recently-viewed";
 import type { Product } from "@/types/catalogue";
 import styles from "./RecentlyViewed.module.css";
 
@@ -10,12 +13,14 @@ type RecentlyViewedProps = {
   products: Product[];
 };
 
-function subscribe() {
-  return () => undefined;
-}
+const EMPTY_IDS: string[] = [];
 
 export function RecentlyViewed({ products }: RecentlyViewedProps) {
-  const ids = useSyncExternalStore(subscribe, getRecentlyViewedIds, () => []);
+  const ids = useSyncExternalStore(
+    subscribeRecentlyViewed,
+    getRecentlyViewedIds,
+    () => EMPTY_IDS,
+  );
 
   const viewed = useMemo(
     () =>
