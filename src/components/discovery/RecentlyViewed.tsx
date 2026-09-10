@@ -4,6 +4,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import {
   getRecentlyViewedIds,
+  getRecentlyViewedServerSnapshot,
   subscribeRecentlyViewed,
 } from "@/lib/recently-viewed";
 import type { Product } from "@/types/catalogue";
@@ -13,20 +14,19 @@ type RecentlyViewedProps = {
   products: Product[];
 };
 
-const EMPTY_IDS: string[] = [];
-
 export function RecentlyViewed({ products }: RecentlyViewedProps) {
   const ids = useSyncExternalStore(
     subscribeRecentlyViewed,
     getRecentlyViewedIds,
-    () => EMPTY_IDS,
+    getRecentlyViewedServerSnapshot,
   );
 
   const viewed = useMemo(
     () =>
       ids
         .map((id) => products.find((product) => product.id === id))
-        .filter((product): product is Product => Boolean(product)),
+        .filter((product): product is Product => Boolean(product))
+        .slice(0, 4),
     [ids, products],
   );
 

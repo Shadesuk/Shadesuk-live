@@ -1,6 +1,7 @@
 "use client";
 
 import { genderLinks, routes, shapeLinks } from "@/lib/navigation";
+import { getMenuBrandLinks } from "@/services/catalogue";
 import { NavLink } from "./NavLink";
 import styles from "./ShopMenu.module.css";
 
@@ -10,6 +11,8 @@ type ShopMenuProps = {
 };
 
 export function ShopMenu({ id, onNavigate }: ShopMenuProps) {
+  const brandLinks = getMenuBrandLinks();
+
   return (
     <div className={styles.menu} id={id}>
       <div className={styles.group}>
@@ -29,6 +32,15 @@ export function ShopMenu({ id, onNavigate }: ShopMenuProps) {
         <p className={`text-micro ${styles.heading}`} id={`${id}-brands`}>
           Brands
         </p>
+        {brandLinks.length > 0 ? (
+          <div className={styles.row} role="group" aria-labelledby={`${id}-brands`}>
+            {brandLinks.map((item) => (
+              <NavLink key={item.href} href={item.href} onClick={onNavigate}>
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+        ) : null}
         <NavLink href={routes.brands} onClick={onNavigate}>
           View all brands
         </NavLink>

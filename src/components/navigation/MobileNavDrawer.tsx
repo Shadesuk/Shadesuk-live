@@ -7,6 +7,7 @@ import {
   routes,
   shapeLinks,
 } from "@/lib/navigation";
+import { getMenuBrandLinks } from "@/services/catalogue";
 import { NavLink } from "./NavLink";
 import styles from "./MobileNavDrawer.module.css";
 
@@ -46,6 +47,7 @@ const titles: Record<Panel, string> = {
 export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
   const [panel, setPanel] = useState<Panel>("root");
   const titleId = "mobile-nav-title";
+  const brandLinks = getMenuBrandLinks();
 
   const parent = useMemo<Panel | null>(() => {
     if (panel === "shop" || panel === "collections") {
@@ -146,6 +148,13 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
 
       {panel === "brands" ? (
         <ul className={styles.list}>
+          {brandLinks.map((item) => (
+            <li key={item.href}>
+              <NavLink href={item.href} className={styles.item} onClick={handleClose}>
+                {item.label}
+              </NavLink>
+            </li>
+          ))}
           <li>
             <NavLink href={routes.brands} className={styles.item} onClick={handleClose}>
               View all brands

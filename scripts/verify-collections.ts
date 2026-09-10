@@ -1,9 +1,11 @@
 import {
   applyFilters,
   applySort,
+  getBrandCollectionBySlug,
   getCollectionBySlug,
   getCollectionProducts,
   getFilteredProductCount,
+  getPopulatedCollections,
   parseCollectionQuery,
   queryCollection,
 } from "../src/services/collections";
@@ -60,6 +62,20 @@ if (page.products.length !== 4 || !page.hasMore) {
 const empty = queryCollection(shop, parseCollectionQuery({ colour: "green", availability: "in_stock" }));
 if (empty.total !== 0) {
   throw new Error("Expected empty in-stock green filter combination");
+}
+
+const brand = getBrandCollectionBySlug("demo-line-a");
+if (!brand) {
+  throw new Error("Expected brand collection for Demo Line A");
+}
+const brandPage = queryCollection(brand, emptyCollectionQuery());
+if (brandPage.total !== getCollectionProducts(brand).length) {
+  throw new Error("Brand collection products should match query totals");
+}
+
+const hub = getPopulatedCollections();
+if (hub.length === 0 || hub.some((item) => item.kind !== "shape")) {
+  throw new Error("Populated collections should be catalogue-backed shapes only");
 }
 
 console.log(

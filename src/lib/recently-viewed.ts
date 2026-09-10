@@ -27,7 +27,9 @@ function read(): string[] {
       snapshot = EMPTY;
       return EMPTY;
     }
-    const next = parsed.filter((item): item is string => typeof item === "string");
+    const next = parsed
+      .filter((item): item is string => typeof item === "string")
+      .slice(0, MAX);
     if (next.length === 0) {
       snapshot = EMPTY;
       return EMPTY;
@@ -47,10 +49,20 @@ export function getRecentlyViewedIds(): string[] {
   return read();
 }
 
+export function getRecentlyViewedServerSnapshot(): string[] {
+  return EMPTY;
+}
+
 export function subscribeRecentlyViewed(listener: () => void): () => void {
   listeners.add(listener);
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", listener);
+  }
   return () => {
     listeners.delete(listener);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("storage", listener);
+    }
   };
 }
 

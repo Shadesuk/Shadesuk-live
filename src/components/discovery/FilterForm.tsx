@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/Button";
 import { PRICE_RANGES } from "@/types/collection";
-import type { CollectionQuery } from "@/types/collection";
+import type { CollectionQuery, HiddenFilterKey } from "@/types/collection";
 import type { CatalogueFilters } from "@/types/catalogue";
 import { genderLabel, shapeLabel } from "@/services/collections";
 import styles from "./FilterForm.module.css";
@@ -9,7 +9,7 @@ type FilterFormProps = {
   id?: string;
   value: CollectionQuery;
   options: CatalogueFilters;
-  hidden: Array<"gender" | "shape">;
+  hidden: HiddenFilterKey[];
   onChange: (next: CollectionQuery) => void;
 };
 
@@ -51,26 +51,28 @@ export function FilterForm({
         </fieldset>
       )}
 
-      <fieldset className={styles.group}>
-        <legend className="text-micro">Brand</legend>
-        {options.brands.map((brand) => (
-          <label key={brand.id} className={styles.option}>
-            <input
-              type="checkbox"
-              name="brand"
-              value={brand.slug}
-              checked={value.brands.includes(brand.slug)}
-              onChange={() =>
-                onChange({
-                  ...value,
-                  brands: toggleValue(value.brands, brand.slug),
-                })
-              }
-            />
-            <span className="text-small">{brand.name}</span>
-          </label>
-        ))}
-      </fieldset>
+      {hidden.includes("brand") ? null : (
+        <fieldset className={styles.group}>
+          <legend className="text-micro">Brand</legend>
+          {options.brands.map((brand) => (
+            <label key={brand.id} className={styles.option}>
+              <input
+                type="checkbox"
+                name="brand"
+                value={brand.slug}
+                checked={value.brands.includes(brand.slug)}
+                onChange={() =>
+                  onChange({
+                    ...value,
+                    brands: toggleValue(value.brands, brand.slug),
+                  })
+                }
+              />
+              <span className="text-small">{brand.name}</span>
+            </label>
+          ))}
+        </fieldset>
+      )}
 
       {hidden.includes("shape") ? null : (
         <fieldset className={styles.group}>

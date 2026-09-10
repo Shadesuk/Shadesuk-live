@@ -1,10 +1,14 @@
-import { routes, shapeLinks } from "@/lib/navigation";
+import { brandPath, routes, shapeLinks } from "@/lib/navigation";
 import {
   getAvailableFilters,
   getBestSellers,
+  getBrandById,
+  getBrandBySlug,
   getBrands,
   getNewArrivals,
+  getPopulatedShapes,
   getProducts,
+  getProductsByBrand,
   getProductsByGender,
   getProductsByShape,
 } from "@/services/catalogue";
@@ -15,12 +19,14 @@ import {
   type CollectionDefinition,
   type CollectionFilterChip,
   type CollectionQuery,
+  type HiddenFilterKey,
   type PriceRangeId,
   type SortId,
 } from "@/types/collection";
 import {
   GENDERS,
   SHAPES,
+  type Brand,
   type CatalogueFilters,
   type Gender,
   type Product,
@@ -127,6 +133,44 @@ export function getCollectionBySlug(
   );
 }
 
+export function getPopulatedShapeCollections(): CollectionDefinition[] {
+  return getPopulatedShapes()
+    .map((shape) => getCollectionBySlug(shape))
+    .filter((collection): collection is CollectionDefinition =>
+      Boolean(collection),
+    );
+}
+
+/**
+ * Public discovery collections for the hub.
+ * Style collections remain unpublished until the taxonomy is resolved.
+ */
+export function getPopulatedCollections(): CollectionDefinition[] {
+  return getPopulatedShapeCollections();
+}
+
+export function getBrandCollection(brand: Brand): CollectionDefinition {
+  return {
+    id: `brand:${brand.id}`,
+    slug: brand.slug,
+    href: brandPath(brand.slug),
+    title: brand.name,
+    description: brand.description,
+    kind: "brand",
+    brandId: brand.id,
+  };
+}
+
+export function getBrandCollectionBySlug(
+  slug: string,
+): CollectionDefinition | undefined {
+  const brand = getBrandBySlug(slug);
+  if (!brand || brand.status !== "active") {
+    return undefined;
+  }
+  return getBrandCollection(brand);
+}
+
 export function getCollectionProducts(
   collection: CollectionDefinition,
 ): Product[] {
@@ -141,6 +185,9 @@ export function getCollectionProducts(
   }
   if (collection.kind === "shape" && collection.shape) {
     return getProductsByShape(collection.shape);
+  }
+  if (collection.kind === "brand" && collection.brandId) {
+    return getProductsByBrand(collection.brandId);
   }
   return getProducts();
 }
@@ -228,7 +275,10 @@ export function getFilteredProductCount(
   collection: CollectionDefinition,
   query: CollectionQuery,
 ): number {
-  return applyFilters(getCollectionProducts(collection), query).length;
+  return applyFilters(
+    getCollectionProducts(collection),
+    contextualQuery(collection, query),
+  ).length;
 }
 
 export function queryCollection(
@@ -236,13 +286,24 @@ export function queryCollection(
   query: CollectionQuery,
   scoped = getCollectionProducts(collection),
 ) {
-  const filtered = applySort(applyFilters(scoped, query), query.sort);
+  const filterQuery = contextualQuery(collection, query);
+  const filtered = applySort(applyFilters(scoped, filterQuery), filterQuery.sort);
   return {
     products: filtered.slice(0, query.limit),
     total: filtered.length,
     hasMore: filtered.length > query.limit,
     filterOptions: getAvailableFilters(scoped),
   };
+}
+
+function contextualQuery(
+  collection: CollectionDefinition,
+  query: CollectionQuery,
+): CollectionQuery {
+  if (collection.kind === "brand") {
+    return { ...query, brands: [] };
+  }
+  return query;
 }
 
 function readList(value: string | string[] | undefined): string[] {
@@ -365,12 +426,15 @@ export function collectionQueryPath(
 
 export function hiddenFilterKeys(
   collection: CollectionDefinition,
-): Array<"gender" | "shape"> {
+): HiddenFilterKey[] {
   if (collection.kind === "gender") {
     return ["gender"];
   }
   if (collection.kind === "shape") {
     return ["shape"];
+  }
+  if (collection.kind === "brand") {
+    return ["brand"];
   }
   return [];
 }
@@ -392,14 +456,19 @@ export function getFilterChips(
     }
   }
 
-  for (const brandId of query.brands) {
-    const brand = options.brands.find(
-      (item) => item.id === brandId || item.slug === brandId,
-    );
-    chips.push({
-      key: `brand:${brandId}`,
-      label: brand?.name ?? brandId,
-    });
+  if (!hidden.includes("brand")) {
+    for (const brandId of query.brands) {
+      const brand =
+        options.brands.find(
+          (item) => item.id === brandId || item.slug === brandId,
+        ) ??
+        getBrandById(brandId) ??
+        getBrandBySlug(brandId);
+      chips.push({
+        key: `brand:${brandId}`,
+        label: brand?.name ?? brandId,
+      });
+    }
   }
 
   if (!hidden.includes("shape")) {
@@ -468,12 +537,21 @@ export function countActiveFilters(
   return getFilterChips(query, collection, options).length;
 }
 
-export function hasActiveFilters(
+export function hasUserFilters(
   query: CollectionQuery,
   collection: CollectionDefinition,
-  options: CatalogueFilters,
 ): boolean {
-  return countActiveFilters(query, collection, options) > 0;
+  const hidden = hiddenFilterKeys(collection);
+  if (!hidden.includes("gender") && query.genders.length > 0) {
+    return true;
+  }
+  if (!hidden.includes("brand") && query.brands.length > 0) {
+    return true;
+  }
+  if (!hidden.includes("shape") && query.shapes.length > 0) {
+    return true;
+  }
+  return query.colours.length > 0 || Boolean(query.price) || query.inStockOnly;
 }
 
 export function genderLabel(gender: Gender): string {

@@ -5,7 +5,7 @@ import { Drawer } from "@/components/ui/Drawer";
 import { useChrome } from "@/components/navigation/ChromeContext";
 import { Button } from "@/components/ui/Button";
 import type { CatalogueFilters } from "@/types/catalogue";
-import type { CollectionQuery } from "@/types/collection";
+import type { CollectionQuery, HiddenFilterKey } from "@/types/collection";
 import { FilterForm, FilterFormActions } from "./FilterForm";
 import styles from "./FilterDrawer.module.css";
 
@@ -14,7 +14,7 @@ type FilterDrawerProps = {
   onClose: () => void;
   value: CollectionQuery;
   options: CatalogueFilters;
-  hidden: Array<"gender" | "shape">;
+  hidden: HiddenFilterKey[];
   onApply: (next: CollectionQuery) => void;
   side: "bottom" | "right";
 };
@@ -75,7 +75,7 @@ function FilterDraft({
   titleId: string;
   value: CollectionQuery;
   options: CatalogueFilters;
-  hidden: Array<"gender" | "shape">;
+  hidden: HiddenFilterKey[];
   onApply: (next: CollectionQuery) => void;
   onClose: () => void;
 }) {

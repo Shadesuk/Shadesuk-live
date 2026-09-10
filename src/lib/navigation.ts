@@ -54,6 +54,7 @@ export const footerNav = {
     { href: routes.newArrivals, label: "New Arrivals" },
     { href: routes.bestSellers, label: "Best Sellers" },
     { href: routes.collections, label: "Collections" },
+    { href: routes.brands, label: "Brands" },
   ],
   help: [
     { href: routes.faq, label: "FAQ" },
@@ -72,6 +73,10 @@ export const footerNav = {
 
 export function productPath(slug: string): string {
   return `/product/${slug}`;
+}
+
+export function brandPath(slug: string): string {
+  return `/brands/${slug}`;
 }
 
 export function isCurrentPath(pathname: string, href: string): boolean {
