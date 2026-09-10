@@ -3,20 +3,21 @@
 import { useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ProductGrid } from "@/components/product/ProductGrid";
-import { COLLECTION_PAGE_SIZE } from "@/types/collection";
-import type { CollectionQuery } from "@/types/collection";
+import { COLLECTION_PAGE_SIZE, type CollectionDefinition, type CollectionQuery } from "@/types/collection";
 import type { Product } from "@/types/catalogue";
 import { collectionQueryPath } from "@/services/collections";
 import { CollectionEmptyState } from "./CollectionEmptyState";
 import styles from "./CollectionResults.module.css";
 
 type CollectionResultsProps = {
+  collection: CollectionDefinition;
   products: Product[];
   hasMore: boolean;
   query: CollectionQuery;
 };
 
 export function CollectionResults({
+  collection,
   products,
   hasMore,
   query,
@@ -33,7 +34,7 @@ export function CollectionResults({
         hasMore={hasMore}
         loadingMore={pending}
         imagePriorityCount={4}
-        emptyContent={<CollectionEmptyState query={query} />}
+        emptyContent={<CollectionEmptyState collection={collection} query={query} />}
         onLoadMore={() => {
           startTransition(() => {
             router.push(

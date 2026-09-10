@@ -2,19 +2,43 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { routes } from "@/lib/navigation";
-import { collectionQueryPath, emptyCollectionQuery } from "@/services/collections";
-import type { CollectionQuery } from "@/types/collection";
+import {
+  collectionQueryPath,
+  emptyCollectionQuery,
+  hasUserFilters,
+} from "@/services/collections";
+import type { CollectionDefinition, CollectionQuery } from "@/types/collection";
 
 type CollectionEmptyStateProps = {
+  collection: CollectionDefinition;
   query: CollectionQuery;
 };
 
-export function CollectionEmptyState({ query }: CollectionEmptyStateProps) {
+export function CollectionEmptyState({
+  collection,
+  query,
+}: CollectionEmptyStateProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const filtered = hasUserFilters(query, collection);
+
+  if (!filtered) {
+    return (
+      <EmptyState
+        title="No shades available."
+        description="Explore all shades."
+        actions={
+          <ButtonLink href={routes.shop} variant="secondary">
+            View all shades
+          </ButtonLink>
+        }
+      />
+    );
+  }
 
   return (
     <EmptyState

@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { CollectionTemplate } from "@/components/discovery/CollectionTemplate";
-import {
-  getCollectionBySlug,
-  parseCollectionQuery,
-  queryCollection,
-} from "@/services/collections";
+import { renderCollectionBySlug } from "@/components/discovery/renderCollectionPage";
+import { getCollectionBySlug } from "@/services/collections";
 import { SHAPES } from "@/types/catalogue";
 
 type PageProps = {
@@ -31,21 +26,5 @@ export default async function CollectionSlugPage({
   searchParams,
 }: PageProps) {
   const { slug } = await params;
-  const collection = getCollectionBySlug(slug);
-  if (!collection) {
-    notFound();
-  }
-  const query = parseCollectionQuery(await searchParams);
-  const result = queryCollection(collection, query);
-
-  return (
-    <CollectionTemplate
-      collection={collection}
-      query={query}
-      products={result.products}
-      total={result.total}
-      hasMore={result.hasMore}
-      filterOptions={result.filterOptions}
-    />
-  );
+  return renderCollectionBySlug(slug, await searchParams);
 }

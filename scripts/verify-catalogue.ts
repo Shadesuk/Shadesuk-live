@@ -1,6 +1,7 @@
 import {
   assertDemoCatalogueIntegrity,
   getBestSellers,
+  getBrandBySlug,
   getColourCount,
   getEditorialProduct,
   getHomepageFeatured,
@@ -60,6 +61,14 @@ if (!getPopulatedShapes().includes("aviator")) {
 }
 if (getPopulatedShapes().length === 0) {
   throw new Error("Expected populated shapes");
+}
+
+const demoLineA = getBrandBySlug("demo-line-a");
+if (!demoLineA || demoLineA.productCount < 1) {
+  throw new Error("Expected catalogue-backed Demo Line A with a derived product count");
+}
+if (getBrandBySlug("not-a-brand")) {
+  throw new Error("Unknown brand slugs must not resolve");
 }
 
 console.log(`Catalogue OK: ${products.length} demo products`);

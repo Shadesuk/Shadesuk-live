@@ -1,11 +1,12 @@
 import { demoCatalogue } from "@/data/catalogue";
-import { productPath } from "@/lib/navigation";
+import { brandPath, productPath } from "@/lib/navigation";
 import {
   AVAILABILITIES,
   GENDERS,
   SHAPES,
   type Availability,
   type Brand,
+  type BrandSource,
   type CatalogueFilters,
   type Gender,
   type Product,
@@ -33,8 +34,50 @@ export function getProducts(): Product[] {
   return demoCatalogue.products;
 }
 
+function withProductCount(brand: BrandSource): Brand {
+  return {
+    ...brand,
+    productCount: demoCatalogue.products.filter(
+      (product) => product.brandId === brand.id,
+    ).length,
+  };
+}
+
 export function getBrands(): Brand[] {
-  return demoCatalogue.brands;
+  return demoCatalogue.brands.map(withProductCount);
+}
+
+export function getPublishedBrands(): Brand[] {
+  return getBrands().filter((brand) => brand.status === "active");
+}
+
+export function getBrandIndex(): Brand[] {
+  return getPublishedBrands();
+}
+
+export function getBrandBySlug(slug: string): Brand | undefined {
+  const brand = demoCatalogue.brands.find((item) => item.slug === slug);
+  return brand ? withProductCount(brand) : undefined;
+}
+
+export function getBrandProducts(brandSlugOrId: string): Product[] {
+  return getProductsByBrand(brandSlugOrId);
+}
+
+export function getBrandHref(brand: Pick<Brand, "slug">): string {
+  return brandPath(brand.slug);
+}
+
+/** Compact header/menu links. Empty when the catalogue is large enough for /brands. */
+export function getMenuBrandLinks(limit = 6): Array<{ href: string; label: string }> {
+  const brands = getPublishedBrands().filter((brand) => brand.productCount > 0);
+  if (brands.length > limit) {
+    return [];
+  }
+  return brands.map((brand) => ({
+    href: brandPath(brand.slug),
+    label: brand.name,
+  }));
 }
 
 export function getShapes(): Shape[] {
@@ -42,7 +85,8 @@ export function getShapes(): Shape[] {
 }
 
 export function getBrandById(id: string): Brand | undefined {
-  return demoCatalogue.brands.find((brand) => brand.id === id);
+  const brand = demoCatalogue.brands.find((item) => item.id === id);
+  return brand ? withProductCount(brand) : undefined;
 }
 
 export function getBrandName(product: Product): string {
@@ -181,6 +225,20 @@ export function getAvailableFilters(
 }
 
 export function assertDemoCatalogueIntegrity(products = getProducts()): void {
+  for (const brand of demoCatalogue.brands) {
+    if (!brand.isDemo) {
+      throw new Error(`Demo brand ${brand.slug} must be marked isDemo.`);
+    }
+    if (brand.description) {
+      throw new Error(
+        `Demo brand ${brand.slug} must not invent a brand description.`,
+      );
+    }
+    if (brand.logo) {
+      throw new Error(`Demo brand ${brand.slug} must not invent a brand logo.`);
+    }
+  }
+
   for (const product of products) {
     if (product.style.length > 0) {
       throw new Error(

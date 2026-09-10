@@ -29,7 +29,12 @@ export function CollectionTemplate({
 }: CollectionTemplateProps) {
   return (
     <PageContainer>
-      <main id="main" className={styles.main} data-collection={collection.slug}>
+      <main
+        id="main"
+        className={styles.main}
+        data-collection={collection.slug}
+        data-collection-kind={collection.kind}
+      >
         <ContentWidth>
           <CollectionHeader
             title={collection.title}
@@ -44,6 +49,7 @@ export function CollectionTemplate({
             }
           />
           <CollectionResults
+            collection={collection}
             products={products}
             hasMore={hasMore}
             query={query}

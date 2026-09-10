@@ -41,7 +41,14 @@ export const PRICE_RANGES: ReadonlyArray<{
 
 export const COLLECTION_PAGE_SIZE = 4;
 
-export type CollectionKind = "all" | "gender" | "merchandising" | "shape";
+export type CollectionKind =
+  | "all"
+  | "gender"
+  | "merchandising"
+  | "shape"
+  | "brand";
+
+export type HiddenFilterKey = "gender" | "shape" | "brand";
 
 export type CollectionDefinition = {
   id: string;
@@ -53,6 +60,7 @@ export type CollectionDefinition = {
   gender?: Gender;
   shape?: Shape;
   merchandising?: "new-arrivals" | "best-sellers";
+  brandId?: string;
 };
 
 export type CollectionQuery = {

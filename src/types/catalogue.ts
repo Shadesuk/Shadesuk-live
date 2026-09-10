@@ -34,11 +34,29 @@ export const PRODUCT_IMAGE_ROLES = [
 ] as const;
 export type ProductImageRole = (typeof PRODUCT_IMAGE_ROLES)[number];
 
-export type Brand = {
+export const BRAND_STATUSES = ["active", "inactive"] as const;
+export type BrandStatus = (typeof BRAND_STATUSES)[number];
+
+export type BrandLogo = {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+};
+
+/** Catalogue brand record. productCount is derived at read time, never stored. */
+export type BrandSource = {
   id: string;
   slug: string;
   name: string;
+  status: BrandStatus;
   isDemo: boolean;
+  description?: string;
+  logo?: BrandLogo;
+};
+
+export type Brand = BrandSource & {
+  productCount: number;
 };
 
 export type ProductColour = {
@@ -99,7 +117,7 @@ export type Product = {
 };
 
 export type Catalogue = {
-  brands: Brand[];
+  brands: BrandSource[];
   products: Product[];
 };
 

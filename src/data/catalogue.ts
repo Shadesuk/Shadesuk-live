@@ -2,15 +2,33 @@
  * Demo catalogue fixtures for structural frontend work.
  * Not production inventory. Not real brands. No photography assets yet.
  */
-import type { Brand, Catalogue, Product } from "@/types/catalogue";
+import type { BrandSource, Catalogue, Product } from "@/types/catalogue";
 
 export const DEMO_CATALOGUE_NOTICE =
   "Demo catalogue fixtures. Not live inventory, not real brands, and not product photography.";
 
-const brands: Brand[] = [
-  { id: "brand-line-a", slug: "demo-line-a", name: "Demo Line A", isDemo: true },
-  { id: "brand-line-b", slug: "demo-line-b", name: "Demo Line B", isDemo: true },
-  { id: "brand-line-c", slug: "demo-line-c", name: "Demo Line C", isDemo: true },
+const brands: BrandSource[] = [
+  {
+    id: "brand-line-a",
+    slug: "demo-line-a",
+    name: "Demo Line A",
+    status: "active",
+    isDemo: true,
+  },
+  {
+    id: "brand-line-b",
+    slug: "demo-line-b",
+    name: "Demo Line B",
+    status: "active",
+    isDemo: true,
+  },
+  {
+    id: "brand-line-c",
+    slug: "demo-line-c",
+    name: "Demo Line C",
+    status: "active",
+    isDemo: true,
+  },
 ];
 
 const colours = {
