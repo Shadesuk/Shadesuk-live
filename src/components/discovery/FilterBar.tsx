@@ -70,6 +70,7 @@ export function FilterBar({ collection, query, options }: FilterBarProps) {
     pushQuery({
       ...emptyCollectionQuery(),
       sort: query.sort,
+      q: query.q,
     });
   }
 

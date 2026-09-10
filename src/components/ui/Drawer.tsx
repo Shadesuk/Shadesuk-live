@@ -13,7 +13,7 @@ type DrawerProps = {
   titleId: string;
   id?: string;
   children: ReactNode;
-  side?: "left" | "right" | "bottom";
+  side?: "left" | "right" | "bottom" | "full";
 };
 
 export function Drawer({

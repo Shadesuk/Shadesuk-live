@@ -1,0 +1,23 @@
+.page {
+  display: grid;
+  gap: var(--space-32);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-12);
+  max-width: 40rem;
+}
+
+.kicker {
+  margin: 0;
+}
+
+.title {
+  margin: 0;
+}
+
+.lede {
+  margin: 0;
+  max-width: var(--measure);
+}

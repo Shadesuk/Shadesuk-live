@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Modal } from "@/components/ui/Modal";
-import { Button } from "@/components/ui/Button";
 import { ContentWidth } from "@/components/layout/ContentWidth";
+import { SearchOverlay } from "@/components/search/SearchOverlay";
 import { primaryNav, routes } from "@/lib/navigation";
 import { useChrome } from "./ChromeContext";
 import { BrandMark } from "./BrandMark";
@@ -20,8 +19,6 @@ export function SiteHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
   const shopRef = useRef<HTMLDivElement>(null);
   const shopMenuId = useId();
-  const searchTitleId = useId();
-  const searchDescriptionId = useId();
 
   const closeShop = useCallback(() => {
     setShopOpen(false);
@@ -120,6 +117,7 @@ export function SiteHeader() {
           <UtilityButton
             onClick={() => setSearchOpen(true)}
             expanded={searchOpen}
+            controls="site-search-dialog"
             hasPopup="dialog"
           >
             Search
@@ -140,25 +138,10 @@ export function SiteHeader() {
 
       <MobileNavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
 
-      <Modal
+      <SearchOverlay
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
-        titleId={searchTitleId}
-        descriptionId={searchDescriptionId}
-      >
-        <div className={styles.searchCopy}>
-          <h2 id={searchTitleId} className="text-h3">
-            Search
-          </h2>
-          <p id={searchDescriptionId} className="text-body">
-            Search is a development boundary for a later phase. This is not the
-            search experience.
-          </p>
-          <Button variant="secondary" onClick={() => setSearchOpen(false)}>
-            Close
-          </Button>
-        </div>
-      </Modal>
+      />
     </header>
   );
 }

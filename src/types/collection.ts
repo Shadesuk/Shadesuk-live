@@ -56,6 +56,7 @@ export type CollectionDefinition = {
 };
 
 export type CollectionQuery = {
+  q?: string;
   genders: Gender[];
   brands: string[];
   shapes: Shape[];

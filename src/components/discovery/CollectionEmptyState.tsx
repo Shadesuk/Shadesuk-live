@@ -29,6 +29,7 @@ export function CollectionEmptyState({ query }: CollectionEmptyStateProps) {
                 collectionQueryPath(pathname, {
                   ...emptyCollectionQuery(),
                   sort: query.sort,
+                  q: query.q,
                 }),
               )
             }

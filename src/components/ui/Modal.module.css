@@ -28,6 +28,13 @@
   animation: fade-in var(--duration) var(--ease);
 }
 
+.search {
+  top: 12vh;
+  transform: translate(-50%, 0);
+  width: min(calc(100% - var(--space-32)), 40rem);
+  max-height: min(80vh, 44rem);
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
