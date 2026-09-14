@@ -47,22 +47,30 @@ function allowsSecretTransport(url: string): boolean {
 }
 
 /**
- * Verifies the Supabase connection without touching application schema: the
- * PostgREST root only answers once the API gateway has reached Postgres and has
- * accepted the API key. No key material or response body is ever returned.
+ * Endpoints that verify a key without touching application schema. GoTrue's
+ * health endpoint accepts a publishable key, whereas the PostgREST root rejects
+ * anything but a secret key ("Only secret API keys can be used for this
+ * endpoint") and in exchange proves the API gateway reached Postgres.
  */
-async function probeRestRoot(
+const PROBE_PATH: Record<SupabaseProbeName, string> = {
+  publishableKey: "/auth/v1/health",
+  secretKey: "/rest/v1/",
+};
+
+/**
+ * Sends the key the only way the gateway authenticates it, as `apikey`. No
+ * bearer token is attached: publishable and secret keys are not JWTs, so a
+ * misplaced one would be rejected as a malformed session. No key material or
+ * response body is ever returned.
+ */
+async function probeApiKey(
   key: SupabaseProbeName,
   url: string,
   apiKey: string,
 ): Promise<SupabaseProbe> {
   try {
-    const response = await fetch(`${url}/rest/v1/`, {
-      headers: {
-        apikey: apiKey,
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
+    const response = await fetch(`${url}${PROBE_PATH[key]}`, {
+      headers: { apikey: apiKey, Accept: "application/json" },
       cache: "no-store",
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
@@ -97,7 +105,7 @@ export async function checkSupabaseConnection(): Promise<SupabaseConnectionRepor
   }
 
   const probes: SupabaseProbe[] = [
-    await probeRestRoot("publishableKey", config.config.url, config.config.publishableKey),
+    await probeApiKey("publishableKey", config.config.url, config.config.publishableKey),
   ];
 
   if (!hasSupabaseSecretKey()) {
@@ -112,7 +120,7 @@ export async function checkSupabaseConnection(): Promise<SupabaseConnectionRepor
     );
   } else {
     probes.push(
-      await probeRestRoot("secretKey", config.config.url, getSupabaseSecretKey()),
+      await probeApiKey("secretKey", config.config.url, getSupabaseSecretKey()),
     );
   }
 
