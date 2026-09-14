@@ -12,7 +12,8 @@ export type SupabaseProbeStatus =
   | "unauthorized"
   | "unexpected_status"
   | "unreachable"
-  | "skipped";
+  | "skipped"
+  | "skipped_insecure_transport";
 
 export type SupabaseProbe = {
   key: SupabaseProbeName;
@@ -31,6 +32,19 @@ export type SupabaseConnectionReport = {
   checkedAt: string;
   durationMs: number;
 };
+
+/**
+ * The secret key may only be sent over TLS, or to a loopback address where it
+ * never leaves the machine. A misconfigured project URL must not become a way to
+ * ship the secret to an arbitrary host in the clear.
+ */
+function allowsSecretTransport(url: string): boolean {
+  const { protocol, hostname } = new URL(url);
+  if (protocol === "https:") {
+    return true;
+  }
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
 
 /**
  * Verifies the Supabase connection without touching application schema: the
@@ -86,19 +100,26 @@ export async function checkSupabaseConnection(): Promise<SupabaseConnectionRepor
     await probeRestRoot("publishableKey", config.config.url, config.config.publishableKey),
   ];
 
-  if (hasSupabaseSecretKey()) {
-    probes.push(
-      await probeRestRoot("secretKey", config.config.url, getSupabaseSecretKey()),
-    );
-  } else {
+  if (!hasSupabaseSecretKey()) {
     probes.push({ key: "secretKey", status: "skipped" });
     warnings.push(
       "SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) is not set, so server-side privileged access is unavailable",
     );
+  } else if (!allowsSecretTransport(config.config.url)) {
+    probes.push({ key: "secretKey", status: "skipped_insecure_transport" });
+    warnings.push(
+      "NEXT_PUBLIC_SUPABASE_URL is plaintext http to a remote host, so the secret key was not sent",
+    );
+  } else {
+    probes.push(
+      await probeRestRoot("secretKey", config.config.url, getSupabaseSecretKey()),
+    );
   }
 
   return {
-    ok: probes.every((probe) => probe.status === "ok" || probe.status === "skipped"),
+    ok: probes.every(
+      (probe) => probe.status === "ok" || probe.status === "skipped",
+    ),
     configured: true,
     issues: [],
     warnings,
