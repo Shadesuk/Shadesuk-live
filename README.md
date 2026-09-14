@@ -45,5 +45,26 @@ curl -s http://localhost:3000/api/health/supabase
 ```
 
 It returns `200` when the project URL and keys reach Supabase, and `503`
-otherwise. The response reports statuses and variable names only. No schema is
-queried, so it stays valid before any migrations exist.
+otherwise. No schema is queried, so it stays valid before any migrations exist.
+
+The endpoint is unauthenticated, so in production it answers with `ok` and
+`checkedAt` only, and the failing variable names and probe statuses go to the
+server log instead. In development the full report comes back in the response.
+Either way it never returns key material or an upstream response body, and the
+secret key is only ever sent over https or to a loopback address.
+
+### Migrations (not yet linked)
+
+The CLI is used through `npx` rather than a dependency, so a Vercel build never
+has to download its binary:
+
+```bash
+npx supabase@2.117.0 --version
+npx supabase@2.117.0 login          # or export SUPABASE_ACCESS_TOKEN
+npx supabase@2.117.0 link --project-ref <project-ref>
+npx supabase@2.117.0 projects list  # confirms the link resolves
+```
+
+The project ref is the subdomain of `NEXT_PUBLIC_SUPABASE_URL`
+(`https://<project-ref>.supabase.co`). Nothing is linked yet, so no migration
+commands should be run.
