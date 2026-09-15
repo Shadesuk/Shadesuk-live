@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { PRODUCT_DISCLOSURE_COPY } from "../src/components/pdp/ProductDisclosure";
 import { FACE_GUIDE } from "../src/components/pdp/face-guide";
 import {
@@ -164,6 +166,32 @@ const cookie = guestCartCookieSetOptions(createGuestCartSessionId(), {
 });
 if (!cookie.httpOnly || cookie.secure !== true) {
   throw new Error("Guest cart cookie must be httpOnly and Secure in production.");
+}
+
+const heroSource = readFileSync(
+  resolve(process.cwd(), "src/components/pdp/ProductHero.tsx"),
+  "utf8",
+);
+if (!heroSource.includes("inert={sticky || undefined}")) {
+  throw new Error("In-page add-to-bag must be inert while the sticky purchase bar is shown.");
+}
+if (!heroSource.includes('matchMedia("(min-width: 1200px)")')) {
+  throw new Error("Sticky purchase bar must stay off at the desktop breakpoint.");
+}
+if (
+  !heroSource.includes("{sticky ? (") ||
+  heroSource.includes("data-sticky-purchase={sticky ?")
+) {
+  throw new Error("Sticky add-to-bag must mount only when it replaces the in-page CTA.");
+}
+
+const layoutSource = readFileSync(
+  resolve(process.cwd(), "src/styles/layout.css"),
+  "utf8",
+);
+const fullBleedBlock = layoutSource.match(/\.full-bleed\s*\{[^}]+\}/);
+if (!fullBleedBlock || fullBleedBlock[0].includes("100vw")) {
+  throw new Error("Full-bleed must not use 100vw (horizontal scrollbar on About).");
 }
 
 console.log("PDP OK: demo slugs resolve, disclosure locked, add-to-bag ready to persist");
