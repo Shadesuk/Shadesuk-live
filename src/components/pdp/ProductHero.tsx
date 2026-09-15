@@ -9,7 +9,7 @@ import {
   getAvailabilityLabel,
   getColourCount,
   isProductAvailable,
-} from "@/services/catalogue";
+} from "@/lib/product-display";
 import { ADD_TO_BAG_QUANTITY_MAX, resolveSelectedVariant } from "@/lib/add-to-bag";
 import { addToBagAction } from "@/app/product/actions";
 import { useCart } from "@/components/cart/CartProvider";

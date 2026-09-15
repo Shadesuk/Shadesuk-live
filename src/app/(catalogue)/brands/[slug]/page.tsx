@@ -1,20 +1,29 @@
 import type { Metadata } from "next";
 import { renderBrandPage } from "@/components/discovery/renderCollectionPage";
-import { getBrandBySlug, getPublishedBrands } from "@/services/catalogue";
+import { getStorefrontCatalogue } from "@/services/storefront-catalogue";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export function generateStaticParams() {
-  return getPublishedBrands().map((brand) => ({ slug: brand.slug }));
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  const catalogue = await getStorefrontCatalogue();
+  return catalogue.brands
+    .filter((brand) => brand.status === "active")
+    .map((brand) => ({ slug: brand.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const brand = getBrandBySlug(slug);
-  if (!brand || brand.status !== "active") {
+  const catalogue = await getStorefrontCatalogue();
+  const brand = catalogue.brands.find(
+    (item) => item.slug === slug && item.status === "active",
+  );
+  if (!brand) {
     return { title: "Brand" };
   }
   return { title: brand.name };

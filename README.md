@@ -27,6 +27,11 @@ Copy `.env.example` to `.env.local` and fill in the Supabase values. Variable
 names and their exposure rules are documented there; the secret key must never
 be given a `NEXT_PUBLIC_` prefix.
 
+Production catalogue behaviour is the published Supabase catalogue. Fixture
+products (Frame 01–06) are development/demo only (`DEMO_CATALOGUE`). An empty
+published table in production shows empty states; it does not fall back to
+demo. See `docs/PHASE3_LIVE_CATALOGUE.md`.
+
 Clients, by execution context:
 
 | Module | Context | Key |

@@ -1,17 +1,17 @@
 "use client";
 
 import { genderLinks, routes, shapeLinks } from "@/lib/navigation";
-import { getMenuBrandLinks } from "@/services/catalogue";
+import type { MenuBrandLink } from "@/lib/menu-brands";
 import { NavLink } from "./NavLink";
 import styles from "./ShopMenu.module.css";
 
 type ShopMenuProps = {
   id: string;
   onNavigate?: () => void;
+  brandLinks?: MenuBrandLink[];
 };
 
-export function ShopMenu({ id, onNavigate }: ShopMenuProps) {
-  const brandLinks = getMenuBrandLinks();
+export function ShopMenu({ id, onNavigate, brandLinks = [] }: ShopMenuProps) {
 
   return (
     <div className={styles.menu} id={id}>

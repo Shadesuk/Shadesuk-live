@@ -97,6 +97,8 @@ export type Product = {
   slug: string;
   name: string;
   brandId: string;
+  /** Display name. Optional so demo fixtures can keep using brand lookup. */
+  brandName?: string;
   gender: Gender[];
   shape: Shape[];
   /** Structural only. Leave empty until styles are approved and data-backed. */
@@ -121,6 +123,8 @@ export type Catalogue = {
   brands: BrandSource[];
   products: Product[];
 };
+
+export type StorefrontCatalogueSource = "live" | "demo" | "empty";
 
 export type CatalogueFilters = {
   genders: Gender[];

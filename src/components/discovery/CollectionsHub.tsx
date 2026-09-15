@@ -8,15 +8,22 @@ import {
   getCollectionProducts,
   getPopulatedCollections,
 } from "@/services/collections";
+import type { Brand, Product } from "@/types/catalogue";
 import { DiscoveryIndex, DiscoveryIndexSection } from "./DiscoveryIndexShell";
 import { DiscoveryList } from "./DiscoveryList";
 
-export function CollectionsHub() {
-  const collections = getPopulatedCollections();
+export function CollectionsHub({
+  products,
+  brands,
+}: {
+  products: Product[];
+  brands: Brand[];
+}) {
+  const collections = getPopulatedCollections(products);
   const items = collections.map((collection) => ({
     href: collection.href,
     title: collection.title,
-    meta: shadeCountLabel(getCollectionProducts(collection).length),
+    meta: shadeCountLabel(getCollectionProducts(collection, products, brands).length),
   }));
 
   return (

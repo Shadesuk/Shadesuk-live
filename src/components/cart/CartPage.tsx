@@ -1,6 +1,6 @@
 "use client";
 
-import { RecentlyViewed } from "@/components/discovery/RecentlyViewed";
+import { LiveRecentlyViewed } from "@/components/pdp/LiveRecentlyViewed";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProductGrid } from "@/components/product/ProductGrid";
@@ -20,10 +20,9 @@ import styles from "./CartPage.module.css";
 type CartPageProps = {
   initialCart: PublicCart;
   suggestions: Product[];
-  recentlyViewed: Product[];
 };
 
-export function CartPage({ initialCart, suggestions, recentlyViewed }: CartPageProps) {
+export function CartPage({ initialCart, suggestions }: CartPageProps) {
   const { cart, updateQuantity, removeItem, error } = useCart();
 
   const view = cart.items.length > 0 || cart.issues.length > 0 ? cart : initialCart;
@@ -108,7 +107,7 @@ export function CartPage({ initialCart, suggestions, recentlyViewed }: CartPageP
           <ProductGrid products={suggestions} imagePriorityCount={0} />
         </section>
       ) : null}
-      <RecentlyViewed products={recentlyViewed} />
+      <LiveRecentlyViewed />
     </div>
   );
 }

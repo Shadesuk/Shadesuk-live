@@ -13,7 +13,12 @@
     "verify:checkout": "npx --yes tsx scripts/verify-checkout.ts",
     "verify:account": "npx --yes tsx scripts/verify-account.ts",
     "verify:tracking": "npx --yes tsx scripts/verify-tracking.ts",
-    "verify:legal": "npx --yes tsx scripts/verify-legal.ts"
+    "verify:legal": "npx --yes tsx scripts/verify-legal.ts",
+    "verify:storefront": "npx --yes tsx scripts/verify-storefront-catalogue.ts",
+    "verify:search": "npx --yes tsx scripts/verify-search.ts",
+    "verify:catalogue": "npx --yes tsx scripts/verify-catalogue.ts",
+    "verify:collections": "npx --yes tsx scripts/verify-collections.ts",
+    "verify:discovery": "npx --yes tsx scripts/verify-discovery.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

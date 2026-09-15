@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { getImageFallbackLabel } from "@/services/catalogue";
+import { getImageFallbackLabel } from "@/lib/product-display";
 import type { ProductImage } from "@/types/catalogue";
 import styles from "./ProductGallery.module.css";
 

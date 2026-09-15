@@ -10,7 +10,7 @@ import {
   collectionQueryPath,
   emptyCollectionQuery,
   hasUserFilters,
-} from "@/services/collections";
+} from "@/lib/collection-query";
 import type { CollectionDefinition, CollectionQuery } from "@/types/collection";
 
 type CollectionEmptyStateProps = {

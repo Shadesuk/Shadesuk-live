@@ -3,10 +3,10 @@ import { ContentWidth } from "@/components/layout/ContentWidth";
 import { Section } from "@/components/layout/Section";
 import { formatGbp } from "@/lib/money";
 import {
-  getBrandName,
   getColourCount,
+  getProductBrandName,
   getProductHref,
-} from "@/services/catalogue";
+} from "@/lib/product-display";
 import type { Product } from "@/types/catalogue";
 import { MediaPlaceholder } from "./MediaPlaceholder";
 import styles from "./ProductStory.module.css";
@@ -17,7 +17,7 @@ type ProductStoryProps = {
 
 export function ProductStory({ product }: ProductStoryProps) {
   const href = getProductHref(product);
-  const brand = getBrandName(product);
+  const brand = getProductBrandName(product);
   const colourCount = getColourCount(product);
   const colourLabel = `${colourCount} ${colourCount === 1 ? "colour" : "colours"}`;
 

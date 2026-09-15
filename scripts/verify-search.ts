@@ -1,6 +1,11 @@
 import { serializeCollectionQuery } from "../src/services/collections";
 import { emptyCollectionQuery } from "../src/services/collections";
 import {
+  getBrands,
+  getProducts,
+  hydrateDemoProduct,
+} from "../src/services/catalogue";
+import {
   getSearchCollection,
   getSearchDiscoveryLinks,
   getSearchSuggestions,
@@ -11,6 +16,11 @@ import {
   tokenizeSearchQuery,
 } from "../src/services/search";
 
+const catalogue = {
+  products: getProducts().map(hydrateDemoProduct),
+  brands: getBrands(),
+};
+
 if (normalizeSearchQuery("  Aviator—BLACK ") !== "aviator black") {
   throw new Error("normalizeSearchQuery should fold punctuation and case");
 }
@@ -20,23 +30,23 @@ if (tokens.join(",") !== "aviator,black") {
   throw new Error("tokenizeSearchQuery should split on whitespace");
 }
 
-const black = searchProducts("black");
+const black = searchProducts("black", catalogue);
 if (black.products.length !== 5 || black.correctedTo) {
   throw new Error(`Expected 5 exact black matches, got ${black.products.length}`);
 }
 
-const typo = searchProducts("aviater");
+const typo = searchProducts("aviater", catalogue);
 if (typo.correctedTo !== "aviator" || typo.products.length !== 2) {
   throw new Error(
     `Expected aviater → aviator with 2 products, got ${typo.correctedTo} / ${typo.products.length}`,
   );
 }
 
-if (suggestCatalogueTerm("zzzzz")) {
+if (suggestCatalogueTerm("zzzzz", catalogue)) {
   throw new Error("Unknown tokens must not invent a catalogue term");
 }
 
-const nonsense = searchProducts("zzzzz");
+const nonsense = searchProducts("zzzzz", catalogue);
 if (nonsense.products.length !== 0 || nonsense.correctedTo) {
   throw new Error("Unknown queries must not fake fuzzy results");
 }
@@ -61,7 +71,7 @@ if (!collection.description?.includes("No exact match")) {
   throw new Error("Corrected searches should explain the substitution");
 }
 
-const suggestions = getSearchSuggestions("aviator");
+const suggestions = getSearchSuggestions("aviator", catalogue);
 if (!suggestions.some((item) => item.href === "/collections/aviator")) {
   throw new Error("Shape suggestions must use locked collection routes");
 }

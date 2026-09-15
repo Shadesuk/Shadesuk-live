@@ -1,12 +1,14 @@
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { SearchForm } from "@/components/search/SearchForm";
-import { getSearchDiscoveryLinks } from "@/services/search";
+import type { SearchDiscoveryLink } from "@/lib/search-query";
 import styles from "./SearchLanding.module.css";
 
-export function SearchLanding() {
-  const discovery = getSearchDiscoveryLinks();
-
+export function SearchLanding({
+  discovery = [],
+}: {
+  discovery?: SearchDiscoveryLink[];
+}) {
   return (
     <PageContainer>
       <main id="main" className={styles.page}>

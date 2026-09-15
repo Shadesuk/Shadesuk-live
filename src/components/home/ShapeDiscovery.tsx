@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { Section } from "@/components/layout/Section";
 import { shapeLinks } from "@/lib/navigation";
-import { shapeLabel } from "@/services/collections";
+import { shapeLabel } from "@/lib/collection-query";
 import type { Shape } from "@/types/catalogue";
 import styles from "./ShapeDiscovery.module.css";
 

@@ -12,7 +12,7 @@ import type { Product } from "@/types/catalogue";
 import styles from "@/components/discovery/RecentlyViewed.module.css";
 
 type LiveRecentlyViewedProps = {
-  currentId: string;
+  currentId?: string;
 };
 
 export function LiveRecentlyViewed({ currentId }: LiveRecentlyViewedProps) {
@@ -21,7 +21,10 @@ export function LiveRecentlyViewed({ currentId }: LiveRecentlyViewedProps) {
     getRecentlyViewedIds,
     getRecentlyViewedServerSnapshot,
   );
-  const wantedKey = ids.filter((id) => id !== currentId).slice(0, 4).join("|");
+  const wantedKey = ids
+    .filter((id) => (currentId ? id !== currentId : true))
+    .slice(0, 4)
+    .join("|");
   const wanted = useMemo(
     () => (wantedKey ? wantedKey.split("|") : []),
     [wantedKey],

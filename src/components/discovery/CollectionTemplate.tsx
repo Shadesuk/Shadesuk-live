@@ -1,14 +1,12 @@
 import type { ReactNode } from "react";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
-import { getProducts } from "@/services/catalogue";
-import type { CatalogueFilters } from "@/types/catalogue";
+import { LiveRecentlyViewed } from "@/components/pdp/LiveRecentlyViewed";
+import type { CatalogueFilters, Product, StorefrontCatalogueSource } from "@/types/catalogue";
 import type { CollectionDefinition, CollectionQuery } from "@/types/collection";
-import type { Product } from "@/types/catalogue";
 import { CollectionHeader } from "./CollectionHeader";
 import { CollectionResults } from "./CollectionResults";
 import { FilterBar } from "./FilterBar";
-import { RecentlyViewed } from "./RecentlyViewed";
 import styles from "./CollectionTemplate.module.css";
 
 type CollectionTemplateProps = {
@@ -19,6 +17,7 @@ type CollectionTemplateProps = {
   hasMore: boolean;
   filterOptions: CatalogueFilters;
   emptyContent?: ReactNode;
+  catalogueSource?: StorefrontCatalogueSource;
 };
 
 export function CollectionTemplate({
@@ -29,6 +28,7 @@ export function CollectionTemplate({
   hasMore,
   filterOptions,
   emptyContent,
+  catalogueSource,
 }: CollectionTemplateProps) {
   return (
     <PageContainer>
@@ -37,6 +37,7 @@ export function CollectionTemplate({
         className={styles.main}
         data-collection={collection.slug}
         data-collection-kind={collection.kind}
+        data-catalogue-source={catalogueSource}
       >
         <ContentWidth>
           <CollectionHeader
@@ -58,7 +59,7 @@ export function CollectionTemplate({
             query={query}
             emptyContent={emptyContent}
           />
-          <RecentlyViewed products={getProducts()} />
+          <LiveRecentlyViewed />
         </ContentWidth>
       </main>
     </PageContainer>

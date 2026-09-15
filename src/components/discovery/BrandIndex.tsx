@@ -1,18 +1,17 @@
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { shadeCountLabel } from "@/components/discovery/ProductCount";
-import { RecentlyViewed } from "@/components/discovery/RecentlyViewed";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { routes } from "@/lib/navigation";
-import { getBrandHref, getBrandIndex, getProducts } from "@/services/catalogue";
+import { LiveRecentlyViewed } from "@/components/pdp/LiveRecentlyViewed";
+import { brandPath, routes } from "@/lib/navigation";
+import type { Brand } from "@/types/catalogue";
 import { DiscoveryIndex } from "./DiscoveryIndexShell";
 import { DiscoveryList } from "./DiscoveryList";
 
-export function BrandIndex() {
-  const brands = getBrandIndex();
+export function BrandIndex({ brands }: { brands: Brand[] }) {
   const items = brands.map((brand) => ({
-    href: getBrandHref(brand),
+    href: brandPath(brand.slug),
     title: brand.name,
     meta: shadeCountLabel(brand.productCount),
   }));
@@ -38,7 +37,7 @@ export function BrandIndex() {
                 }
               />
             )}
-            <RecentlyViewed products={getProducts()} />
+            <LiveRecentlyViewed />
           </DiscoveryIndex>
         </ContentWidth>
       </main>

@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/Button";
 import { PRICE_RANGES } from "@/types/collection";
 import type { CollectionQuery, HiddenFilterKey } from "@/types/collection";
 import type { CatalogueFilters } from "@/types/catalogue";
-import { genderLabel, shapeLabel } from "@/services/collections";
+import { genderLabel, shapeLabel } from "@/lib/collection-query";
 import styles from "./FilterForm.module.css";
 
 type FilterFormProps = {

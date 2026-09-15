@@ -3,7 +3,7 @@ import {
   containsForbiddenCartOwnership,
   hasForbiddenOwnershipKey,
 } from "@/lib/ownership-keys";
-import { isProductAvailable } from "@/services/catalogue";
+import { isProductAvailable } from "@/lib/product-display";
 import type { Product, ProductVariant } from "@/types/catalogue";
 import type { AddToBagInput, AddToBagResult, PublicAddToBagResult } from "@/types/pdp";
 

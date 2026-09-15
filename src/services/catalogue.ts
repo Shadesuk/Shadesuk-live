@@ -1,37 +1,47 @@
 import { demoCatalogue } from "@/data/catalogue";
-import { brandPath, productPath } from "@/lib/navigation";
+import { brandPath } from "@/lib/navigation";
+import { menuBrandLinksFrom } from "@/lib/menu-brands";
+import {
+  getAvailabilityLabel,
+  getAvailableColours,
+  getColourCount,
+  getImageFallbackLabel,
+  getPrimaryImage,
+  getProductHref,
+  getSecondaryImage,
+  isProductAvailable,
+} from "@/lib/product-display";
 import {
   AVAILABILITIES,
   GENDERS,
   SHAPES,
-  type Availability,
   type Brand,
   type BrandSource,
   type CatalogueFilters,
   type Gender,
   type Product,
   type ProductColour,
-  type ProductImage,
-  type ProductImageRole,
   type Shape,
 } from "@/types/catalogue";
 
-const IMAGE_FALLBACK: Record<ProductImageRole, string> = {
-  front: "Product image",
-  side: "Product image",
-  detail: "Product detail",
-  back: "Product image",
-  temple: "Product image",
-  "on-model": "On-model image",
-  packaging: "Product image",
+export {
+  getAvailabilityLabel,
+  getAvailableColours,
+  getColourCount,
+  getImageFallbackLabel,
+  getPrimaryImage,
+  getProductHref,
+  getSecondaryImage,
+  isProductAvailable,
 };
 
-function hasAsset(image: ProductImage): boolean {
-  return Boolean(image.src);
+/** Demo fixture catalogue. Not the production storefront path. */
+export function getDemoProducts(): Product[] {
+  return demoCatalogue.products;
 }
 
 export function getProducts(): Product[] {
-  return demoCatalogue.products;
+  return getDemoProducts();
 }
 
 function withProductCount(brand: BrandSource): Brand {
@@ -43,8 +53,12 @@ function withProductCount(brand: BrandSource): Brand {
   };
 }
 
-export function getBrands(): Brand[] {
+export function getDemoBrands(): Brand[] {
   return demoCatalogue.brands.map(withProductCount);
+}
+
+export function getBrands(): Brand[] {
+  return getDemoBrands();
 }
 
 export function getPublishedBrands(): Brand[] {
@@ -68,16 +82,8 @@ export function getBrandHref(brand: Pick<Brand, "slug">): string {
   return brandPath(brand.slug);
 }
 
-/** Compact header/menu links. Empty when the catalogue is large enough for /brands. */
-export function getMenuBrandLinks(limit = 6): Array<{ href: string; label: string }> {
-  const brands = getPublishedBrands().filter((brand) => brand.productCount > 0);
-  if (brands.length > limit) {
-    return [];
-  }
-  return brands.map((brand) => ({
-    href: brandPath(brand.slug),
-    label: brand.name,
-  }));
+export function getMenuBrandLinks(limit = 6) {
+  return menuBrandLinksFrom(getPublishedBrands(), limit);
 }
 
 export function getShapes(): Shape[] {
@@ -90,55 +96,18 @@ export function getBrandById(id: string): Brand | undefined {
 }
 
 export function getBrandName(product: Product): string {
-  return getBrandById(product.brandId)?.name ?? product.brandId;
+  return getBrandById(product.brandId)?.name ?? product.brandName ?? product.brandId;
 }
 
 export function getProductBySlug(slug: string): Product | undefined {
   return demoCatalogue.products.find((product) => product.slug === slug);
 }
 
-export function getProductHref(product: Product): string {
-  return productPath(product.slug);
-}
-
-export function getColourCount(product: Product): number {
-  return product.colours.length;
-}
-
-export function getAvailableColours(product: Product): ProductColour[] {
-  return product.colours.filter((colour) => colour.available);
-}
-
-export function isProductAvailable(product: Product): boolean {
-  return product.availability === "in_stock";
-}
-
-export function getAvailabilityLabel(availability: Availability): string {
-  if (availability === "sold_out") {
-    return "Sold out";
-  }
-  if (availability === "out_of_stock") {
-    return "Out of stock";
-  }
-  return "In stock";
-}
-
-export function getPrimaryImage(product: Product): ProductImage | undefined {
-  return (
-    product.images.find((image) => image.role === "front" && hasAsset(image)) ??
-    product.images.find((image) => hasAsset(image))
-  );
-}
-
-export function getSecondaryImage(product: Product): ProductImage | undefined {
-  const primary = getPrimaryImage(product);
-  return product.images.find(
-    (image) => hasAsset(image) && image.id !== primary?.id,
-  );
-}
-
-export function getImageFallbackLabel(role: ProductImageRole = "front"): string {
-  return IMAGE_FALLBACK[role];
+export function hydrateDemoProduct(product: Product): Product {
+  return {
+    ...product,
+    brandName: getBrandName(product),
+  };
 }
 
 export function getNewArrivals(): Product[] {
@@ -160,8 +129,10 @@ export function getEditorialProduct(): Product | undefined {
   );
 }
 
-export function getPopulatedShapes(): Shape[] {
-  return SHAPES.filter((shape) => getProductsByShape(shape).length > 0);
+export function getPopulatedShapes(products: Product[] = getProducts()): Shape[] {
+  return SHAPES.filter(
+    (shape) => products.filter((product) => product.shape.includes(shape)).length > 0,
+  );
 }
 
 export function getProductsByGender(gender: Gender): Product[] {
@@ -188,6 +159,7 @@ export function getProductsByBrand(brandSlugOrId: string): Product[] {
 
 export function getAvailableFilters(
   products: Product[] = getProducts(),
+  brands: Brand[] = getBrands(),
 ): CatalogueFilters {
   const colourMap = new Map<string, ProductColour>();
   const genderSet = new Set<Gender>();
@@ -213,7 +185,7 @@ export function getAvailableFilters(
 
   return {
     genders: GENDERS.filter((gender) => genderSet.has(gender)),
-    brands: getBrands().filter((brand) => brandIds.has(brand.id)),
+    brands: brands.filter((brand) => brandIds.has(brand.id)),
     shapes: SHAPES.filter((shape) => shapeSet.has(shape)),
     colours: [...colourMap.values()],
     availability: [...AVAILABILITIES],

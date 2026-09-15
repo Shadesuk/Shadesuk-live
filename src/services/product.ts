@@ -2,8 +2,9 @@ import { cache } from "react";
 import "server-only";
 
 import type { MappedStorefrontProduct } from "@/contracts";
+import { isDemoCatalogueEnabled } from "@/lib/demo-catalogue-mode";
 import { evaluateAddToBag, parseAddToBagInput } from "@/lib/add-to-bag";
-import { getBrandName, getProductBySlug, getProducts } from "@/services/catalogue";
+import { getBrandName, getProductBySlug, getProducts, hydrateDemoProduct } from "@/services/catalogue";
 import {
   fetchLiveProductBySlug,
   fetchLiveProductsByIds,
@@ -39,6 +40,10 @@ export const getStorefrontProductBySlug = cache(
       };
     }
 
+    if (!isDemoCatalogueEnabled()) {
+      return null;
+    }
+
     const demo = getProductBySlug(trimmed);
     if (!demo) {
       return null;
@@ -46,7 +51,7 @@ export const getStorefrontProductBySlug = cache(
 
     return {
       source: "demo",
-      product: demo,
+      product: { ...demo, brandName: getBrandName(demo) },
       brandName: getBrandName(demo),
     };
   },
@@ -80,9 +85,11 @@ export async function getStorefrontProductsByIds(
   }
 
   const demoById = new Map(
-    getProducts()
-      .filter((product) => unique.includes(product.id))
-      .map((product) => [product.id, product]),
+    isDemoCatalogueEnabled()
+      ? getProducts()
+          .filter((product) => unique.includes(product.id))
+          .map((product) => [product.id, hydrateDemoProduct(product)])
+      : [],
   );
   const missing = unique.filter((id) => !demoById.has(id));
   const live = await fetchLiveProductsByIds(missing, "card");
@@ -107,6 +114,10 @@ async function getRelatedProducts(
 ): Promise<MappedStorefrontProduct[]> {
   if (record.source === "live") {
     return fetchLiveRelatedProducts(record.product);
+  }
+
+  if (!isDemoCatalogueEnabled()) {
+    return [];
   }
 
   const shape = record.product.shape[0];

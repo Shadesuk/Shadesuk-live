@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import { Homepage } from "@/components/home/Homepage";
 import { site } from "@/lib/site";
+import { assertDemoCatalogueIntegrity } from "@/services/catalogue";
 import {
-  assertDemoCatalogueIntegrity,
-  getBestSellers,
-  getEditorialProduct,
-  getHomepageFeatured,
-  getNewArrivals,
-  getPopulatedShapes,
-} from "@/services/catalogue";
+  getBestSellersFrom,
+  getEditorialProductFrom,
+  getHomepageFeaturedFrom,
+  getNewArrivalsFrom,
+  getPopulatedShapesFrom,
+  getStorefrontCatalogue,
+} from "@/services/storefront-catalogue";
 
 export const metadata: Metadata = {
   title: {
@@ -21,16 +22,21 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
-  assertDemoCatalogueIntegrity();
+export const revalidate = 60;
+
+export default async function HomePage() {
+  const catalogue = await getStorefrontCatalogue();
+  if (catalogue.source === "demo") {
+    assertDemoCatalogueIntegrity(catalogue.products);
+  }
 
   return (
     <Homepage
-      featured={getHomepageFeatured(4)}
-      bestSellers={getBestSellers()}
-      newArrivals={getNewArrivals().slice(0, 4)}
-      storyProduct={getEditorialProduct()}
-      shapes={getPopulatedShapes()}
+      featured={getHomepageFeaturedFrom(catalogue.products, 4)}
+      bestSellers={getBestSellersFrom(catalogue.products)}
+      newArrivals={getNewArrivalsFrom(catalogue.products).slice(0, 4)}
+      storyProduct={getEditorialProductFrom(catalogue.products)}
+      shapes={getPopulatedShapesFrom(catalogue.products)}
     />
   );
 }

@@ -2,12 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { Drawer } from "@/components/ui/Drawer";
-import {
-  genderLinks,
-  routes,
-  shapeLinks,
-} from "@/lib/navigation";
-import { getMenuBrandLinks } from "@/services/catalogue";
+import { genderLinks, routes, shapeLinks } from "@/lib/navigation";
+import type { MenuBrandLink } from "@/lib/menu-brands";
 import { NavLink } from "./NavLink";
 import styles from "./MobileNavDrawer.module.css";
 
@@ -16,6 +12,7 @@ type Panel = "root" | "shop" | "brands" | "shapes" | "styles" | "collections";
 type MobileNavDrawerProps = {
   open: boolean;
   onClose: () => void;
+  brandLinks?: MenuBrandLink[];
 };
 
 function AdvanceButton({
@@ -44,10 +41,13 @@ const titles: Record<Panel, string> = {
   collections: "Collections",
 };
 
-export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
+export function MobileNavDrawer({
+  open,
+  onClose,
+  brandLinks = [],
+}: MobileNavDrawerProps) {
   const [panel, setPanel] = useState<Panel>("root");
   const titleId = "mobile-nav-title";
-  const brandLinks = getMenuBrandLinks();
 
   const parent = useMemo<Panel | null>(() => {
     if (panel === "shop" || panel === "collections") {

@@ -1,8 +1,6 @@
-import { RecentlyViewed } from "@/components/discovery/RecentlyViewed";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { ProductGrid } from "@/components/product/ProductGrid";
-import { getProducts } from "@/services/catalogue";
 import type { StorefrontProductPage } from "@/services/product";
 import { LiveRecentlyViewed } from "./LiveRecentlyViewed";
 import { ProductDisclosure } from "./ProductDisclosure";
@@ -16,10 +14,6 @@ type ProductPageProps = {
 
 export function ProductPage({ record }: ProductPageProps) {
   const { product, brandName, source, related } = record;
-  const demoRecent =
-    source === "demo"
-      ? getProducts().filter((item) => item.id !== product.id)
-      : [];
 
   return (
     <PageContainer>
@@ -42,11 +36,7 @@ export function ProductPage({ record }: ProductPageProps) {
               <ProductGrid products={related} imagePriorityCount={0} />
             </section>
           ) : null}
-          {source === "demo" ? (
-            <RecentlyViewed products={demoRecent} />
-          ) : (
-            <LiveRecentlyViewed currentId={product.id} />
-          )}
+          <LiveRecentlyViewed currentId={product.id} />
         </ContentWidth>
       </main>
     </PageContainer>
