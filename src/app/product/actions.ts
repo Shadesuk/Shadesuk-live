@@ -1,6 +1,7 @@
 "use server";
 
 import { addToBagAction as addToBagFromCart } from "@/app/cart/actions";
+import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { getStorefrontProductsByIds } from "@/services/product";
 import type { MappedStorefrontProduct } from "@/contracts";
 import type { AddToBagInput, PublicAddToBagResult } from "@/types/pdp";
@@ -19,5 +20,8 @@ export async function addToBagAction(
 export async function loadProductsByIdsAction(
   ids: string[],
 ): Promise<MappedStorefrontProduct[]> {
+  if (!(await cartActionOriginAllowed())) {
+    return [];
+  }
   return getStorefrontProductsByIds(ids);
 }

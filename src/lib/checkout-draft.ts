@@ -1,5 +1,10 @@
-import { createHmac } from "node:crypto";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
+import {
+  decodeGuestCookieValue,
+  encodeGuestCookieValue,
+  guestCookieSignatureMatches,
+  signGuestCookiePayload,
+} from "@/lib/guest-cookie-hmac";
 import {
   CHECKOUT_COUNTRY_GB,
   CHECKOUT_STEP_IDS,
@@ -32,6 +37,7 @@ export function encodeCheckoutDraftCookie(
   sessionId: string,
   draft: PublicCheckoutDraft,
   now = Date.now(),
+  secret?: string,
 ): string {
   const payload: CheckoutDraftPayload = {
     step: draft.step,
@@ -48,37 +54,25 @@ export function encodeCheckoutDraftCookie(
     updatedAt: now,
   };
   const body = JSON.stringify(payload);
-  const hmac = sign(sessionId, body);
-  return `v1.${Buffer.from(body, "utf8").toString("base64url")}.${hmac}`;
+  const hmac = signGuestCookiePayload(sessionId, body, secret);
+  return encodeGuestCookieValue(body, hmac);
 }
 
 export function decodeCheckoutDraftCookie(
   sessionId: string,
   value: string | undefined | null,
   now = Date.now(),
+  secret?: string,
 ): PublicCheckoutDraft {
-  if (!value) {
+  const decoded = decodeGuestCookieValue(value);
+  if (!decoded) {
     return emptyCheckoutDraft();
   }
-  const parts = value.split(".");
-  if (parts.length !== 3 || parts[0] !== "v1") {
-    return emptyCheckoutDraft();
-  }
-  const [, encoded, hmac] = parts;
-  if (!encoded || !hmac) {
-    return emptyCheckoutDraft();
-  }
-  let body: string;
-  try {
-    body = Buffer.from(encoded, "base64url").toString("utf8");
-  } catch {
-    return emptyCheckoutDraft();
-  }
-  if (!safeEqual(hmac, sign(sessionId, body))) {
+  if (!guestCookieSignatureMatches({ sessionId, body: decoded.body, hmac: decoded.hmac, secret })) {
     return emptyCheckoutDraft();
   }
   try {
-    const parsed: unknown = JSON.parse(body);
+    const parsed: unknown = JSON.parse(decoded.body);
     return parsePayload(parsed, now);
   } catch {
     return emptyCheckoutDraft();
@@ -120,19 +114,4 @@ function parseStep(value: unknown): CheckoutStepId {
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function sign(sessionId: string, body: string): string {
-  return createHmac("sha256", sessionId).update(body).digest("hex");
-}
-
-function safeEqual(left: string, right: string): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-  let mismatch = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return mismatch === 0;
 }

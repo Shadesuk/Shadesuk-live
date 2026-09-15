@@ -7,6 +7,10 @@ import {
   encodeCheckoutDraftCookie,
 } from "../src/lib/checkout-draft";
 import {
+  GUEST_COOKIE_HMAC_VERSION,
+  signGuestCookiePayload,
+} from "../src/lib/guest-cookie-hmac";
+import {
   ALL_MAJOR_CARDS,
   CHECKOUT_EXPIRED_BODY,
   CHECKOUT_EXPIRED_TITLE,
@@ -175,6 +179,7 @@ function validAddressInput() {
 }
 
 const sessionId = createGuestCartSessionId();
+const cookieSecret = "verify-checkout-cookie-secret";
 const draft: PublicCheckoutDraft = {
   ...emptyCheckoutDraft(),
   email: "guest@example.com",
@@ -187,11 +192,12 @@ const draft: PublicCheckoutDraft = {
   addressEntry: "manual",
   step: "review",
 };
-const encoded = encodeCheckoutDraftCookie(sessionId, draft);
+const encoded = encodeCheckoutDraftCookie(sessionId, draft, Date.now(), cookieSecret);
 if (
   encoded.includes(sessionId) ||
   encoded.toLowerCase().includes("sessionid") ||
-  encoded.includes("session_id")
+  encoded.includes("session_id") ||
+  !encoded.startsWith(`${GUEST_COOKIE_HMAC_VERSION}.`)
 ) {
   throw new Error("Checkout draft cookie must not embed the session id.");
 }
@@ -202,18 +208,28 @@ if (!hasForbiddenOwnershipKey({ email: "a@b.c", sessionId })) {
   throw new Error("Checkout actions must reject client-supplied session ids.");
 }
 
-const decoded = decodeCheckoutDraftCookie(sessionId, encoded);
+const decoded = decodeCheckoutDraftCookie(sessionId, encoded, Date.now(), cookieSecret);
 if (decoded.email !== "guest@example.com" || decoded.step !== "review" || decoded.expired) {
   throw new Error("Checkout draft cookie must round-trip fields.");
 }
-if (decodeCheckoutDraftCookie("ff".repeat(32), encoded).email !== "") {
+if (decodeCheckoutDraftCookie("ff".repeat(32), encoded, Date.now(), cookieSecret).email !== "") {
   throw new Error("Checkout draft cookie must reject a mismatched session signature.");
+}
+if (decodeCheckoutDraftCookie(sessionId, encoded, Date.now(), "other-server-secret").email !== "") {
+  throw new Error("Checkout draft cookie must reject a mismatched server secret.");
+}
+if (
+  signGuestCookiePayload(sessionId, "{}", cookieSecret) ===
+  signGuestCookiePayload(sessionId, "{}")
+) {
+  throw new Error("Checkout cookie HMAC must not be keyed only by sessionId.");
 }
 
 const expired = decodeCheckoutDraftCookie(
   sessionId,
   encoded,
   Date.now() + CHECKOUT_DRAFT_TTL_MS + 1000,
+  cookieSecret,
 );
 if (!expired.expired || expired.email !== "guest@example.com") {
   throw new Error("Expired checkout drafts must keep fields and flag expiry.");
@@ -277,6 +293,9 @@ for (const file of checkoutFiles) {
   if (source.includes("stripe") || source.includes("razorpay")) {
     throw new Error(`${file} must not invent a payment vendor.`);
   }
+}
+if (!readFileSync(resolve("src/app/checkout/actions.ts"), "utf8").includes("cartActionOriginAllowed")) {
+  throw new Error("Checkout Server Actions must keep CSRF/origin checks.");
 }
 
 console.log(

@@ -13,15 +13,9 @@ import {
   removeCartItemAction,
   updateCartQuantityAction,
 } from "@/app/cart/actions";
-import type { PublicCart } from "@/types/cart";
+import { EMPTY_PUBLIC_CART, type PublicCart } from "@/types/cart";
 
-export const EMPTY_PUBLIC_CART: PublicCart = {
-  items: [],
-  itemCount: 0,
-  subtotal: 0,
-  currency: "GBP",
-  issues: [],
-};
+export { EMPTY_PUBLIC_CART };
 
 type CartContextValue = {
   cart: PublicCart;

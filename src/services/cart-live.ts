@@ -2,6 +2,7 @@ import "server-only";
 
 import type { CartItemRow, CartRow, ProductVariantRow } from "@/contracts";
 import { isUuid } from "@/lib/ids";
+import { isLiveVariantEligibleForCart } from "@/lib/live-cart-eligibility";
 import { hasSupabaseSecretKey, createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -218,6 +219,7 @@ export async function fetchLiveVariantForCart(
     .from("product_variants")
     .select(VARIANT_COLUMNS)
     .eq("id", variantId)
+    .eq("status", "available")
     .maybeSingle();
   if (error || !data) {
     return null;
@@ -230,8 +232,17 @@ export async function fetchLiveVariantForCart(
     .from("products")
     .select("id, slug, name, status")
     .eq("id", variant.product_id)
+    .eq("status", "published")
     .maybeSingle();
-  if (!product.data || typeof product.data.slug !== "string" || typeof product.data.name !== "string") {
+  if (
+    !product.data ||
+    typeof product.data.slug !== "string" ||
+    typeof product.data.name !== "string" ||
+    !isLiveVariantEligibleForCart({
+      productStatus: String(product.data.status),
+      variantStatus: variant.status,
+    })
+  ) {
     return null;
   }
   return {
