@@ -1,0 +1,54 @@
+import { RecentlyViewed } from "@/components/discovery/RecentlyViewed";
+import { ContentWidth } from "@/components/layout/ContentWidth";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { ProductGrid } from "@/components/product/ProductGrid";
+import { getProducts } from "@/services/catalogue";
+import type { StorefrontProductPage } from "@/services/product";
+import { LiveRecentlyViewed } from "./LiveRecentlyViewed";
+import { ProductDisclosure } from "./ProductDisclosure";
+import { ProductHero } from "./ProductHero";
+import { ProductViewRecorder } from "./ProductViewRecorder";
+import styles from "./ProductPage.module.css";
+
+type ProductPageProps = {
+  record: StorefrontProductPage;
+};
+
+export function ProductPage({ record }: ProductPageProps) {
+  const { product, brandName, source, related } = record;
+  const demoRecent =
+    source === "demo"
+      ? getProducts().filter((item) => item.id !== product.id)
+      : [];
+
+  return (
+    <PageContainer>
+      <main
+        id="main"
+        className={styles.page}
+        data-pdp
+        data-product-slug={product.slug}
+        data-product-source={source}
+      >
+        <ContentWidth>
+          <ProductViewRecorder productId={product.id} />
+          <ProductHero product={product} brandName={brandName} />
+          <ProductDisclosure />
+          {related.length > 0 ? (
+            <section className={styles.related} aria-labelledby="you-may-also-like">
+              <h2 id="you-may-also-like" className="text-micro">
+                You may also like
+              </h2>
+              <ProductGrid products={related} imagePriorityCount={0} />
+            </section>
+          ) : null}
+          {source === "demo" ? (
+            <RecentlyViewed products={demoRecent} />
+          ) : (
+            <LiveRecentlyViewed currentId={product.id} />
+          )}
+        </ContentWidth>
+      </main>
+    </PageContainer>
+  );
+}
