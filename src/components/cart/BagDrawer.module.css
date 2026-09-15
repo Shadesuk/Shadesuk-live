@@ -77,6 +77,7 @@
   padding-block: var(--space-24);
 }
 
-.empty p {
+.empty p,
+.empty h3 {
   margin: 0;
 }

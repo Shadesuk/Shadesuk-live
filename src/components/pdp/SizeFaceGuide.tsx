@@ -6,6 +6,7 @@ import { Drawer } from "@/components/ui/Drawer";
 import { Button } from "@/components/ui/Button";
 import { useChrome } from "@/components/navigation/ChromeContext";
 import { FACE_GUIDE, shapeCollectionHref, shapeLabel } from "./face-guide";
+import { track } from "@/lib/analytics";
 import type { ProductMeasurements } from "@/types/catalogue";
 import styles from "./SizeFaceGuide.module.css";
 
@@ -39,7 +40,13 @@ export function SizeFaceGuide({ measurements }: SizeFaceGuideProps) {
 
   return (
     <>
-      <Button variant="tertiary" onClick={() => setOpen(true)}>
+      <Button
+        variant="tertiary"
+        onClick={() => {
+          setOpen(true);
+          track("open_size_face_guide");
+        }}
+      >
         Find your fit →
       </Button>
       <Drawer

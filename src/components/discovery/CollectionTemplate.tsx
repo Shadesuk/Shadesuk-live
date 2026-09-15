@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
+import { AnalyticsBeacon } from "@/components/analytics/AnalyticsBeacon";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { LiveRecentlyViewed } from "@/components/pdp/LiveRecentlyViewed";
+import { hasUserFilters } from "@/lib/collection-query";
 import type { CatalogueFilters, Product, StorefrontCatalogueSource } from "@/types/catalogue";
-import type { CollectionDefinition, CollectionQuery } from "@/types/collection";
+import { COLLECTION_PAGE_SIZE, type CollectionDefinition, type CollectionQuery } from "@/types/collection";
 import { CollectionHeader } from "./CollectionHeader";
 import { CollectionResults } from "./CollectionResults";
 import { FilterBar } from "./FilterBar";
@@ -30,6 +32,12 @@ export function CollectionTemplate({
   emptyContent,
   catalogueSource,
 }: CollectionTemplateProps) {
+  const initialSearch =
+    Boolean(query.q) &&
+    !hasUserFilters(query, collection) &&
+    query.sort === "featured" &&
+    query.limit === COLLECTION_PAGE_SIZE;
+
   return (
     <PageContainer>
       <main
@@ -40,6 +48,20 @@ export function CollectionTemplate({
         data-catalogue-source={catalogueSource}
       >
         <ContentWidth>
+          {initialSearch ? (
+            <>
+              <AnalyticsBeacon
+                event="search"
+                payload={{ query: query.q, result_count: total, collection: collection.id }}
+              />
+              {total > 0 ? (
+                <AnalyticsBeacon
+                  event="search_result_view"
+                  payload={{ query: query.q, result_count: total }}
+                />
+              ) : null}
+            </>
+          ) : null}
           <CollectionHeader
             title={collection.title}
             description={collection.description}
@@ -57,6 +79,7 @@ export function CollectionTemplate({
             products={products}
             hasMore={hasMore}
             query={query}
+            list={query.q ? "search" : collection.id}
             emptyContent={emptyContent}
           />
           <LiveRecentlyViewed />

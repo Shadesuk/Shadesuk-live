@@ -21,6 +21,7 @@ type ProductGridProps = {
   loadingMore?: boolean;
   onLoadMore?: () => void;
   imagePriorityCount?: number;
+  list?: string;
 };
 
 function SkeletonCard() {
@@ -44,6 +45,7 @@ export function ProductGrid({
   loadingMore = false,
   onLoadMore,
   imagePriorityCount = 0,
+  list,
 }: ProductGridProps) {
   if (loading && products.length === 0) {
     return (
@@ -81,6 +83,7 @@ export function ProductGrid({
               <ProductCard
                 product={product}
                 priority={index < imagePriorityCount}
+                list={list}
               />
             </GridItem>
           );

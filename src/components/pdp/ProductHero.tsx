@@ -13,6 +13,7 @@ import {
 import { ADD_TO_BAG_QUANTITY_MAX, resolveSelectedVariant } from "@/lib/add-to-bag";
 import { addToBagAction } from "@/app/product/actions";
 import { useCart } from "@/components/cart/CartProvider";
+import { track } from "@/lib/analytics";
 import type { PublicAddToBagResult } from "@/types/pdp";
 import { ProductContent } from "./ProductContent";
 import { ProductGallery } from "./ProductGallery";
@@ -106,6 +107,14 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
       applyCart(result.cart);
       openBag();
       setUi("added");
+      track("add_to_cart", {
+        item_id: product.id,
+        item_name: product.name,
+        item_variant: variant?.id ?? colour.id,
+        quantity,
+        price: product.price,
+        currency: product.currency,
+      });
       return;
     }
     setUi("error");
@@ -154,6 +163,11 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
                     onClick={() => {
                       setColourId(item.id);
                       resetReady();
+                      track("select_colour", {
+                        item_id: product.id,
+                        item_name: product.name,
+                        colour_id: item.id,
+                      });
                     }}
                   >
                     <span
@@ -197,6 +211,11 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
                     onClick={() => {
                       setSize(value);
                       resetReady();
+                      track("select_size", {
+                        item_id: product.id,
+                        item_name: product.name,
+                        size: value,
+                      });
                     }}
                   >
                     {value}
@@ -221,7 +240,9 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
             >
               −
             </button>
-            <span aria-labelledby="pdp-quantity-label">{quantity}</span>
+            <span aria-labelledby="pdp-quantity-label" aria-live="polite">
+              {quantity}
+            </span>
             <button
               type="button"
               aria-label="Increase quantity"

@@ -185,8 +185,8 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "How do I pay?",
         paragraphs: [
-          `${SECURE_CARD_PAYMENT}. ${ALL_MAJOR_CARDS}.`,
-          "Card details are handled by the payment provider. SHADESUK does not store raw card numbers.",
+          "Card payment is not live on this storefront yet. When checkout takes payment, card details will be handled by the payment provider. SHADESUK will not store raw card numbers.",
+          `The planned checkout language is “${SECURE_CARD_PAYMENT}” and “${ALL_MAJOR_CARDS}”. That is intended copy, not a claim that charges are being taken today.`,
         ],
       },
     ],

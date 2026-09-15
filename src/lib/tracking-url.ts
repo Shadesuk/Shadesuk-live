@@ -1,4 +1,4 @@
-/** Manual fulfilment may paste a tracking URL. Only http(s) may be rendered. */
+/** Manual fulfilment may paste a tracking URL. Only https may be rendered. */
 
 export function safeHttpUrl(value: string | null | undefined): string | null {
   if (!value || typeof value !== "string") {
@@ -6,7 +6,7 @@ export function safeHttpUrl(value: string | null | undefined): string | null {
   }
   try {
     const url = new URL(value.trim());
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
+    if (url.protocol !== "https:") {
       return null;
     }
     return url.toString();

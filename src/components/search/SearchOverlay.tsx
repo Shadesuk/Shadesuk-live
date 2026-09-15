@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
+import { track } from "@/lib/analytics";
 import type { SearchDiscoveryLink } from "@/lib/search-query";
 import { SearchForm } from "./SearchForm";
 
@@ -33,6 +34,12 @@ export function SearchOverlay({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+
+  useEffect(() => {
+    if (open) {
+      track("search_open");
+    }
+  }, [open]);
 
   const form = open ? (
     <SearchForm

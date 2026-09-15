@@ -2,15 +2,17 @@ import type { Metadata } from "next";
 import { CollectionTemplate } from "@/components/discovery/CollectionTemplate";
 import { SearchEmptyState } from "@/components/search/SearchEmptyState";
 import { SearchLanding } from "@/components/search/SearchLanding";
+import { routes } from "@/lib/navigation";
+import { privatePathMetadata } from "@/lib/seo";
 import { parseCollectionQuery, queryCollection } from "@/services/collections";
 import { getSearchCollection, getSearchDiscoveryLinks, searchProducts } from "@/services/search";
 import { requireStorefrontCatalogue } from "@/services/storefront-catalogue";
 
-export const metadata: Metadata = {
-  title: "Search",
-  description: "Search the SHADESUK catalogue.",
-  robots: { index: false, follow: false },
-};
+export const metadata: Metadata = privatePathMetadata(
+  "Search",
+  "Search the SHADESUK catalogue.",
+  routes.search,
+);
 
 type SearchPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

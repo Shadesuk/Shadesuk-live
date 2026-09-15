@@ -19,11 +19,11 @@
 }
 
 .steps li {
-  opacity: 0.48;
+  color: var(--color-text);
 }
 
 .steps .current {
-  opacity: 1;
+  box-shadow: inset 0 -1px 0 var(--color-navy);
 }
 
 .stepButton {

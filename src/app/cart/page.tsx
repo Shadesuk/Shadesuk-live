@@ -2,12 +2,16 @@ import type { Metadata } from "next";
 import { CartPage } from "@/components/cart/CartPage";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { routes } from "@/lib/navigation";
+import { privatePathMetadata } from "@/lib/seo";
 import { getCartSuggestions, getPublicCart } from "@/services/cart";
 import { getStorefrontCatalogue } from "@/services/storefront-catalogue";
 
-export const metadata: Metadata = {
-  title: "Bag",
-};
+export const metadata: Metadata = privatePathMetadata(
+  "Bag",
+  "Review the shades in your SHADESUK bag.",
+  routes.cart,
+);
 
 export default async function CartRoute() {
   const [cart, catalogue] = await Promise.all([

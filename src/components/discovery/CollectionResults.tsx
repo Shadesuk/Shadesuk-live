@@ -14,6 +14,7 @@ type CollectionResultsProps = {
   products: Product[];
   hasMore: boolean;
   query: CollectionQuery;
+  list?: string;
   emptyContent?: ReactNode;
 };
 
@@ -22,6 +23,7 @@ export function CollectionResults({
   products,
   hasMore,
   query,
+  list,
   emptyContent,
 }: CollectionResultsProps) {
   const router = useRouter();
@@ -36,6 +38,7 @@ export function CollectionResults({
         hasMore={hasMore}
         loadingMore={pending}
         imagePriorityCount={4}
+        list={list}
         emptyContent={
           emptyContent ?? (
             <CollectionEmptyState collection={collection} query={query} />

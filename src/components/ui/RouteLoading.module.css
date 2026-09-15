@@ -1,0 +1,23 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-16);
+  padding-block: var(--space-48);
+}
+
+.block {
+  width: min(100%, 22rem);
+  aspect-ratio: 16 / 9;
+  background: var(--color-stone);
+}
+
+.line {
+  height: 0.75rem;
+  width: min(100%, 18rem);
+  background: var(--color-stone);
+}
+
+.short {
+  width: min(70%, 11rem);
+}

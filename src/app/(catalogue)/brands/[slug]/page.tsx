@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { renderBrandPage } from "@/components/discovery/renderCollectionPage";
+import { brandPath } from "@/lib/navigation";
+import { NOINDEX_NOFOLLOW, cataloguePathMetadata } from "@/lib/seo";
 import { getStorefrontCatalogue } from "@/services/storefront-catalogue";
 
 type PageProps = {
@@ -17,16 +19,21 @@ export async function generateStaticParams() {
     .map((brand) => ({ slug: brand.slug }));
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const catalogue = await getStorefrontCatalogue();
   const brand = catalogue.brands.find(
     (item) => item.slug === slug && item.status === "active",
   );
   if (!brand) {
-    return { title: "Brand" };
+    return { title: "Brand", robots: NOINDEX_NOFOLLOW };
   }
-  return { title: brand.name };
+  return cataloguePathMetadata({
+    title: brand.name,
+    description: brand.description?.trim() || `${brand.name} sunglasses from SHADESUK.`,
+    path: brandPath(brand.slug),
+    searchParams: await searchParams,
+  });
 }
 
 export default async function BrandPage({ params, searchParams }: PageProps) {

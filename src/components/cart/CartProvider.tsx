@@ -14,6 +14,7 @@ import {
   updateCartQuantityAction,
 } from "@/app/cart/actions";
 import { EMPTY_PUBLIC_CART, type PublicCart } from "@/types/cart";
+import { track } from "@/lib/analytics";
 
 export { EMPTY_PUBLIC_CART };
 
@@ -90,6 +91,7 @@ export function CartProvider({
         return false;
       }
       applyCart(result.cart);
+      track("remove_from_cart", { item_id: itemId, count: result.cart.itemCount });
       return true;
     },
     [applyCart],

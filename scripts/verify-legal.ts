@@ -146,6 +146,9 @@ if (!TERMS.sections.some((section) => section.paragraphs.some((p) => p.includes(
 if (!FAQ_GROUPS.some((group) => group.items.some((item) => item.paragraphs.some((p) => p.includes(PRODUCT_DISCLOSURE_COPY))))) {
   throw new Error("FAQ must keep the locked product disclosure.");
 }
+if (!FAQ_GROUPS.some((group) => group.items.some((item) => item.paragraphs.some((p) => p.includes("not live on this storefront yet"))))) {
+  throw new Error("FAQ payment copy must not claim card payment is live.");
+}
 if (!FAQ_GROUPS.some((group) => group.items.some((item) => item.paragraphs.includes(TRACKING_UNAVAILABLE_COPY.heading)))) {
   throw new Error("FAQ must keep TRACKING NOT AVAILABLE YET as a normal state.");
 }

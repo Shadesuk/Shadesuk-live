@@ -1,7 +1,8 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { AnalyticsPageView } from "@/components/analytics/AnalyticsPageView";
 import { BagDrawer } from "@/components/cart/BagDrawer";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { routes } from "@/lib/navigation";
@@ -32,6 +33,9 @@ export function SiteChrome({
     <ChromeProvider value={value}>
       <CartProvider initialCart={initialCart}>
         <div className={styles.shell}>
+          <Suspense fallback={null}>
+            <AnalyticsPageView />
+          </Suspense>
           <div className={styles.lock} inert={pageLocked || undefined}>
             <SiteHeader
               reduced={checkout}

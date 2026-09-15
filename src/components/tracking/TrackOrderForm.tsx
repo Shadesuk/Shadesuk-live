@@ -12,6 +12,7 @@ import {
   TRACK_ORDER_ACTION,
   TRACK_YOUR_ORDER,
 } from "@/lib/tracking-copy";
+import { track } from "@/lib/analytics";
 import type { GuestOrderTrackingView } from "@/contracts/order/dto";
 import styles from "./Tracking.module.css";
 
@@ -33,6 +34,7 @@ export function TrackOrderForm() {
     if (result.status === "ok") {
       setOrder(result.order);
       setPending(false);
+      track("track_order", { status: result.order.status });
       return;
     }
     setOrder(null);

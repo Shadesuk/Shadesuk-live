@@ -1,9 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import { LiveRecentlyViewed } from "@/components/pdp/LiveRecentlyViewed";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { InlineError } from "@/components/ui/InlineError";
 import { ProductGrid } from "@/components/product/ProductGrid";
+import { track } from "@/lib/analytics";
 import {
   EMPTY_BAG_CTA,
   EMPTY_BAG_DESCRIPTION,
@@ -28,13 +31,15 @@ export function CartPage({ initialCart, suggestions }: CartPageProps) {
   const view = cart.items.length > 0 || cart.issues.length > 0 ? cart : initialCart;
   const empty = view.items.length === 0;
 
+  useEffect(() => {
+    track("view_cart", { count: view.items.length, value: view.subtotal, currency: "GBP" });
+    // Fire once per bag visit, not on each quantity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className={styles.page} data-cart>
-      {error ? (
-        <p className="text-small" role="alert">
-          We could not complete that request.
-        </p>
-      ) : null}
+      {error ? <InlineError /> : null}
       {empty ? (
         <>
           <h1 className="visually-hidden">Your bag</h1>
@@ -104,7 +109,7 @@ export function CartPage({ initialCart, suggestions }: CartPageProps) {
           <h2 id="cart-you-may-also-like" className="text-micro">
             You may also like
           </h2>
-          <ProductGrid products={suggestions} imagePriorityCount={0} />
+          <ProductGrid products={suggestions} imagePriorityCount={0} list="you_may_also_like" />
         </section>
       ) : null}
       <LiveRecentlyViewed />

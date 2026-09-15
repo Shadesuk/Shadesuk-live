@@ -43,7 +43,7 @@ export function CollectionEmptyState({
   return (
     <EmptyState
       title="No shades match these filters."
-      description="Clear the current filters or browse the full catalogue."
+                    description="Try removing a filter."
       actions={
         <>
           <Button

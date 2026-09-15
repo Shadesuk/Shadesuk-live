@@ -28,6 +28,7 @@ import {
 import { DiscoverySuggestions, RecentSearches } from "./RecentSearches";
 import { SearchInput } from "./SearchInput";
 import { SearchSuggestions } from "./SearchSuggestions";
+import { track } from "@/lib/analytics";
 import styles from "./SearchForm.module.css";
 
 const EMPTY_RECENT: string[] = [];
@@ -62,6 +63,7 @@ export function SearchForm({
   const [activeIndex, setActiveIndex] = useState(-1);
   const debounceRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const startedRef = useRef(false);
   const recents = useSyncExternalStore(
     subscribeRecentSearches,
     getRecentSearches,
@@ -120,6 +122,11 @@ export function SearchForm({
         setRemoteError(false);
         setFetchedKey(key);
         setActiveIndex(-1);
+        const nextSuggestions = Array.isArray(body.suggestions) ? body.suggestions : [];
+        track("search_query", { query, result_count: nextSuggestions.length });
+        if (nextSuggestions.length > 0) {
+          track("search_suggestion_view", { query, result_count: nextSuggestions.length });
+        }
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) {
@@ -137,6 +144,10 @@ export function SearchForm({
   }, [suggestQuery, retryNonce]);
 
   function queueSuggestions(next: string) {
+    if (next.trim() && !startedRef.current) {
+      startedRef.current = true;
+      track("search_started", { query: next.trim() });
+    }
     if (debounceRef.current) {
       window.clearTimeout(debounceRef.current);
     }
@@ -165,6 +176,11 @@ export function SearchForm({
   }
 
   function handleSelect(item: SearchSuggestion) {
+    track("search_suggestion_click", {
+      query: value.trim(),
+      suggestion_type: item.kind,
+      item_name: item.label,
+    });
     if (item.kind !== "product") {
       recordRecentSearch(item.label);
     } else if (value.trim()) {

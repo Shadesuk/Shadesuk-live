@@ -1,20 +1,25 @@
-import Link from "next/link";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { routes } from "@/lib/navigation";
+import { UNAVAILABLE_DESCRIPTION, UNAVAILABLE_TITLE } from "@/lib/ui-state-copy";
 
 export default function CatalogueNotFound() {
   return (
     <PageContainer>
       <main id="main">
         <ContentWidth>
-          <h1 className="text-h2">This collection isn’t available.</h1>
-          <p className="text-body">
-            That collection isn’t part of the current SHADESUK catalogue.
-          </p>
-          <p>
-            <Link href={routes.shop}>View all shades</Link>
-          </p>
+          <EmptyState
+            title={UNAVAILABLE_TITLE}
+            description={UNAVAILABLE_DESCRIPTION}
+            titleAs="h1"
+            actions={
+              <ButtonLink href={routes.shop} variant="secondary">
+                View all shades
+              </ButtonLink>
+            }
+          />
         </ContentWidth>
       </main>
     </PageContainer>
