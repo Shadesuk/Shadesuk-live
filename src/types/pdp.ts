@@ -3,10 +3,15 @@ import type { PublicCart } from "@/types/cart";
 
 export type ProductDataSource = "live" | "demo";
 
+/**
+ * Line identity is `variantId` (preferred) or an unambiguous colour+size pair.
+ * Colour alone is not unique on live catalogue rows that share a colour across sizes.
+ */
 export type AddToBagInput = {
   slug: string;
-  colourId: string;
   quantity: number;
+  variantId?: string;
+  colourId?: string;
   size?: string;
 };
 

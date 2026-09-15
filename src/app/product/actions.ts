@@ -7,7 +7,7 @@ import type { AddToBagInput, PublicAddToBagResult } from "@/types/pdp";
 
 /**
  * Validates selection, binds the guest cart cookie, and writes a cart line
- * (PR #10 via service-role when the variant exists; otherwise the demo path).
+ * keyed by product_variant_id (or an unambiguous colour+size pair).
  * The session id is never returned in this payload.
  */
 export async function addToBagAction(

@@ -3,7 +3,12 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import type { CartRevalidationIssue } from "@/contracts";
 import { majorToMinorGbp, minorToMajorGbp } from "@/contracts";
-import { ADD_TO_BAG_QUANTITY_MAX, evaluateAddToBag, resolveCartVariantId } from "@/lib/add-to-bag";
+import {
+  ADD_TO_BAG_QUANTITY_MAX,
+  evaluateAddToBag,
+  resolveCartVariantId,
+  resolveSelectedVariant,
+} from "@/lib/add-to-bag";
 import { cartIssueMessage } from "@/lib/cart-copy";
 import {
   readDemoCartLines,
@@ -61,18 +66,28 @@ export async function addItemToGuestCart(input: AddToBagInput): Promise<AddToBag
   }
 
   const product = record.product;
-  const colour = product.colours.find((item) => item.id === input.colourId);
+  const variant = resolveSelectedVariant(product, input);
+  const colourId = variant?.colourId ?? input.colourId;
+  const colour = colourId
+    ? product.colours.find((item) => item.id === colourId)
+    : undefined;
   if (!colour) {
     return { status: "error" };
   }
 
+  const variantId = resolveCartVariantId(product, input);
+  if (!variantId) {
+    return { status: "error" };
+  }
+
   const sessionId = await bindGuestCartSession();
-  const variantId = resolveCartVariantId(product, input.colourId, input.size);
   const quantity = Math.floor(input.quantity);
   const unitPriceMinor = resolveUnitPriceMinor(product, variantId);
+  const size = variant?.size ?? input.size;
 
   const live = await tryAddLiveLine({
     sessionId,
+    productId: product.id,
     variantId,
     quantity,
     unitPriceMinor,
@@ -88,7 +103,7 @@ export async function addItemToGuestCart(input: AddToBagInput): Promise<AddToBag
       sessionId,
       product,
       colourId: colour.id,
-      size: input.size,
+      size,
       variantId,
       quantity,
       unitPriceMinor,
@@ -264,6 +279,7 @@ async function assemblePublicCart(sessionId: string): Promise<PublicCart> {
 
 async function tryAddLiveLine(input: {
   sessionId: string;
+  productId: string;
   variantId: string;
   quantity: number;
   unitPriceMinor: number;
@@ -274,6 +290,9 @@ async function tryAddLiveLine(input: {
   const live = await fetchLiveVariantForCart(input.variantId);
   if (!live) {
     return "miss";
+  }
+  if (live.productId !== input.productId) {
+    return "error";
   }
   if (variantAvailability(live.variant) !== "in_stock") {
     return "unavailable";

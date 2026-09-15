@@ -110,6 +110,12 @@ if (
     colourId: "colour-black",
     quantity: 1,
     sessionId: "should-not-be-accepted",
+  }) ||
+  parseAddToBagInput({
+    slug: "frame-01",
+    variantId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    quantity: 1,
+    cartId: "also-rejected",
   })
 ) {
   throw new Error("Add-to-bag must reject a client-supplied session id.");

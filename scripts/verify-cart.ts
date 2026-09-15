@@ -67,12 +67,84 @@ if (publicReady.status === "added") {
   throw new Error("Validation must not serialize an added cart.");
 }
 
-const variantId = resolveCartVariantId(frame01, "colour-black");
-if (!isDemoVariantId(variantId) || isUuid(variantId)) {
+const variantId = resolveCartVariantId(frame01, { colourId: "colour-black" });
+if (!variantId || !isDemoVariantId(variantId) || isUuid(variantId)) {
   throw new Error("Demo variant ids must not be written as catalogue UUIDs.");
 }
 if (variantId !== demoVariantId(frame01.id, "colour-black")) {
   throw new Error("Demo variant ids must stay stable per product and colour.");
+}
+
+const smallId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+const largeId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+const foreignId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+const sizedProduct = {
+  ...frame01,
+  id: "prod-sized-live",
+  slug: "sized-live-frame",
+  colours: [{ id: "black", slug: "black", name: "Black", available: true }],
+  sizes: ["Small", "Large"],
+  variants: [
+    { id: smallId, colourId: "black", availability: "in_stock" as const, size: "Small" },
+    { id: largeId, colourId: "black", availability: "in_stock" as const, size: "Large" },
+  ],
+};
+
+if (
+  evaluateAddToBag(sizedProduct, {
+    slug: sizedProduct.slug,
+    colourId: "black",
+    quantity: 1,
+  }).status !== "error"
+) {
+  throw new Error("Colour-only add-to-bag must fail when a colour has multiple sizes.");
+}
+
+const sizedByPair = evaluateAddToBag(sizedProduct, {
+  slug: sizedProduct.slug,
+  colourId: "black",
+  size: "Large",
+  quantity: 1,
+});
+if (sizedByPair.status !== "ready") {
+  throw new Error("Colour + size must uniquely identify a live cart line.");
+}
+if (resolveCartVariantId(sizedProduct, { colourId: "black", size: "Large" }) !== largeId) {
+  throw new Error("Cart writes must use the sized variant id, not the first colour match.");
+}
+
+const sizedById = evaluateAddToBag(sizedProduct, {
+  slug: sizedProduct.slug,
+  variantId: smallId,
+  quantity: 1,
+});
+if (sizedById.status !== "ready") {
+  throw new Error("variantId must be the preferred cart line identity.");
+}
+if (resolveCartVariantId(sizedProduct, { variantId: smallId }) !== smallId) {
+  throw new Error("Preferred variantId must be written to cart_items.");
+}
+
+if (
+  evaluateAddToBag(sizedProduct, {
+    slug: sizedProduct.slug,
+    variantId: foreignId,
+    colourId: "black",
+    quantity: 1,
+  }).status !== "error" ||
+  resolveCartVariantId(sizedProduct, { variantId: foreignId, colourId: "black" }) !== null
+) {
+  throw new Error("Client-supplied variantId must belong to the product on the slug.");
+}
+
+if (
+  parseAddToBagInput({
+    slug: "sized-live-frame",
+    variantId: largeId,
+    quantity: 1,
+  })?.variantId !== largeId
+) {
+  throw new Error("Add-to-bag must accept variantId without colourId.");
 }
 
 const sessionId = createGuestCartSessionId();
