@@ -28,8 +28,4 @@
   flex-direction: column;
   align-items: stretch;
   gap: var(--space-8);
-  position: sticky;
-  bottom: 0;
-  padding: var(--space-16) 0 calc(var(--space-16) + env(safe-area-inset-bottom));
-  background: var(--color-bg);
 }

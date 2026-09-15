@@ -22,7 +22,7 @@
   opacity: 0.48;
 }
 
-.current {
+.steps .current {
   opacity: 1;
 }
 
