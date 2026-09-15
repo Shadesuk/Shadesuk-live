@@ -268,7 +268,28 @@ Status: NON-BLOCKING
 
 ---
 
-## J. Verification commands
+## J. Browser verification (this slice)
+
+Exercised against `DEMO_CATALOGUE=true npm run dev -- --port 3000` on 15 September 2026.
+
+| Surface | Result |
+| --- | --- |
+| Home `/` | Wordmark + campaign chrome; `index, follow` metadata |
+| Shop `/shop` | Product cards, filter/sort wrap |
+| PDP `/product/frame-01` | Add to bag succeeds; bag drawer lists the line |
+| Cart `/cart` | Empty-bag EmptyState when no lines; line item after add |
+| Checkout `/checkout` | Empty bag redirects to `/cart` with EmptyState (no blank screen) |
+| FAQ `/faq` | “How do I pay?” future-tense: not live yet |
+| Search `/search?q=zzzzz` | `No results for “zzzzz”`; noindex |
+| Account `/account` | Auth surface + route chrome |
+| 404 `/this-page-missing` | “This page doesn’t exist” + View all shades |
+| 320–380px header | MENU / wordmark / SEARCH / BAG fit without horizontal overflow |
+
+SEO spot-checks: home `index, follow`; `/shop?colour=black` `noindex` + canonical `/shop`; search `noindex, nofollow`; PDP JSON-LD present.
+
+---
+
+## K. Verification commands
 
 ```text
 npx tsc --noEmit
