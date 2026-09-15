@@ -5,8 +5,7 @@ import { useChrome } from "@/components/navigation/ChromeContext";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Drawer } from "@/components/ui/Drawer";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/cart-copy";
+import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION } from "@/lib/cart-copy";
 import { formatGbp } from "@/lib/money";
 import { routes } from "@/lib/navigation";
 import { CartLine } from "./CartLine";
@@ -15,7 +14,7 @@ import styles from "./BagDrawer.module.css";
 
 export function BagDrawer() {
   const { acquirePageLock, releasePageLock } = useChrome();
-  const { cart, open, closeBag, loading, error, updateQuantity, removeItem } = useCart();
+  const { cart, open, closeBag, error, updateQuantity, removeItem } = useCart();
   const titleId = useId();
   const [desktop, setDesktop] = useState(false);
 
@@ -52,9 +51,9 @@ export function BagDrawer() {
           <h2 id={titleId} className="text-micro">
             Your bag
           </h2>
-          <Button variant="tertiary" onClick={closeBag}>
+          <button type="button" className={styles.close} onClick={closeBag}>
             Close
-          </Button>
+          </button>
         </div>
         <div className={styles.body}>
           {error ? (
@@ -62,20 +61,12 @@ export function BagDrawer() {
               We could not complete that request.
             </p>
           ) : null}
-          {loading && empty ? (
-            <p className="text-small">Loading…</p>
-          ) : null}
-          {empty && !loading ? (
+          {empty ? (
             <div className={styles.empty}>
-              <EmptyState
-                title={EMPTY_BAG_TITLE}
-                description={EMPTY_BAG_DESCRIPTION}
-                actions={
-                  <ButtonLink href={routes.shop} variant="secondary">
-                    {EMPTY_BAG_CTA}
-                  </ButtonLink>
-                }
-              />
+              <p className="text-small">{EMPTY_BAG_DESCRIPTION}</p>
+              <ButtonLink href={routes.shop} variant="secondary" onClick={closeBag}>
+                {EMPTY_BAG_CTA}
+              </ButtonLink>
             </div>
           ) : null}
           {cart.items.map((item) => (

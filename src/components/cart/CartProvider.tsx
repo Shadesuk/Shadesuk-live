@@ -25,7 +25,6 @@ export const EMPTY_PUBLIC_CART: PublicCart = {
 
 type CartContextValue = {
   cart: PublicCart;
-  loading: boolean;
   error: boolean;
   open: boolean;
   openBag: () => void;
@@ -54,7 +53,6 @@ export function CartProvider({
   initialCart?: PublicCart;
 }) {
   const [cart, setCart] = useState<PublicCart>(initialCart);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -64,15 +62,12 @@ export function CartProvider({
   }, []);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
     const result = await getCartAction();
     if (result.status === "ok") {
       applyCart(result.cart);
-      setLoading(false);
       return;
     }
     setError(true);
-    setLoading(false);
   }, [applyCart]);
 
   const openBag = useCallback(() => {
@@ -109,7 +104,6 @@ export function CartProvider({
   const value = useMemo<CartContextValue>(
     () => ({
       cart,
-      loading,
       error,
       open,
       openBag,
@@ -119,7 +113,7 @@ export function CartProvider({
       updateQuantity,
       removeItem,
     }),
-    [applyCart, cart, error, loading, open, openBag, refresh, removeItem, updateQuantity],
+    [applyCart, cart, error, open, openBag, refresh, removeItem, updateQuantity],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
