@@ -5,6 +5,9 @@ import { isGuestCartSessionId } from "@/contracts";
  * Guest cart-lines and checkout-draft cookies are HMAC-signed with a server
  * secret and bound to the httpOnly session id. The session id is never the
  * HMAC key (PR #15 Medium) and is never stored in the cookie payload.
+ *
+ * Production fails closed if neither GUEST_COOKIE_SECRET nor a Supabase secret
+ * is set. The local HMAC fallback is development-only.
  */
 export const GUEST_COOKIE_HMAC_VERSION = "v2";
 
@@ -13,25 +16,42 @@ const LOCAL_DEV_FALLBACK = "shadesuk-local-guest-cookie-dev";
 export type GuestCookieSecretInput = {
   guestCookieSecret?: string | undefined;
   supabaseSecret?: string | undefined;
+  nodeEnv?: string | undefined;
 };
 
 export function resolveGuestCookieSecret(input?: GuestCookieSecretInput): string {
-  const guest = firstNonEmpty(
-    input?.guestCookieSecret,
+  const guest = providedOrEnv(
+    input,
+    "guestCookieSecret",
     process.env.GUEST_COOKIE_SECRET,
   );
   if (guest) {
     return guest;
   }
-  const supabase = firstNonEmpty(
-    input?.supabaseSecret,
+  const supabase = providedOrEnv(
+    input,
+    "supabaseSecret",
     process.env.SUPABASE_SECRET_KEY,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
   );
   if (supabase) {
     return supabase;
   }
+  const nodeEnv = input?.nodeEnv ?? process.env.NODE_ENV;
+  if (nodeEnv === "production") {
+    return "";
+  }
   return LOCAL_DEV_FALLBACK;
+}
+
+export function requireGuestCookieSecret(input?: GuestCookieSecretInput): string {
+  const secret = resolveGuestCookieSecret(input);
+  if (!secret) {
+    throw new Error(
+      "Guest cookie HMAC is not configured: set GUEST_COOKIE_SECRET or SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) in production.",
+    );
+  }
+  return secret;
 }
 
 export function signGuestCookiePayload(
@@ -63,6 +83,9 @@ export function guestCookieSignatureMatches(input: {
 }
 
 export function encodeGuestCookieValue(body: string, hmac: string): string {
+  if (!hmac) {
+    return "";
+  }
   return `${GUEST_COOKIE_HMAC_VERSION}.${Buffer.from(body, "utf8").toString("base64url")}.${hmac}`;
 }
 
@@ -97,6 +120,17 @@ export function safeEqual(left: string, right: string): boolean {
     mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
   }
   return mismatch === 0;
+}
+
+function providedOrEnv(
+  input: GuestCookieSecretInput | undefined,
+  key: "guestCookieSecret" | "supabaseSecret",
+  ...envValues: Array<string | undefined>
+): string {
+  if (input && Object.prototype.hasOwnProperty.call(input, key)) {
+    return firstNonEmpty(input[key]);
+  }
+  return firstNonEmpty(...envValues);
 }
 
 function firstNonEmpty(...values: Array<string | undefined>): string {

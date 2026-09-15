@@ -8,6 +8,7 @@ import {
 } from "../src/lib/checkout-draft";
 import {
   GUEST_COOKIE_HMAC_VERSION,
+  resolveGuestCookieSecret,
   signGuestCookiePayload,
 } from "../src/lib/guest-cookie-hmac";
 import {
@@ -223,6 +224,15 @@ if (
   signGuestCookiePayload(sessionId, "{}")
 ) {
   throw new Error("Checkout cookie HMAC must not be keyed only by sessionId.");
+}
+if (
+  resolveGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "production",
+  }) !== ""
+) {
+  throw new Error("Checkout production HMAC must fail closed without a server secret.");
 }
 
 const expired = decodeCheckoutDraftCookie(

@@ -1,0 +1,248 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+  ACCOUNT_EXISTS,
+  ACCOUNT_TITLE,
+  ACCOUNT_UNAVAILABLE,
+  CONTINUE_WITH_GOOGLE,
+  CREATE_ACCOUNT_ACTION,
+  CREDENTIALS_INVALID,
+  FORGOT_PASSWORD_LINK,
+  HELLO_PREFIX,
+  NO_ADDRESSES_TITLE,
+  NO_ORDERS_TITLE,
+  RESET_SENT_BODY,
+  SHOP_SHADES,
+  SIGN_IN_ACTION,
+  SIGN_OUT_ACTION,
+} from "../src/lib/account-copy";
+import {
+  isSafeNextPath,
+  resolveSafeNextPath,
+  validateRegisterInput,
+  validateSignInInput,
+} from "../src/lib/account-validate";
+import { CART_MERGE_POLICY } from "../src/contracts";
+import { CONTINUE_AS_GUEST } from "../src/lib/checkout-copy";
+import { routes } from "../src/lib/navigation";
+import {
+  requireGuestCookieSecret,
+  resolveGuestCookieSecret,
+} from "../src/lib/guest-cookie-hmac";
+import { hasForbiddenOwnershipKey } from "../src/lib/ownership-keys";
+
+if (routes.account !== "/account") {
+  throw new Error("Account route must stay /account.");
+}
+if (routes.accountRegister !== "/account/register") {
+  throw new Error("Create-account route must stay /account/register.");
+}
+if (routes.accountForgotPassword !== "/account/forgot-password") {
+  throw new Error("Forgot-password route must stay /account/forgot-password.");
+}
+if (routes.authCallback !== "/auth/callback") {
+  throw new Error("Auth callback must stay /auth/callback.");
+}
+if (routes.checkout !== "/checkout") {
+  throw new Error("Guest checkout route must remain /checkout.");
+}
+
+if (ACCOUNT_TITLE !== "Account") {
+  throw new Error("Account heading copy must stay locked.");
+}
+if (SIGN_IN_ACTION !== "Sign in") {
+  throw new Error("Sign in copy must stay locked.");
+}
+if (CREATE_ACCOUNT_ACTION !== "Create account") {
+  throw new Error("Create account copy must stay locked.");
+}
+if (CONTINUE_WITH_GOOGLE !== "Continue with Google") {
+  throw new Error("Google CTA copy must stay locked.");
+}
+if (FORGOT_PASSWORD_LINK !== "Forgot password?") {
+  throw new Error("Forgot password copy must stay locked.");
+}
+if (HELLO_PREFIX !== "Hello") {
+  throw new Error("Account greeting copy must stay locked.");
+}
+if (NO_ORDERS_TITLE !== "No orders yet") {
+  throw new Error("Empty orders copy must stay locked.");
+}
+if (NO_ADDRESSES_TITLE !== "No saved addresses") {
+  throw new Error("Empty addresses copy must stay locked.");
+}
+if (SHOP_SHADES !== "Shop shades") {
+  throw new Error("Empty orders CTA copy must stay locked.");
+}
+if (SIGN_OUT_ACTION !== "Sign out") {
+  throw new Error("Sign out copy must stay locked.");
+}
+if (CONTINUE_AS_GUEST !== "Continue as guest") {
+  throw new Error("Guest checkout CTA must remain locked.");
+}
+if (!RESET_SENT_BODY.toLowerCase().includes("if an account exists")) {
+  throw new Error("Password reset must not reveal whether an email exists.");
+}
+if (
+  CREDENTIALS_INVALID.toLowerCase().includes("registered") ||
+  CREDENTIALS_INVALID.toLowerCase().includes("no account")
+) {
+  throw new Error("Invalid sign-in must not reveal whether the email exists.");
+}
+if (!ACCOUNT_UNAVAILABLE.toLowerCase().includes("guest")) {
+  throw new Error("Account unavailable copy must keep guest checkout available.");
+}
+
+const signInErrors = validateSignInInput({ email: "", password: "" });
+if (!signInErrors.email || !signInErrors.password) {
+  throw new Error("Sign-in validation must require email and password.");
+}
+const registerErrors = validateRegisterInput({
+  firstName: "",
+  lastName: "",
+  email: "not-an-email",
+  password: "short",
+});
+if (!registerErrors.firstName || !registerErrors.email || !registerErrors.password) {
+  throw new Error("Register validation must cover name, email, and password.");
+}
+
+if (
+  isSafeNextPath("https://evil.example") ||
+  isSafeNextPath("//evil.example") ||
+  isSafeNextPath("/\\evil")
+) {
+  throw new Error("Auth next paths must reject open redirects.");
+}
+if (!isSafeNextPath("/checkout") || resolveSafeNextPath("https://evil.example") !== "/account") {
+  throw new Error("Safe next-path fallback failed.");
+}
+
+if (
+  CART_MERGE_POLICY.soldOut !== "drop_with_notice" ||
+  CART_MERGE_POLICY.guestCartAfterMerge !== "converted"
+) {
+  throw new Error("Guest cart merge policy must stay locked.");
+}
+if (!hasForbiddenOwnershipKey({ email: "a@b.com", sessionId: "nope" })) {
+  throw new Error("Auth actions must reject client-supplied session ids.");
+}
+
+const root = resolve(process.cwd());
+const accountActions = readFileSync(resolve(root, "src/app/account/actions.ts"), "utf8");
+if (
+  accountActions.includes("sessionId") ||
+  accountActions.includes("session_id") ||
+  accountActions.includes("cart_id")
+) {
+  throw new Error("Account auth actions must not serialize guest cart session ids.");
+}
+if (!accountActions.includes("cartActionOriginAllowed")) {
+  throw new Error("Account mutations must check CSRF/origin.");
+}
+if (!accountActions.includes("resetPasswordForEmail")) {
+  throw new Error("Password reset must use Supabase Auth email reset.");
+}
+
+const resetAction = accountActions.slice(
+  accountActions.indexOf("requestPasswordResetAction"),
+  accountActions.indexOf("updatePasswordAction"),
+);
+if (resetAction.includes("ACCOUNT_EXISTS") || resetAction.includes("CREDENTIALS_INVALID")) {
+  throw new Error("Password reset must not branch on whether the email exists.");
+}
+if (!resetAction.includes('return { status: "reset_sent" }')) {
+  throw new Error("Password reset must always return the same sent state.");
+}
+
+const proxy = readFileSync(resolve(root, "src/proxy.ts"), "utf8");
+if (!proxy.includes("/account/:path*") || !proxy.includes("refreshAccountSession")) {
+  throw new Error("Proxy must refresh sessions for /account/**.");
+}
+if (proxy.includes("/checkout")) {
+  throw new Error("Session proxy must not hijack guest checkout.");
+}
+
+const refresh = readFileSync(resolve(root, "src/lib/supabase/refresh-session.ts"), "utf8");
+if (refresh.includes("getSession()") || !refresh.includes("getClaims")) {
+  throw new Error("Session refresh must validate with getClaims, not getSession.");
+}
+
+const accountPage = readFileSync(resolve(root, "src/app/account/page.tsx"), "utf8");
+if (!accountPage.includes("getOptionalAccountUser") || !accountPage.includes("SignInForm")) {
+  throw new Error("Unauthenticated /account must render the sign-in UI.");
+}
+
+const ordersPage = readFileSync(resolve(root, "src/app/account/orders/page.tsx"), "utf8");
+if (!ordersPage.includes("requireAccountUser")) {
+  throw new Error("Account orders must be gated on a real server session.");
+}
+
+const header = readFileSync(resolve(root, "src/components/navigation/SiteHeader.tsx"), "utf8");
+if (!header.includes("routes.account")) {
+  throw new Error("Header Account link must point at the real account route.");
+}
+
+const checkoutContact = readFileSync(
+  resolve(root, "src/components/checkout/CheckoutContact.tsx"),
+  "utf8",
+);
+if (!checkoutContact.includes("CONTINUE_AS_GUEST") || !checkoutContact.includes("routes.account")) {
+  throw new Error("Guest checkout contact must keep Continue as guest and Sign in.");
+}
+
+const envExample = readFileSync(resolve(root, ".env.example"), "utf8");
+if (envExample.includes("GOOGLE_CLIENT") || envExample.includes("GOOGLE_SECRET")) {
+  throw new Error("Do not invent Google client secrets in .env.example.");
+}
+if (!envExample.includes("fails closed") && !envExample.toLowerCase().includes("fail closed")) {
+  throw new Error(".env.example must document production HMAC fail-closed.");
+}
+
+const hmacHelper = readFileSync(resolve(root, "src/lib/guest-cookie-hmac.ts"), "utf8");
+if (!hmacHelper.includes('nodeEnv === "production"') || !hmacHelper.includes("LOCAL_DEV_FALLBACK")) {
+  throw new Error("Guest cookie HMAC must keep the local fallback off the production path.");
+}
+
+const demoStore = readFileSync(resolve(root, "src/lib/demo-cart-cookie-store.ts"), "utf8");
+const checkoutStore = readFileSync(resolve(root, "src/lib/checkout-draft-store.ts"), "utf8");
+if (!demoStore.includes("requireGuestCookieSecret") || !checkoutStore.includes("requireGuestCookieSecret")) {
+  throw new Error("Cookie writes must require a real HMAC secret in production.");
+}
+
+const docs = readFileSync(resolve(root, "docs/PHASE3_ACCOUNT_AUTH.md"), "utf8");
+if (!docs.includes("Supabase dashboard") || !docs.includes("Continue with Google")) {
+  throw new Error("Account auth docs must record dashboard-pending Google setup.");
+}
+if (!docs.includes("fail closed") || !docs.includes("GUEST_COOKIE_SECRET")) {
+  throw new Error("Account auth docs must record production HMAC fail-closed.");
+}
+
+if (
+  resolveGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "production",
+  }) !== ""
+) {
+  throw new Error("Production must fail closed without GUEST_COOKIE_SECRET or a Supabase secret.");
+}
+let productionCookieSecretThrew = false;
+try {
+  requireGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "production",
+  });
+} catch {
+  productionCookieSecretThrew = true;
+}
+if (!productionCookieSecretThrew) {
+  throw new Error("Account/auth cookie writes must not use a local HMAC fallback in production.");
+}
+
+if (ACCOUNT_EXISTS.toLowerCase().includes("try a different")) {
+  throw new Error("Duplicate-account copy drifted.");
+}
+
+console.log("verify-account: ok");

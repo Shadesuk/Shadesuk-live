@@ -16,6 +16,7 @@ import { cartIssueMessage, EMPTY_BAG_CTA, EMPTY_BAG_TITLE } from "../src/lib/car
 import { decodeDemoCartCookie, encodeDemoCartCookie } from "../src/lib/demo-cart-cookie";
 import {
   GUEST_COOKIE_HMAC_VERSION,
+  requireGuestCookieSecret,
   resolveGuestCookieSecret,
   signGuestCookiePayload,
 } from "../src/lib/guest-cookie-hmac";
@@ -185,6 +186,9 @@ if (decodeDemoCartCookie("ff".repeat(32), encoded, cookieSecret).length !== 0) {
 if (decodeDemoCartCookie(sessionId, encoded, "other-server-secret").length !== 0) {
   throw new Error("Demo cart cookie must reject a mismatched server secret.");
 }
+if (encodeDemoCartCookie(sessionId, [], "") !== "") {
+  throw new Error("Guest cart cookies must not be encoded without an HMAC secret.");
+}
 if (signGuestCookiePayload(sessionId, "{\"items\":[]}", cookieSecret) === signGuestCookiePayload(sessionId, "{\"items\":[]}")) {
   throw new Error("Cookie HMAC must not be keyed only by sessionId.");
 }
@@ -193,6 +197,46 @@ if (resolveGuestCookieSecret({ guestCookieSecret: "a", supabaseSecret: "b" }) !=
 }
 if (resolveGuestCookieSecret({ supabaseSecret: "b" }) !== "b") {
   throw new Error("Cookie HMAC may fall back to SUPABASE_SECRET_KEY.");
+}
+if (
+  resolveGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "production",
+  }) !== ""
+) {
+  throw new Error("Production must fail closed without GUEST_COOKIE_SECRET or a Supabase secret.");
+}
+if (
+  resolveGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "prod-supabase-secret",
+    nodeEnv: "production",
+  }) !== "prod-supabase-secret"
+) {
+  throw new Error("Production HMAC may use the Supabase secret when GUEST_COOKIE_SECRET is unset.");
+}
+let productionHmacThrew = false;
+try {
+  requireGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "production",
+  });
+} catch {
+  productionHmacThrew = true;
+}
+if (!productionHmacThrew) {
+  throw new Error("Production cookie writes must refuse the local HMAC fallback.");
+}
+if (
+  !resolveGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "development",
+  })
+) {
+  throw new Error("Local development may use an HMAC fallback.");
 }
 if (
   isLiveVariantEligibleForCart({ productStatus: "draft", variantStatus: "available" }) ||

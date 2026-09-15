@@ -10,7 +10,7 @@ This slice replaces the `/checkout` placeholder with a guest checkout walk: cont
 
 - `/checkout` — empty bag redirects to `/cart`
 - Multi-step UI: **Contact** (continue as guest), **Delivery** (address + shipping expectation), **Review**
-- Checkout draft persisted in httpOnly cookie `shadesuk_guest_checkout`, HMAC-signed with `GUEST_COOKIE_SECRET` (falls back to `SUPABASE_SECRET_KEY`) and bound to the guest cart session. Session id is never the HMAC key, payload, RSC props, or action JSON
+- Checkout draft persisted in httpOnly cookie `shadesuk_guest_checkout`, HMAC-signed with `GUEST_COOKIE_SECRET` (falls back to `SUPABASE_SECRET_KEY`). Production fails closed if neither secret is set (no local HMAC fallback). Bound to the guest cart session. Session id is never the HMAC key, payload, RSC props, or action JSON
 - Live cart variant fetch requires `products.status = published` and `product_variants.status = available`
 - CSRF/origin checks on checkout Server Actions and cart loaders (`getCartAction` / `loadCart`). Secure cookies in production
 - Order summary from the live cart. Shipping line is **Calculated later**. Minimum 2-week copy. Manual fulfilment note. No carrier API
@@ -18,7 +18,7 @@ This slice replaces the `/checkout` placeholder with a guest checkout walk: cont
 
 ## Security (PR #15 Mediums carried into this slice)
 
-- Cookie HMAC uses a server secret, not the session id as the key
+- Cookie HMAC uses a server secret, not the session id as the key. Production refuses the local HMAC fallback if `GUEST_COOKIE_SECRET` and the Supabase secret are both unset
 - Guest session id is never serialized to the browser
 - No payment SDKs/webhooks; Continue to payment remains an honest disabled stub
 - Cart `loadCart` / recently-viewed product loader reject cross-origin calls instead of returning cart/product state
