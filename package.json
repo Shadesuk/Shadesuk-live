@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "verify:contracts": "npx --yes tsx scripts/verify-data-contracts.ts",
-    "verify:pdp": "npx --yes tsx scripts/verify-pdp.ts"
+    "verify:pdp": "npx --yes tsx scripts/verify-pdp.ts",
+    "verify:cart": "npx --yes tsx scripts/verify-cart.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

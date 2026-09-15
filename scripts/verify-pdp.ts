@@ -59,8 +59,13 @@ const added = evaluateAddToBag(frame01, {
   colourId: "colour-black",
   quantity: 1,
 });
-if (added.status !== "deferred") {
-  throw new Error("In-stock demo add-to-bag must be deferred until cart exists.");
+if (added.status !== "ready") {
+  throw new Error("In-stock demo add-to-bag must be ready to persist.");
+}
+
+const publicReady = toPublicAddToBagResult(added);
+if (publicReady.status === "added") {
+  throw new Error("Evaluate-only add-to-bag must not claim the line was added.");
 }
 
 const soldOut = evaluateAddToBag(frame05, {
@@ -105,14 +110,32 @@ if (
     colourId: "colour-black",
     quantity: 1,
     sessionId: "should-not-be-accepted",
+  }) ||
+  parseAddToBagInput({
+    slug: "frame-01",
+    variantId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    quantity: 1,
+    cartId: "also-rejected",
   })
 ) {
   throw new Error("Add-to-bag must reject a client-supplied session id.");
 }
 
-const publicResult = toPublicAddToBagResult(added);
+const publicResult = toPublicAddToBagResult({
+  status: "added",
+  cart: {
+    items: [],
+    itemCount: 0,
+    subtotal: 0,
+    currency: "GBP",
+    issues: [],
+  },
+});
 if ("sessionId" in publicResult || "session_id" in publicResult) {
   throw new Error("Add-to-bag JSON must not serialize a guest session id.");
+}
+if (publicResult.status !== "added") {
+  throw new Error("Successful persist must return added.");
 }
 
 if (!CART_MEDIATION_RULES.clientMustNotSendSessionId) {
@@ -143,4 +166,4 @@ if (!cookie.httpOnly || cookie.secure !== true) {
   throw new Error("Guest cart cookie must be httpOnly and Secure in production.");
 }
 
-console.log("PDP OK: demo slugs resolve, disclosure locked, add-to-bag deferred");
+console.log("PDP OK: demo slugs resolve, disclosure locked, add-to-bag ready to persist");

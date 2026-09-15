@@ -30,7 +30,14 @@ export {
 } from "./cart/session";
 export type { CartOwner } from "./cart/session";
 export { CART_MERGE_POLICY, toCartView } from "./cart/dto";
-export type { CartView, CartItemView, CartMergeConflict } from "./cart/dto";
+export type {
+  CartView,
+  CartItemView,
+  CartMergeConflict,
+  CartRevalidationIssue,
+  CartItemReconciliation,
+} from "./cart/dto";
+export type { CartItemRow, CartRow, CartStatus } from "./cart/schema";
 
 export {
   createOrderReference,

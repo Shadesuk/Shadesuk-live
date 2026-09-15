@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import { SiteChrome } from "@/components/navigation/SiteChrome";
+import { getPublicCart } from "@/services/cart";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -26,14 +27,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const initialCart = await getPublicCart();
   return (
     <html lang="en" className={inter.variable}>
       <body className={inter.className}>
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        <SiteChrome>{children}</SiteChrome>
+        <SiteChrome initialCart={initialCart}>{children}</SiteChrome>
       </body>
     </html>
   );

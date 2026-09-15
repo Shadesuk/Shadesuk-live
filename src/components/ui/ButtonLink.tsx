@@ -8,6 +8,7 @@ type ButtonLinkProps = {
   children: ReactNode;
   variant?: "primary" | "secondary" | "tertiary";
   className?: string;
+  onClick?: () => void;
 };
 
 export function ButtonLink({
@@ -15,9 +16,14 @@ export function ButtonLink({
   children,
   variant = "primary",
   className,
+  onClick,
 }: ButtonLinkProps) {
   return (
-    <Link className={cx(styles.button, styles[variant], className)} href={href}>
+    <Link
+      className={cx(styles.button, styles[variant], className)}
+      href={href}
+      onClick={onClick}
+    >
       <span>{children}</span>
     </Link>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCart } from "@/components/cart/CartProvider";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { SearchOverlay } from "@/components/search/SearchOverlay";
 import { primaryNav, routes } from "@/lib/navigation";
@@ -14,6 +15,7 @@ import styles from "./SiteHeader.module.css";
 
 export function SiteHeader() {
   const { acquirePageLock, releasePageLock } = useChrome();
+  const { cart, open: bagOpen, openBag, closeBag } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -127,8 +129,15 @@ export function SiteHeader() {
           </NavLink>
           <UtilityButton
             hasPopup="dialog"
+            expanded={bagOpen}
+            controls="site-bag-drawer"
+            count={cart.itemCount}
             onClick={() => {
-              /* Bag drawer is a later phase. */
+              if (bagOpen) {
+                closeBag();
+              } else {
+                openBag();
+              }
             }}
           >
             Bag

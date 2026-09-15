@@ -10,9 +10,10 @@ import {
   getColourCount,
   isProductAvailable,
 } from "@/services/catalogue";
-import { ADD_TO_BAG_QUANTITY_MAX } from "@/lib/add-to-bag";
+import { ADD_TO_BAG_QUANTITY_MAX, resolveSelectedVariant } from "@/lib/add-to-bag";
 import { addToBagAction } from "@/app/product/actions";
-import type { AddToBagResult } from "@/types/pdp";
+import { useCart } from "@/components/cart/CartProvider";
+import type { PublicAddToBagResult } from "@/types/pdp";
 import { ProductContent } from "./ProductContent";
 import { ProductGallery } from "./ProductGallery";
 import { SizeFaceGuide } from "./SizeFaceGuide";
@@ -23,9 +24,10 @@ type ProductHeroProps = {
   brandName: string;
 };
 
-type PurchaseUiState = "idle" | "adding" | "ready" | "error";
+type PurchaseUiState = "idle" | "adding" | "added" | "error";
 
 export function ProductHero({ product, brandName }: ProductHeroProps) {
+  const { applyCart, openBag } = useCart();
   const colours = product.colours;
   const initialColour =
     colours.find((colour) => colour.available) ?? colours[0];
@@ -53,8 +55,12 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
   const colour = colours.find((item) => item.id === colourId);
   const colourCount = getColourCount(product);
   const available = isProductAvailable(product) && Boolean(colour?.available);
-  const variant = product.variants?.find((item) => item.colourId === colour?.id);
-  const variantBlocked = variant ? variant.availability !== "in_stock" : false;
+  const variant = resolveSelectedVariant(product, {
+    colourId: colour?.id,
+    size: size || undefined,
+  });
+  const needsVariant = (product.variants?.length ?? 0) > 0;
+  const variantBlocked = variant ? variant.availability !== "in_stock" : needsVariant;
   const canPurchase = available && !variantBlocked;
   const compare =
     product.compareAtPrice != null && product.compareAtPrice > product.price
@@ -63,9 +69,6 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
   const save = compare != null ? compare - product.price : 0;
 
   const statusCopy = useMemo(() => {
-    if (ui === "ready") {
-      return "Bag checkout will follow.";
-    }
     if (ui === "error") {
       return "Couldn't add to bag. Please try again.";
     }
@@ -75,7 +78,7 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
   const ctaLabel = buttonLabel(ui, canPurchase, product.availability);
 
   function resetReady() {
-    if (ui === "ready" || ui === "error") {
+    if (ui === "added" || ui === "error") {
       setUi("idle");
     }
   }
@@ -85,19 +88,24 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
       return;
     }
     setUi("adding");
-    let result: AddToBagResult;
+    const payload = {
+      slug: product.slug,
+      colourId: colour.id,
+      quantity,
+      ...(size ? { size } : {}),
+      ...(variant?.id ? { variantId: variant.id } : {}),
+    };
+    let result: PublicAddToBagResult;
     try {
-      result = await addToBagAction({
-        slug: product.slug,
-        colourId: colour.id,
-        quantity,
-      });
+      result = await addToBagAction(payload);
     } catch {
       setUi("error");
       return;
     }
-    if (result.status === "deferred") {
-      setUi("ready");
+    if (result.status === "added") {
+      applyCart(result.cart);
+      openBag();
+      setUi("added");
       return;
     }
     setUi("error");
@@ -293,8 +301,8 @@ function buttonLabel(
   if (ui === "adding") {
     return "Adding";
   }
-  if (ui === "ready") {
-    return "Ready";
+  if (ui === "added") {
+    return "Added";
   }
   if (ui === "error") {
     return "Couldn't add to bag";
