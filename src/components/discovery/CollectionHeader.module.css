@@ -46,7 +46,7 @@
     align-items: end;
     column-gap: var(--space-32);
     padding-top: var(--space-64);
-    padding-bottom: var(--space-32);
+    padding-bottom: var(--space-48);
   }
 
   .controls {

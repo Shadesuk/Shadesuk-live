@@ -29,6 +29,12 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   border-bottom: 1px solid var(--color-stone);
+  transition: color var(--duration) var(--ease);
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--color-navy);
 }
 
 @media (min-width: 768px) {

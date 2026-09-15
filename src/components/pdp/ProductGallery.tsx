@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { getImageFallbackLabel } from "@/lib/product-display";
 import type { ProductImage } from "@/types/catalogue";
 import styles from "./ProductGallery.module.css";
 
@@ -53,7 +52,6 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
         >
           {slides.map((image, slideIndex) => {
             const clickable = Boolean(image?.src);
-            const label = image ? image.alt : getImageFallbackLabel();
             const media = image?.src ? (
               <Image
                 src={image.src}
@@ -65,12 +63,17 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
                 priority={slideIndex === 0}
               />
             ) : (
-              <span className={`${styles.fallback} text-micro`}>{label}</span>
+              <span className={styles.fallback} aria-hidden="true" />
             );
 
             if (!clickable) {
               return (
-                <div key={image?.id ?? "empty"} className={styles.slide}>
+                <div
+                  key={image?.id ?? "empty"}
+                  className={styles.slide}
+                  role="img"
+                  aria-label={`${productName} photography`}
+                >
                   {media}
                 </div>
               );

@@ -45,7 +45,7 @@ type CheckoutPageProps = {
 
 export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
   const router = useRouter();
-  const { cart, applyCart } = useCart();
+  const { cart, applyCart, updateQuantity, removeItem } = useCart();
   const view = cart.items.length > 0 ? cart : initialCart;
   const [draft, setDraft] = useState(initialDraft);
   const [email, setEmail] = useState(initialDraft.email);
@@ -215,7 +215,7 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
       <div className={styles.layout}>
         <div className={styles.main}>
           <div className={styles.mobileSummary}>
-            <CheckoutSummary cart={view} collapsible />
+            <CheckoutSummary cart={view} collapsible showLines={step !== "review"} />
           </div>
           {step === "contact" ? (
             <CheckoutContact
@@ -252,11 +252,13 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
               draft={draft}
               pending={pending}
               onBack={() => void goTo("address")}
+              onQuantity={updateQuantity}
+              onRemove={removeItem}
             />
           ) : null}
         </div>
         <div className={styles.desktopSummary}>
-          <CheckoutSummary cart={view} />
+          <CheckoutSummary cart={view} showLines={step !== "review"} />
         </div>
       </div>
     </div>

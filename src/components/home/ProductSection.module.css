@@ -25,6 +25,12 @@
   }
 }
 
+@media (min-width: 1200px) {
+  .section {
+    gap: var(--space-48);
+  }
+}
+
 @media (max-width: 767px) {
   .mobileTwo :global([data-product-grid] li:nth-child(n + 3)) {
     display: none;

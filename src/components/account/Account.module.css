@@ -113,6 +113,10 @@
 }
 
 @media (min-width: 768px) {
+  .page {
+    padding-block: var(--space-48) var(--space-80);
+  }
+
   .nav {
     display: flex;
     flex-wrap: wrap;
@@ -124,5 +128,11 @@
 
   .mobileNav {
     display: none;
+  }
+}
+
+@media (min-width: 1200px) {
+  .page {
+    padding-block: var(--space-64) var(--space-96);
   }
 }

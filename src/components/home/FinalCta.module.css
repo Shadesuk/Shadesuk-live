@@ -11,3 +11,9 @@
   text-transform: uppercase;
   max-width: 12ch;
 }
+
+@media (min-width: 1200px) {
+  .block {
+    gap: var(--space-32);
+  }
+}

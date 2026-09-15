@@ -16,12 +16,12 @@
   z-index: var(--z-drawer);
   display: flex;
   flex-direction: column;
-  width: min(100%, 22.5rem);
+  width: min(100%, 24rem);
   background: var(--color-off-white);
   color: var(--color-text);
   overflow: auto;
-  padding: var(--space-16);
-  padding-top: calc(var(--space-16) + env(safe-area-inset-top));
+  padding: var(--space-24);
+  padding-top: calc(var(--space-24) + env(safe-area-inset-top));
   padding-bottom: calc(var(--space-24) + env(safe-area-inset-bottom));
 }
 

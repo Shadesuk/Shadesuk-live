@@ -290,6 +290,20 @@ const reviewSource = readFileSync(
 if (!reviewSource.includes("disabled") || !reviewSource.includes("CONTINUE_TO_PAYMENT")) {
   throw new Error("Continue to payment must stay disabled.");
 }
+if (!reviewSource.includes("CartLine") || !reviewSource.includes("onQuantity") || !reviewSource.includes("onRemove")) {
+  throw new Error("Checkout review must show product lines with quantity and remove.");
+}
+
+const summarySource = readFileSync(
+  resolve("src/components/checkout/CheckoutSummary.tsx"),
+  "utf8",
+);
+if (!summarySource.includes("ProductThumb") || !summarySource.includes("item.href")) {
+  throw new Error("Checkout summary must preview product images and link to the item.");
+}
+if (!summarySource.includes("RETURN_TO_BAG")) {
+  throw new Error("Checkout summary must keep a path back to the bag.");
+}
 
 const checkoutFiles = [
   "src/app/checkout/page.tsx",

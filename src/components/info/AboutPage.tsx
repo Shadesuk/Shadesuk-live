@@ -17,7 +17,7 @@ export function AboutPage() {
   return (
     <div className={styles.page}>
       <FullBleed>
-        <MediaPlaceholder label="Editorial image" ratio="editorial" />
+        <MediaPlaceholder label="Editorial photography" ratio="editorial" />
       </FullBleed>
       <ContentWidth className={styles.aboutCopy}>
         <h1 className="text-h1">{ABOUT_HEADING}</h1>

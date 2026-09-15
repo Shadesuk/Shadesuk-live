@@ -1,0 +1,34 @@
+.media {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1;
+  width: 6.5rem;
+  background: var(--color-stone);
+  overflow: hidden;
+}
+
+.compact {
+  width: 5.5rem;
+}
+
+.image,
+.fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.image {
+  object-fit: cover;
+}
+
+.fallback {
+  background: var(--color-stone);
+}
+
+@media (min-width: 768px) {
+  .media:not(.compact) {
+    width: 8rem;
+  }
+}

@@ -27,6 +27,11 @@
   text-decoration: none;
 }
 
+.card:hover > span,
+.card:focus-visible > span {
+  color: var(--color-navy);
+}
+
 .card span {
   text-transform: uppercase;
   letter-spacing: 0.04em;

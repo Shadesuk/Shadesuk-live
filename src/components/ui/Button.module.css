@@ -31,6 +31,10 @@
   background: color-mix(in srgb, var(--color-navy) 88%, var(--color-white));
 }
 
+.primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-navy) 80%, var(--color-near-black));
+}
+
 .secondary {
   background: var(--color-off-white);
   color: var(--color-navy);
@@ -39,6 +43,10 @@
 
 .secondary:hover:not(:disabled) {
   background: var(--color-stone);
+}
+
+.secondary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-stone) 70%, var(--color-navy));
 }
 
 .tertiary {

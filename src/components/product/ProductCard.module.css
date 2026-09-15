@@ -14,6 +14,11 @@
   text-decoration: none;
 }
 
+.link:hover .name,
+.link:focus-visible .name {
+  color: var(--color-navy);
+}
+
 .media {
   position: relative;
   aspect-ratio: 1 / 1;
@@ -31,6 +36,7 @@
 
 .image {
   object-fit: cover;
+  transition: opacity var(--duration) var(--ease);
 }
 
 .secondary {
@@ -46,12 +52,7 @@
 }
 
 .fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-16);
-  color: var(--color-navy);
-  text-align: center;
+  background: var(--color-stone);
 }
 
 .meta {
@@ -59,6 +60,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-4);
+  padding-top: var(--space-4);
 }
 
 .brand,

@@ -41,21 +41,25 @@ export function CartPage({ initialCart, suggestions }: CartPageProps) {
     <div className={styles.page} data-cart>
       {error ? <InlineError /> : null}
       {empty ? (
-        <>
-          <h1 className="visually-hidden">Your bag</h1>
-          <EmptyState
-            title={EMPTY_BAG_TITLE}
-            description={EMPTY_BAG_DESCRIPTION}
-            actions={
-              <ButtonLink href={routes.shop} variant="secondary">
-                {EMPTY_BAG_CTA}
-              </ButtonLink>
-            }
-          />
-        </>
+        <EmptyState
+          className={styles.empty}
+          title={EMPTY_BAG_TITLE}
+          description={EMPTY_BAG_DESCRIPTION}
+          titleAs="h1"
+          actions={
+            <ButtonLink href={routes.shop} variant="secondary">
+              {EMPTY_BAG_CTA}
+            </ButtonLink>
+          }
+        />
       ) : (
         <>
-          <h1 className={`text-h2 ${styles.heading}`}>Your bag</h1>
+          <header className={styles.intro}>
+            <h1 className={`text-h2 ${styles.heading}`}>Your bag</h1>
+            <p className={`text-micro ${styles.count}`}>
+              {view.itemCount} {view.itemCount === 1 ? "item" : "items"}
+            </p>
+          </header>
           {view.issues.length > 0 ? (
             <ul className={styles.issues} role="status">
               {view.issues.map((issue, index) => (

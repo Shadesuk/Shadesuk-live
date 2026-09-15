@@ -17,7 +17,7 @@ export function GenderDiscovery() {
             <li key={item.href}>
               <Link className={styles.card} href={item.href}>
                 <MediaPlaceholder
-                  label={`${item.label} image`}
+                  label={`${item.label} photography`}
                   ratio="square"
                 />
                 <span className="text-h3">{item.label}</span>

@@ -1,14 +1,15 @@
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { Section } from "@/components/layout/Section";
+import { MediaSlot } from "@/components/media/MediaSlot";
 import { formatGbp } from "@/lib/money";
 import {
   getColourCount,
+  getPrimaryImage,
   getProductBrandName,
   getProductHref,
 } from "@/lib/product-display";
 import type { Product } from "@/types/catalogue";
-import { MediaPlaceholder } from "./MediaPlaceholder";
 import styles from "./ProductStory.module.css";
 
 type ProductStoryProps = {
@@ -20,11 +21,17 @@ export function ProductStory({ product }: ProductStoryProps) {
   const brand = getProductBrandName(product);
   const colourCount = getColourCount(product);
   const colourLabel = `${colourCount} ${colourCount === 1 ? "colour" : "colours"}`;
+  const image = getPrimaryImage(product);
 
   return (
     <Section labelledBy="product-story-heading">
       <ContentWidth className={styles.story}>
-        <MediaPlaceholder label="Product image" ratio="story" />
+        <MediaSlot
+          label={`${product.name} photography`}
+          ratio="story"
+          image={image}
+          sizes="(min-width: 768px) 50vw, 100vw"
+        />
         <div className={styles.copy}>
           <p className="text-micro">{brand}</p>
           <h2 id="product-story-heading" className="text-h2">

@@ -13,7 +13,7 @@ export function SiteFooter({ reduced = false }: { reduced?: boolean }) {
         {reduced ? null : (
           <div className={styles.grid}>
           <div className={styles.brand}>
-            <BrandMark />
+            <BrandMark variant="lockup" />
             <p className={`text-small ${styles.note}`}>
               Modern eyewear. Quiet, confident, product-led.
             </p>

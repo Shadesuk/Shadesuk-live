@@ -8,7 +8,6 @@ import { formatGbp } from "@/lib/money";
 import {
   getAvailabilityLabel,
   getColourCount,
-  getImageFallbackLabel,
   getPrimaryImage,
   getProductBrandName,
   getProductHref,
@@ -32,7 +31,6 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
   const primary = getPrimaryImage(product);
   const secondary = getSecondaryImage(product);
   const available = isProductAvailable(product);
-  const fallback = getImageFallbackLabel(primary?.role ?? "front");
   const colourLabel = `${colourCount} ${colourCount === 1 ? "colour" : "colours"}`;
 
   return (
@@ -85,7 +83,7 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
               priority={priority}
             />
           ) : (
-            <span className={`${styles.fallback} text-micro`}>{fallback}</span>
+            <span className={styles.fallback} aria-hidden="true" />
           )}
           {secondary?.src ? (
             <Image

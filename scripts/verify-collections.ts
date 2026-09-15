@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   applyFilters,
   applySort,
@@ -90,6 +92,19 @@ if (brandPage.total !== brandMembers.length) {
 const hub = getPopulatedCollections(snapshot.products);
 if (hub.length === 0 || hub.some((item) => item.kind !== "shape")) {
   throw new Error("Populated collections should be catalogue-backed shapes only");
+}
+
+const hubSource = readFileSync(resolve("src/components/discovery/CollectionsHub.tsx"), "utf8");
+if (!hubSource.includes('variant="cards"') || !hubSource.includes("getCoverImage")) {
+  throw new Error("Collections hub must use image-slot cards ready for catalogue photography.");
+}
+const listSource = readFileSync(resolve("src/components/discovery/DiscoveryList.tsx"), "utf8");
+if (!listSource.includes("MediaSlot")) {
+  throw new Error("Collection cards must keep an image slot with a graceful empty fallback.");
+}
+const heroSource = readFileSync(resolve("src/components/home/HeroCampaign.tsx"), "utf8");
+if (heroSource.includes("Campaign image") || !heroSource.includes("compactEmpty")) {
+  throw new Error("Hero must work without campaign photography and must not use wireframe labels.");
 }
 
 console.log(

@@ -49,12 +49,7 @@
 }
 
 .fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-16);
-  color: var(--color-navy);
-  text-align: center;
+  background: var(--color-stone);
 }
 
 .pager {
@@ -78,6 +73,11 @@
   border: 1px solid transparent;
   background: var(--color-stone);
   cursor: pointer;
+  transition: border-color var(--duration) var(--ease);
+}
+
+.thumb:hover {
+  border-color: var(--color-navy);
 }
 
 .thumb[aria-current="true"] {
