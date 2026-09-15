@@ -8,7 +8,6 @@ type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export const dynamic = "force-dynamic";
 export const dynamicParams = true;
 
 export function generateStaticParams() {
