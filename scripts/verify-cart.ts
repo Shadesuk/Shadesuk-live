@@ -348,6 +348,33 @@ if (cartIssueMessage("price_changed") === cartIssueMessage("product_removed")) {
   throw new Error("Revalidation issues must have distinct customer copy.");
 }
 
+const cartLineSource = readFileSync(resolve("src/components/cart/CartLine.tsx"), "utf8");
+if (!cartLineSource.includes("ProductThumb") || !cartLineSource.includes("item.image")) {
+  throw new Error("Cart lines must show a product image or preview.");
+}
+if (!cartLineSource.includes("item.href") || !cartLineSource.includes("View ${item.name}")) {
+  throw new Error("Cart lines must link to the product.");
+}
+if (!cartLineSource.includes("QuantityControl") || !cartLineSource.includes("onRemove")) {
+  throw new Error("Cart lines must allow quantity changes and removal.");
+}
+if (!cartLineSource.includes("Remove")) {
+  throw new Error("Cart lines must expose a Remove action.");
+}
+
+const cartPageSource = readFileSync(resolve("src/components/cart/CartPage.tsx"), "utf8");
+if (!cartPageSource.includes("EMPTY_BAG_TITLE") || !cartPageSource.includes('titleAs="h1"')) {
+  throw new Error("Empty bag must remain a clear page-level empty state.");
+}
+
+const brandMarkSource = readFileSync(resolve("src/components/navigation/BrandMark.tsx"), "utf8");
+if (
+  !brandMarkSource.includes("/brand/shadesuk-wordmark.png") ||
+  !brandMarkSource.includes("/brand/shadesuk-lockup.png")
+) {
+  throw new Error("Header must use the cropped wordmark; footer may use the full lockup.");
+}
+
 const suggestions = getCartSuggestions(
   {
     items: [

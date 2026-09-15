@@ -20,7 +20,7 @@
   overflow: auto;
   background: var(--color-off-white);
   color: var(--color-text);
-  padding: var(--space-24);
+  padding: var(--space-32);
 }
 
 .overlay,
@@ -31,8 +31,9 @@
 .search {
   top: 12vh;
   transform: translate(-50%, 0);
-  width: min(calc(100% - var(--space-32)), 40rem);
+  width: min(calc(100% - var(--space-32)), 42rem);
   max-height: min(80vh, 44rem);
+  padding: var(--space-32);
 }
 
 @keyframes fade-in {

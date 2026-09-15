@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MappedStorefrontProduct } from "@/contracts";
 import { Button } from "@/components/ui/Button";
+import { QuantityControl } from "@/components/ui/QuantityControl";
 import { formatGbp } from "@/lib/money";
 import { cx } from "@/lib/cx";
 import {
@@ -226,34 +227,20 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
           ) : null}
           <SizeFaceGuide measurements={product.measurements} />
           <div className={styles.quantity}>
-            <span className="text-micro" id="pdp-quantity-label">
-              Quantity
-            </span>
-            <button
-              type="button"
-              aria-label="Decrease quantity"
-              disabled={quantity <= 1 || ui === "adding"}
-              onClick={() => {
-                setQuantity((value) => Math.max(1, value - 1));
+            <QuantityControl
+              value={quantity}
+              min={1}
+              max={ADD_TO_BAG_QUANTITY_MAX}
+              disabled={ui === "adding"}
+              label="Quantity"
+              labelledBy="pdp-quantity-label"
+              decreaseLabel="Decrease quantity"
+              increaseLabel="Increase quantity"
+              onChange={(next) => {
+                setQuantity(next);
                 resetReady();
               }}
-            >
-              −
-            </button>
-            <span aria-labelledby="pdp-quantity-label" aria-live="polite">
-              {quantity}
-            </span>
-            <button
-              type="button"
-              aria-label="Increase quantity"
-              disabled={quantity >= ADD_TO_BAG_QUANTITY_MAX || ui === "adding"}
-              onClick={() => {
-                setQuantity((value) => Math.min(ADD_TO_BAG_QUANTITY_MAX, value + 1));
-                resetReady();
-              }}
-            >
-              +
-            </button>
+            />
           </div>
           <div className={styles.cta} ref={ctaRef}>
             <Button

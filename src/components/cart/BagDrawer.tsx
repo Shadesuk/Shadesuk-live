@@ -79,6 +79,7 @@ export function BagDrawer() {
             <CartLine
               key={item.id}
               item={item}
+              compact
               onQuantity={updateQuantity}
               onRemove={removeItem}
               onNavigate={closeBag}

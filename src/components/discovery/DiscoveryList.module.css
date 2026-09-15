@@ -26,6 +26,7 @@
 
 .link:hover span:first-child,
 .link:focus-visible span:first-child {
+  color: var(--color-navy);
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }

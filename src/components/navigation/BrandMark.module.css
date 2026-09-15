@@ -3,22 +3,42 @@
   align-items: center;
   min-height: var(--touch-min);
   text-decoration: none;
+  line-height: 0;
 }
 
 .image {
   width: auto;
-  height: 1.75rem;
+  height: 1.375rem;
   object-fit: contain;
+  object-position: left center;
+}
+
+.lockup {
+  height: 1.75rem;
 }
 
 @media (max-width: 359px) {
+  .image:not(.lockup) {
+    height: 1.125rem;
+  }
+}
+
+@media (min-width: 768px) {
   .image {
-    height: 1.25rem;
+    height: 1.5rem;
+  }
+
+  .lockup {
+    height: 2rem;
   }
 }
 
 @media (min-width: 1200px) {
   .image {
-    height: 2rem;
+    height: 1.75rem;
+  }
+
+  .lockup {
+    height: 2.25rem;
   }
 }

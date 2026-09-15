@@ -78,6 +78,11 @@
   border: 1px solid transparent;
   background: var(--color-stone);
   cursor: pointer;
+  transition: border-color var(--duration) var(--ease);
+}
+
+.thumb:hover {
+  border-color: var(--color-navy);
 }
 
 .thumb[aria-current="true"] {

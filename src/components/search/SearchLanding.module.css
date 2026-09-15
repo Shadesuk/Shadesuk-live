@@ -1,12 +1,14 @@
 .page {
   display: grid;
   gap: var(--space-32);
+  padding-block: var(--space-32) 0;
 }
 
 .header {
   display: grid;
   gap: var(--space-12);
   max-width: 40rem;
+  padding-top: var(--space-8);
 }
 
 .kicker {

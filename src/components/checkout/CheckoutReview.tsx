@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
+import { CartLine } from "@/components/cart/CartLine";
 import {
   ALL_MAJOR_CARDS,
   BACK,
@@ -10,6 +11,7 @@ import {
   PAYMENT_NEXT_BODY,
   PAYMENT_NEXT_TITLE,
   REVIEW_HEADING,
+  RETURN_TO_BAG,
   SECURE_CARD_PAYMENT,
   SHIPPING_BODY,
   SHIPPING_HEADING,
@@ -19,7 +21,6 @@ import {
 import { routes } from "@/lib/navigation";
 import type { PublicCheckoutDraft } from "@/types/checkout";
 import type { PublicCart } from "@/types/cart";
-import { formatGbp } from "@/lib/money";
 import styles from "./CheckoutReview.module.css";
 
 type CheckoutReviewProps = {
@@ -27,9 +28,18 @@ type CheckoutReviewProps = {
   draft: PublicCheckoutDraft;
   pending?: boolean;
   onBack: () => void;
+  onQuantity: (itemId: string, quantity: number) => Promise<boolean> | boolean;
+  onRemove: (itemId: string) => Promise<boolean> | boolean;
 };
 
-export function CheckoutReview({ cart, draft, pending = false, onBack }: CheckoutReviewProps) {
+export function CheckoutReview({
+  cart,
+  draft,
+  pending = false,
+  onBack,
+  onQuantity,
+  onRemove,
+}: CheckoutReviewProps) {
   const addressLines = [
     `${draft.firstName} ${draft.lastName}`.trim(),
     draft.line1,
@@ -45,19 +55,17 @@ export function CheckoutReview({ cart, draft, pending = false, onBack }: Checkou
         <h2 id="checkout-review-heading" className="text-h3">
           {REVIEW_HEADING}
         </h2>
-        <ul className={styles.items}>
-          {cart.items.map((item) => {
-            const variant = [item.colourName, item.sizeName].filter(Boolean).join(" · ");
-            return (
-              <li key={item.id}>
-                <p className="text-small">{item.name}</p>
-                {variant ? <p className="text-micro">{variant}</p> : null}
-                <p className="text-small">Qty {item.quantity}</p>
-                <p className="text-small">{formatGbp(item.lineTotal)}</p>
-              </li>
-            );
-          })}
-        </ul>
+        <div className={styles.lines}>
+          {cart.items.map((item) => (
+            <CartLine
+              key={item.id}
+              item={item}
+              pending={pending}
+              onQuantity={onQuantity}
+              onRemove={onRemove}
+            />
+          ))}
+        </div>
       </section>
 
       <section className={styles.block} aria-labelledby="checkout-review-delivery">
@@ -92,7 +100,7 @@ export function CheckoutReview({ cart, draft, pending = false, onBack }: Checkou
           {BACK}
         </Button>
         <ButtonLink href={routes.cart} variant="tertiary">
-          Return to bag
+          {RETURN_TO_BAG}
         </ButtonLink>
       </div>
     </div>
