@@ -73,6 +73,10 @@
   margin: 0;
 }
 
+.name {
+  overflow-wrap: anywhere;
+}
+
 .swatches {
   display: flex;
   flex-wrap: wrap;

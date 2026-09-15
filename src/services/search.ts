@@ -144,6 +144,30 @@ function filterProducts(tokens: string[], products: Product[]): Product[] {
   );
 }
 
+const FUZZY_CANDIDATE_CAP = 64;
+
+function fuzzyCandidates(token: string, dictionary: string[]): string[] {
+  const first = token[0];
+  const minLen = Math.max(1, token.length - 1);
+  const maxLen = token.length + 1;
+  const nearby: string[] = [];
+  for (const term of dictionary) {
+    const compactTerm = compact(term);
+    const firstOk = term[0] === first || compactTerm[0] === first;
+    const lengthOk =
+      (term.length >= minLen && term.length <= maxLen) ||
+      (compactTerm.length >= minLen && compactTerm.length <= maxLen);
+    if (!firstOk || !lengthOk) {
+      continue;
+    }
+    nearby.push(term);
+    if (nearby.length >= FUZZY_CANDIDATE_CAP) {
+      break;
+    }
+  }
+  return nearby;
+}
+
 export function suggestCatalogueTerm(
   query: string,
   catalogue: SearchCatalogue,
@@ -161,7 +185,7 @@ export function suggestCatalogueTerm(
     if (exact || token.length < 5) {
       return token;
     }
-    const ranked = dictionary
+    const ranked = fuzzyCandidates(token, dictionary)
       .map((term) => {
         const distance = Math.min(
           levenshtein(token, term),

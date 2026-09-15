@@ -1,9 +1,6 @@
 "use client";
 
-import { ContentWidth } from "@/components/layout/ContentWidth";
-import { PageContainer } from "@/components/layout/PageContainer";
-import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { RouteError } from "@/components/ui/RouteError";
 
 export default function ProductError({
   reset,
@@ -12,20 +9,10 @@ export default function ProductError({
   reset: () => void;
 }) {
   return (
-    <PageContainer>
-      <main id="main">
-        <ContentWidth>
-          <EmptyState
-            title="We couldn’t load this product."
-            description="Please try again. The rest of the site remains available."
-            actions={
-              <Button variant="secondary" onClick={reset}>
-                Try again
-              </Button>
-            }
-          />
-        </ContentWidth>
-      </main>
-    </PageContainer>
+    <RouteError
+      reset={reset}
+      title="We couldn’t load this product."
+      description="Please try again. The rest of the site remains available."
+    />
   );
 }

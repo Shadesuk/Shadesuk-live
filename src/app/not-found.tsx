@@ -1,20 +1,29 @@
-import Link from "next/link";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { routes } from "@/lib/navigation";
+import {
+  PAGE_NOT_FOUND_CTA,
+  PAGE_NOT_FOUND_DESCRIPTION,
+  PAGE_NOT_FOUND_TITLE,
+} from "@/lib/ui-state-copy";
 
 export default function NotFound() {
   return (
     <PageContainer>
       <main id="main">
         <ContentWidth>
-          <h1 className="text-h2">Page not found.</h1>
-          <p className="text-body">
-            That page isn’t available. Continue browsing the catalogue.
-          </p>
-          <p>
-            <Link href={routes.shop}>View all shades</Link>
-          </p>
+          <EmptyState
+            title={PAGE_NOT_FOUND_TITLE}
+            description={PAGE_NOT_FOUND_DESCRIPTION}
+            titleAs="h1"
+            actions={
+              <ButtonLink href={routes.shop} variant="secondary">
+                {PAGE_NOT_FOUND_CTA}
+              </ButtonLink>
+            }
+          />
         </ContentWidth>
       </main>
     </PageContainer>

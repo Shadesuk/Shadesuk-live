@@ -1,7 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 
 type CollectionErrorStateProps = {
   onRetry?: () => void;
@@ -9,16 +8,10 @@ type CollectionErrorStateProps = {
 
 export function CollectionErrorState({ onRetry }: CollectionErrorStateProps) {
   return (
-    <EmptyState
+    <ErrorState
       title="We couldn’t load this collection."
       description="Please try again. The rest of the site remains available."
-      actions={
-        onRetry ? (
-          <Button variant="secondary" onClick={onRetry}>
-            Try again
-          </Button>
-        ) : null
-      }
+      onRetry={onRetry}
     />
   );
 }

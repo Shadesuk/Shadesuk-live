@@ -164,6 +164,9 @@ export function SiteHeader({
           >
             Bag
           </UtilityButton>
+          <span className="visually-hidden" aria-live="polite">
+            {cart.itemCount === 0 ? "Bag is empty" : `${cart.itemCount} items in bag`}
+          </span>
         </div>
       </ContentWidth>
 

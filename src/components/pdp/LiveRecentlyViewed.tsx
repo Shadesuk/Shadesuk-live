@@ -60,7 +60,7 @@ export function LiveRecentlyViewed({ currentId }: LiveRecentlyViewedProps) {
       <h2 id="recently-viewed-heading" className="text-micro">
         Recently viewed
       </h2>
-      <ProductGrid products={products} imagePriorityCount={0} />
+      <ProductGrid products={products} imagePriorityCount={0} list="recently_viewed" />
     </section>
   );
 }

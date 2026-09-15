@@ -21,6 +21,7 @@ import {
 import { FilterChip } from "./FilterChip";
 import { FilterDrawer } from "./FilterDrawer";
 import { SortControl } from "./SortControl";
+import { track } from "@/lib/analytics";
 import styles from "./FilterBar.module.css";
 
 type FilterBarProps = {
@@ -55,10 +56,20 @@ export function FilterBar({ collection, query, options }: FilterBarProps) {
   }
 
   function handleSort(sort: SortId) {
+    const search = pathname.startsWith("/search");
+    track(search ? "search_sort_used" : "sort_used", {
+      sort,
+      collection: collection.id,
+    });
     pushQuery({ ...query, sort, limit: COLLECTION_PAGE_SIZE });
   }
 
   function handleApply(next: CollectionQuery) {
+    const search = pathname.startsWith("/search");
+    track(search ? "search_filter_used" : "filter_used", {
+      collection: collection.id,
+      count: countActiveFilters(next, collection, options),
+    });
     pushQuery({ ...next, limit: COLLECTION_PAGE_SIZE });
   }
 

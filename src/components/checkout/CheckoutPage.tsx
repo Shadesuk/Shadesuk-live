@@ -15,6 +15,11 @@ import { CheckoutExpired } from "@/components/checkout/CheckoutExpired";
 import { CheckoutReview } from "@/components/checkout/CheckoutReview";
 import { CheckoutSummary } from "@/components/checkout/CheckoutSummary";
 import { useCart } from "@/components/cart/CartProvider";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { InlineError } from "@/components/ui/InlineError";
+import { track } from "@/lib/analytics";
+import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/cart-copy";
 import {
   CHECKOUT_CART_UNAVAILABLE,
   CHECKOUT_REQUEST_ERROR,
@@ -56,12 +61,36 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
 
   useEffect(() => {
     if (view.items.length === 0) {
+      return;
+    }
+    track("begin_checkout", {
+      count: view.items.length,
+      value: view.subtotal,
+      currency: "GBP",
+    });
+    // Fire once per checkout visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (view.items.length === 0) {
       router.replace(routes.cart);
     }
   }, [router, view.items.length]);
 
   if (view.items.length === 0) {
-    return null;
+    return (
+      <EmptyState
+        title={EMPTY_BAG_TITLE}
+        description={EMPTY_BAG_DESCRIPTION}
+        titleAs="h1"
+        actions={
+          <ButtonLink href={routes.shop} variant="secondary">
+            {EMPTY_BAG_CTA}
+          </ButtonLink>
+        }
+      />
+    );
   }
 
   if (draft.expired) {
@@ -139,6 +168,7 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
     }));
     setShowForm(true);
     setQuery("");
+    track("address_autocomplete_used");
   }
 
   return (
@@ -172,11 +202,7 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
           {CHECKOUT_CART_UNAVAILABLE}
         </p>
       ) : null}
-      {requestError ? (
-        <p className="text-small" role="alert">
-          {CHECKOUT_REQUEST_ERROR}
-        </p>
-      ) : null}
+      {requestError ? <InlineError>{CHECKOUT_REQUEST_ERROR}</InlineError> : null}
       {view.issues.length > 0 ? (
         <ul className={styles.issues} role="status">
           {view.issues.map((issue, index) => (
@@ -209,7 +235,10 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
               pending={pending}
               onQueryChange={setQuery}
               onChange={setAddress}
-              onManual={() => setShowForm(true)}
+              onManual={() => {
+                setShowForm(true);
+                track("address_manual_entry");
+              }}
               onSelect={handleSelect}
               onBack={() => void goTo("contact")}
               onSubmit={submitAddress}

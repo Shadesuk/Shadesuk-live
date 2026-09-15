@@ -7,6 +7,7 @@ type EmptyStateProps = {
   description?: string;
   actions?: ReactNode;
   className?: string;
+  titleAs?: "h1" | "h2";
 };
 
 export function EmptyState({
@@ -14,10 +15,12 @@ export function EmptyState({
   description,
   actions,
   className,
+  titleAs = "h2",
 }: EmptyStateProps) {
+  const Title = titleAs;
   return (
     <div className={cx(styles.wrap, className)} role="status">
-      <h2 className="text-h3">{title}</h2>
+      <Title className={titleAs === "h1" ? "text-h2" : "text-h3"}>{title}</Title>
       {description ? <p className="text-body">{description}</p> : null}
       {actions ? <div className={styles.actions}>{actions}</div> : null}
     </div>

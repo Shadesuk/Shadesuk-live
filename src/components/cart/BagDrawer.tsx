@@ -5,7 +5,7 @@ import { useChrome } from "@/components/navigation/ChromeContext";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Drawer } from "@/components/ui/Drawer";
-import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION } from "@/lib/cart-copy";
+import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/cart-copy";
 import { formatGbp } from "@/lib/money";
 import { routes } from "@/lib/navigation";
 import { CartLine } from "./CartLine";
@@ -51,18 +51,24 @@ export function BagDrawer() {
           <h2 id={titleId} className="text-micro">
             Your bag
           </h2>
-          <button type="button" className={styles.close} onClick={closeBag}>
+          <button
+            type="button"
+            className={styles.close}
+            onClick={closeBag}
+            aria-label="Close bag"
+          >
             Close
           </button>
         </div>
         <div className={styles.body}>
           {error ? (
             <p className={`text-small ${styles.error}`} role="alert">
-              We could not complete that request.
+              We couldn&apos;t complete that request.
             </p>
           ) : null}
           {empty ? (
             <div className={styles.empty}>
+              <h3 className="text-h3">{EMPTY_BAG_TITLE}</h3>
               <p className="text-small">{EMPTY_BAG_DESCRIPTION}</p>
               <ButtonLink href={routes.shop} variant="secondary" onClick={closeBag}>
                 {EMPTY_BAG_CTA}

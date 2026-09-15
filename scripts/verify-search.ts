@@ -6,6 +6,10 @@ import {
   hydrateDemoProduct,
 } from "../src/services/catalogue";
 import {
+  resetSearchSuggestRateLimitForTests,
+  searchSuggestAttemptAllowed,
+} from "../src/lib/search-suggest-limit";
+import {
   getSearchCollection,
   getSearchDiscoveryLinks,
   getSearchSuggestions,
@@ -87,6 +91,20 @@ if (!discovery.some((item) => item.href === "/shop")) {
 if (searchPath("   ") !== "/search") {
   throw new Error("Blank queries must not submit a q param");
 }
+
+resetSearchSuggestRateLimitForTests();
+for (let i = 0; i < 20; i += 1) {
+  if (!searchSuggestAttemptAllowed("203.0.113.10")) {
+    throw new Error("Suggest burst budget should allow 20 requests");
+  }
+}
+if (searchSuggestAttemptAllowed("203.0.113.10")) {
+  throw new Error("The 21st suggest request in 10s must be rate-limited");
+}
+if (!searchSuggestAttemptAllowed("203.0.113.11")) {
+  throw new Error("Suggest limits must be per IP, not global");
+}
+resetSearchSuggestRateLimitForTests();
 
 console.log(
   `Search OK: black=${black.products.length}, aviater→${typo.correctedTo} (${typo.products.length})`,

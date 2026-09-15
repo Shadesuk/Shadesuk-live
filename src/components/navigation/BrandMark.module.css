@@ -11,6 +11,12 @@
   object-fit: contain;
 }
 
+@media (max-width: 359px) {
+  .image {
+    height: 1.25rem;
+  }
+}
+
 @media (min-width: 1200px) {
   .image {
     height: 2rem;

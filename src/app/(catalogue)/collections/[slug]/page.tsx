@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { renderCollectionBySlug } from "@/components/discovery/renderCollectionPage";
 import { getCollectionBySlug } from "@/services/collections";
+import { NOINDEX_NOFOLLOW, cataloguePathMetadata } from "@/lib/seo";
 import { SHAPES } from "@/types/catalogue";
 
 type PageProps = {
@@ -12,13 +13,18 @@ export function generateStaticParams() {
   return SHAPES.map((slug) => ({ slug }));
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const collection = getCollectionBySlug(slug);
   if (!collection) {
-    return { title: "Collection" };
+    return { title: "Collection", robots: NOINDEX_NOFOLLOW };
   }
-  return { title: collection.title };
+  return cataloguePathMetadata({
+    title: collection.title,
+    description: collection.description ?? `${collection.title} sunglasses from SHADESUK.`,
+    path: collection.href,
+    searchParams: await searchParams,
+  });
 }
 
 export default async function CollectionSlugPage({

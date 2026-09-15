@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { cx } from "@/lib/cx";
+import { track } from "@/lib/analytics";
 import { formatGbp } from "@/lib/money";
 import {
   getAvailabilityLabel,
@@ -21,9 +22,10 @@ import styles from "./ProductCard.module.css";
 type ProductCardProps = {
   product: Product;
   priority?: boolean;
+  list?: string;
 };
 
-export function ProductCard({ product, priority = false }: ProductCardProps) {
+export function ProductCard({ product, priority = false, list }: ProductCardProps) {
   const href = getProductHref(product);
   const brand = getProductBrandName(product);
   const colourCount = getColourCount(product);
@@ -38,7 +40,38 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
       <Link
         className={styles.link}
         href={href}
-        onClick={() => recordProductView(product.id)}
+        onClick={() => {
+          recordProductView(product.id);
+          track("select_item", {
+            item_id: product.id,
+            item_name: product.name,
+            item_brand: brand,
+            list,
+            price: product.price,
+            currency: product.currency,
+          });
+          if (list === "search") {
+            track("search_result_click", {
+              item_id: product.id,
+              item_name: product.name,
+              list,
+            });
+          }
+          if (list === "recently_viewed") {
+            track("recently_viewed_click", {
+              item_id: product.id,
+              item_name: product.name,
+              list,
+            });
+          }
+          if (list === "you_may_also_like") {
+            track("recommendation_click", {
+              item_id: product.id,
+              item_name: product.name,
+              list,
+            });
+          }
+        }}
       >
         <div className={styles.media}>
           {primary?.src ? (

@@ -8,6 +8,7 @@ import {
   getMenuBrandLinksFromCatalogue,
   getStorefrontCatalogue,
 } from "@/services/storefront-catalogue";
+import { NOINDEX_NOFOLLOW } from "@/lib/seo";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -26,9 +27,16 @@ export const metadata: Metadata = {
   },
   description: site.description,
   applicationName: site.name,
-  robots: {
-    index: false,
-    follow: false,
+  /**
+   * Root indexation policy (seo_performance.md):
+   * fail closed. Transactional/private surfaces inherit noindex.
+   * Meaningful catalogue, home, and legal pages opt in.
+   */
+  robots: NOINDEX_NOFOLLOW,
+  openGraph: {
+    siteName: site.name,
+    locale: "en_GB",
+    type: "website",
   },
 };
 

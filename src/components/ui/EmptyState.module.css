@@ -6,6 +6,7 @@
   padding-block: var(--space-48);
 }
 
+.wrap h1,
 .wrap h2,
 .wrap p {
   margin: 0;

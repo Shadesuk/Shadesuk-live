@@ -281,7 +281,10 @@ if (
 }
 
 if (safeHttpUrl("javascript:alert(1)") !== null || safeHttpUrl("https://carrier.example/t/1") === null) {
-  throw new Error("Tracking URLs must be http(s) only.");
+  throw new Error("Tracking URLs must be https only.");
+}
+if (safeHttpUrl("http://carrier.example/t/1") !== null) {
+  throw new Error("Tracking URLs must reject http.");
 }
 
 const address = toGuestDeliveryAddress({
@@ -373,7 +376,7 @@ if (existsSync(resolve(root, "src/app/order"))) {
 }
 
 const page = readFileSync(resolve(root, "src/app/track-order/page.tsx"), "utf8");
-if (!page.includes("TrackOrderForm") || !page.includes('index: false')) {
+if (!page.includes("TrackOrderForm") || !page.includes("privatePathMetadata")) {
   throw new Error("/track-order must render the form and stay noindex.");
 }
 if (page.includes("searchParams")) {

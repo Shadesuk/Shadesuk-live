@@ -25,7 +25,12 @@ export function ProductPage({ record }: ProductPageProps) {
         data-product-source={source}
       >
         <ContentWidth>
-          <ProductViewRecorder productId={product.id} />
+          <ProductViewRecorder
+            productId={product.id}
+            productName={product.name}
+            price={product.price}
+            currency={product.currency}
+          />
           <ProductHero product={product} brandName={brandName} />
           <ProductDisclosure />
           {related.length > 0 ? (
@@ -33,7 +38,7 @@ export function ProductPage({ record }: ProductPageProps) {
               <h2 id="you-may-also-like" className="text-micro">
                 You may also like
               </h2>
-              <ProductGrid products={related} imagePriorityCount={0} />
+              <ProductGrid products={related} imagePriorityCount={0} list="you_may_also_like" />
             </section>
           ) : null}
           <LiveRecentlyViewed currentId={product.id} />

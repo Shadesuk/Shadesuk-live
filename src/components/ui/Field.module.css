@@ -48,5 +48,5 @@
 }
 
 .error {
-  color: var(--color-navy);
+  color: var(--color-error);
 }
