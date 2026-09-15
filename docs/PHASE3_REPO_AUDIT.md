@@ -10,7 +10,7 @@
 
 This audit is the Section 5 deliverable of the Phase 3 master implementation handoff. It does not reinterpret locked product, UI, or UX decisions. Genuine technical conflicts are reported as conflicts, not resolved.
 
-Companion: [`docs/PHASE3_ENV_CONFIG_AUDIT.md`](./PHASE3_ENV_CONFIG_AUDIT.md) (Phase 3.2). Security findings that block later wiring are in **§12 Security appendix**.
+Security findings that block later wiring are in **§12 Security appendix**. Phase 3.2 (env/config audit) is a follow-on PR stacked on this one.
 
 ---
 
@@ -389,7 +389,7 @@ Ordered by how badly they stop the locked 3.x sequence.
 
 ## 10. Recommended next slice
 
-**3.2 Environment / configuration audit is the companion document:** [`docs/PHASE3_ENV_CONFIG_AUDIT.md`](./PHASE3_ENV_CONFIG_AUDIT.md).
+**3.2 Environment / configuration audit** is a follow-on PR (`docs/PHASE3_ENV_CONFIG_AUDIT.md`).
 
 Do not start 3.3 until Syed locks the provider/schema decisions listed there. 3.3 is the first **code-shaping** slice; 3.2 is the gate that stops that slice from encoding the wrong provider and the wrong database.
 
@@ -554,7 +554,7 @@ When 3.9 exists:
 
 ### 12.8 Security implications for 3.2 / 3.3
 
-- Env inventory and provider lock-ins: [`docs/PHASE3_ENV_CONFIG_AUDIT.md`](./PHASE3_ENV_CONFIG_AUDIT.md).
+- Env inventory and provider lock-ins: follow-on 3.2 PR (`docs/PHASE3_ENV_CONFIG_AUDIT.md`).
 - 3.3 data contracts must include non-guessable `order_reference`, guest-tracking verification, and “paid only after verified webhook.”
 - Do not open anon RLS writes on `carts` to make guests work.
 - Do not invent a second payment provider “just in case.”
