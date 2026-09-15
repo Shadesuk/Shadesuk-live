@@ -22,7 +22,10 @@ export type AddressLookupProvider = {
 };
 
 export type PaymentProvider = {
-  /** Stripe (or successor) mounts into checkout without changing layout. */
+  /**
+   * Placeholder only. Not a vendor lock.
+   * Opaque payment fields live in `src/contracts/payment/stub.ts`.
+   */
   id: "stripe" | string;
 };
 
