@@ -4,7 +4,9 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useCart } from "@/components/cart/CartProvider";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { SearchOverlay } from "@/components/search/SearchOverlay";
+import type { MenuBrandLink } from "@/lib/menu-brands";
 import { primaryNav, routes } from "@/lib/navigation";
+import type { SearchDiscoveryLink } from "@/lib/search-query";
 import { useChrome } from "./ChromeContext";
 import { BrandMark } from "./BrandMark";
 import { MobileNavDrawer } from "./MobileNavDrawer";
@@ -13,7 +15,15 @@ import { ShopMenu } from "./ShopMenu";
 import { UtilityButton } from "./UtilityButton";
 import styles from "./SiteHeader.module.css";
 
-export function SiteHeader({ reduced = false }: { reduced?: boolean }) {
+export function SiteHeader({
+  reduced = false,
+  brandLinks = [],
+  searchDiscovery = [],
+}: {
+  reduced?: boolean;
+  brandLinks?: MenuBrandLink[];
+  searchDiscovery?: SearchDiscoveryLink[];
+}) {
   const { acquirePageLock, releasePageLock } = useChrome();
   const { cart, open: bagOpen, openBag, closeBag } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -107,7 +117,11 @@ export function SiteHeader({ reduced = false }: { reduced?: boolean }) {
                     {item.label}
                   </UtilityButton>
                   {shopOpen ? (
-                    <ShopMenu id={shopMenuId} onNavigate={closeShop} />
+                    <ShopMenu
+                      id={shopMenuId}
+                      onNavigate={closeShop}
+                      brandLinks={brandLinks}
+                    />
                   ) : null}
                 </div>
               ) : (
@@ -153,12 +167,19 @@ export function SiteHeader({ reduced = false }: { reduced?: boolean }) {
         </div>
       </ContentWidth>
 
-      {reduced ? null : <MobileNavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
+      {reduced ? null : (
+        <MobileNavDrawer
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          brandLinks={brandLinks}
+        />
+      )}
 
       {reduced ? null : (
         <SearchOverlay
           open={searchOpen}
           onClose={() => setSearchOpen(false)}
+          discovery={searchDiscovery}
         />
       )}
     </header>

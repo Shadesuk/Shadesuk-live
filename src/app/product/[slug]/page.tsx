@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { ProductPage } from "@/components/pdp/ProductPage";
-import { getProducts } from "@/services/catalogue";
+import { getStorefrontCatalogue } from "@/services/storefront-catalogue";
 import { getStorefrontProductPage } from "@/services/product";
+import { notFound } from "next/navigation";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -10,8 +10,9 @@ type PageProps = {
 
 export const dynamicParams = true;
 
-export function generateStaticParams() {
-  return getProducts().map((product) => ({ slug: product.slug }));
+export async function generateStaticParams() {
+  const catalogue = await getStorefrontCatalogue();
+  return catalogue.products.map((product) => ({ slug: product.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

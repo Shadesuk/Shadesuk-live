@@ -1,4 +1,4 @@
-import { isProductAvailable } from "@/services/catalogue";
+import { isProductAvailable } from "@/lib/product-display";
 import type { PublicCart } from "@/types/cart";
 import type { Product } from "@/types/catalogue";
 

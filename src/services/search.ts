@@ -1,72 +1,37 @@
-import { productPath, routes, shapeLinks } from "@/lib/navigation";
+import { routes, shapeLinks } from "@/lib/navigation";
+import { getProductBrandName } from "@/lib/product-display";
 import {
-  emptyCollectionQuery,
-  collectionQueryPath,
-  shapeLabel,
-} from "@/services/collections";
-import {
-  getBrandById,
-  getBrandName,
-  getBrands,
-  getProducts,
-} from "@/services/catalogue";
-import type { CollectionDefinition } from "@/types/collection";
-import type { Product } from "@/types/catalogue";
+  getSearchCollection,
+  getStaticSearchDiscoveryLinks,
+  normalizeSearchQuery,
+  productSuggestionHref,
+  searchPath,
+  tokenizeSearchQuery,
+  type SearchDiscoveryLink,
+  type SearchHit,
+  type SearchSuggestion,
+} from "@/lib/search-query";
+import { shapeLabel } from "@/lib/collection-query";
+import type { Brand, Product } from "@/types/catalogue";
 
-export type SearchHit = {
-  query: string;
+export {
+  getSearchCollection,
+  getStaticSearchDiscoveryLinks,
+  normalizeSearchQuery,
+  searchPath,
+  tokenizeSearchQuery,
+};
+export type { SearchDiscoveryLink, SearchHit, SearchSuggestion };
+
+export type SearchCatalogue = {
   products: Product[];
-  correctedTo?: string;
-};
-
-export type SearchSuggestion = {
-  id: string;
-  kind: "product" | "brand" | "collection";
-  label: string;
-  href: string;
-  meta?: string;
-};
-
-export type SearchDiscoveryLink = {
-  id: string;
-  label: string;
-  href: string;
+  brands: Brand[];
 };
 
 const MERCH_TERMS = ["new arrivals", "best sellers", "best seller"] as const;
 
 function compact(value: string): string {
   return value.replace(/ /g, "");
-}
-
-export function normalizeSearchQuery(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/['’]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-export function tokenizeSearchQuery(value: string): string[] {
-  return normalizeSearchQuery(value).split(" ").filter(Boolean);
-}
-
-export function searchPath(
-  q: string,
-  extra?: Partial<ReturnType<typeof emptyCollectionQuery>> & { q?: string },
-): string {
-  const trimmed = q.trim();
-  if (!trimmed) {
-    return routes.search;
-  }
-  return collectionQueryPath(routes.search, {
-    ...emptyCollectionQuery(),
-    ...extra,
-    q: trimmed,
-  });
 }
 
 function levenshtein(a: string, b: string): number {
@@ -117,11 +82,11 @@ function uniqueTerms(values: string[]): string[] {
   return terms;
 }
 
-function catalogueDictionary(): string[] {
+function catalogueDictionary(catalogue: SearchCatalogue): string[] {
   const values: string[] = [];
-  for (const product of getProducts()) {
+  for (const product of catalogue.products) {
     values.push(product.name, product.slug.replace(/-/g, " "));
-    values.push(getBrandName(product));
+    values.push(getProductBrandName(product));
     for (const colour of product.colours) {
       values.push(colour.name, colour.slug.replace(/-/g, " "));
     }
@@ -138,7 +103,7 @@ function catalogueDictionary(): string[] {
       values.push("best sellers", "best seller");
     }
   }
-  for (const brand of getBrands()) {
+  for (const brand of catalogue.brands) {
     values.push(brand.name, brand.slug.replace(/-/g, " "));
   }
   for (const shape of shapeLinks) {
@@ -149,12 +114,11 @@ function catalogueDictionary(): string[] {
 }
 
 function productHaystack(product: Product): string {
-  const brand = getBrandById(product.brandId);
   const parts = [
     product.name,
     product.slug.replace(/-/g, " "),
-    getBrandName(product),
-    brand?.slug.replace(/-/g, " ") ?? "",
+    getProductBrandName(product),
+    product.brandId.replace(/-/g, " "),
     ...product.colours.flatMap((colour) => [
       colour.name,
       colour.slug.replace(/-/g, " "),
@@ -171,21 +135,24 @@ function matchesTokens(haystack: string, tokens: string[]): boolean {
   return tokens.every((token) => haystack.includes(token));
 }
 
-function filterProducts(tokens: string[]): Product[] {
+function filterProducts(tokens: string[], products: Product[]): Product[] {
   if (tokens.length === 0) {
     return [];
   }
-  return getProducts().filter((product) =>
+  return products.filter((product) =>
     matchesTokens(productHaystack(product), tokens),
   );
 }
 
-export function suggestCatalogueTerm(query: string): string | undefined {
+export function suggestCatalogueTerm(
+  query: string,
+  catalogue: SearchCatalogue,
+): string | undefined {
   const tokens = tokenizeSearchQuery(query);
   if (tokens.length === 0) {
     return undefined;
   }
-  const dictionary = catalogueDictionary();
+  const dictionary = catalogueDictionary(catalogue);
   let changed = false;
   const corrected = tokens.map((token) => {
     const exact = dictionary.some(
@@ -224,20 +191,23 @@ export function suggestCatalogueTerm(query: string): string | undefined {
   return corrected.join(" ");
 }
 
-export function searchProducts(raw: string): SearchHit {
+export function searchProducts(
+  raw: string,
+  catalogue: SearchCatalogue,
+): SearchHit<Product> {
   const query = raw.trim().replace(/\s+/g, " ");
   const tokens = tokenizeSearchQuery(raw);
-  const products = filterProducts(tokens);
+  const products = filterProducts(tokens, catalogue.products);
   if (products.length > 0 || tokens.length === 0) {
     return { query, products };
   }
-  const correctedTo = suggestCatalogueTerm(raw);
+  const correctedTo = suggestCatalogueTerm(raw, catalogue);
   if (!correctedTo) {
     return { query, products: [] };
   }
   return {
     query,
-    products: filterProducts(tokenizeSearchQuery(correctedTo)),
+    products: filterProducts(tokenizeSearchQuery(correctedTo), catalogue.products),
     correctedTo,
   };
 }
@@ -246,12 +216,16 @@ function matchesLabel(label: string, tokens: string[]): boolean {
   return matchesTokens(normalizeSearchQuery(label), tokens);
 }
 
-export function getSearchSuggestions(raw: string, limit = 6): SearchSuggestion[] {
+export function getSearchSuggestions(
+  raw: string,
+  catalogue: SearchCatalogue,
+  limit = 6,
+): SearchSuggestion[] {
   const tokens = tokenizeSearchQuery(raw);
   if (tokens.length === 0) {
     return [];
   }
-  const found = searchProducts(raw);
+  const found = searchProducts(raw, catalogue);
   const suggestions: SearchSuggestion[] = [];
 
   for (const product of found.products.slice(0, limit)) {
@@ -259,12 +233,12 @@ export function getSearchSuggestions(raw: string, limit = 6): SearchSuggestion[]
       id: `product:${product.id}`,
       kind: "product",
       label: product.name,
-      meta: getBrandName(product),
-      href: productPath(product.slug),
+      meta: getProductBrandName(product),
+      href: productSuggestionHref(product.slug),
     });
   }
 
-  for (const brand of getBrands()) {
+  for (const brand of catalogue.brands) {
     if (!matchesLabel(`${brand.name} ${brand.slug.replace(/-/g, " ")}`, tokens)) {
       const corrected = found.correctedTo
         ? matchesLabel(
@@ -327,40 +301,15 @@ export function getSearchSuggestions(raw: string, limit = 6): SearchSuggestion[]
   }).slice(0, limit + 4);
 }
 
-export function getSearchDiscoveryLinks(): SearchDiscoveryLink[] {
+export function getSearchDiscoveryLinks(
+  brands: Brand[] = [],
+): SearchDiscoveryLink[] {
   return [
-    { id: "shop", label: "All shades", href: routes.shop },
-    { id: "new-arrivals", label: "New arrivals", href: routes.newArrivals },
-    { id: "best-sellers", label: "Best sellers", href: routes.bestSellers },
-    { id: "men", label: "Men", href: routes.men },
-    { id: "women", label: "Women", href: routes.women },
-    { id: "unisex", label: "Unisex", href: routes.unisex },
-    ...shapeLinks.map((link) => ({
-      id: link.href,
-      label: link.label,
-      href: link.href,
-    })),
-    ...getBrands().map((brand) => ({
+    ...getStaticSearchDiscoveryLinks(),
+    ...brands.map((brand) => ({
       id: brand.id,
       label: brand.name,
       href: searchPath(brand.name),
     })),
   ];
-}
-
-export function getSearchCollection(
-  q: string,
-  correctedTo?: string,
-): CollectionDefinition {
-  const display = correctedTo ?? q;
-  return {
-    id: "search",
-    slug: "search",
-    href: routes.search,
-    title: `Results for “${display}”`,
-    description: correctedTo
-      ? `No exact match. Showing results for “${correctedTo}”.`
-      : `Search results for “${q}”.`,
-    kind: "all",
-  };
 }

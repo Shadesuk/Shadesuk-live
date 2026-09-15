@@ -3,22 +3,26 @@
 import { useEffect, useId, useState } from "react";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
-import { getSearchDiscoveryLinks } from "@/services/search";
+import type { SearchDiscoveryLink } from "@/lib/search-query";
 import { SearchForm } from "./SearchForm";
 
 type SearchOverlayProps = {
   open: boolean;
   onClose: () => void;
+  discovery?: SearchDiscoveryLink[];
 };
 
-export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
+export function SearchOverlay({
+  open,
+  onClose,
+  discovery = [],
+}: SearchOverlayProps) {
   const titleId = useId();
   const [desktop, setDesktop] = useState(() =>
     typeof window === "undefined"
       ? false
       : window.matchMedia("(min-width: 1200px)").matches,
   );
-  const discovery = getSearchDiscoveryLinks();
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1200px)");

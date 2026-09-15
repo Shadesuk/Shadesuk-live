@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { SearchSuggestion } from "@/services/search";
+import type { SearchSuggestion } from "@/lib/search-query";
 import styles from "./SearchSuggestions.module.css";
 
 type SearchSuggestionsProps = {

@@ -12,9 +12,10 @@ import {
   type ProductVariantRow,
   type VariantStatus,
 } from "@/contracts";
-import { deriveBrandSource } from "@/contracts";
+import { deriveBrandSource, deriveBrandsFromProducts } from "@/contracts";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabasePublicClient } from "@/lib/supabase/public";
+import type { Brand } from "@/types/catalogue";
 
 const PRODUCT_COLUMNS =
   "id, slug, name, brand, description, details, materials, whats_included, shape, gender, fit, disclosure, status, created_at, updated_at";
@@ -65,7 +66,7 @@ export async function fetchLiveProductBySlug(
   }
 
   try {
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabasePublicClient();
     const { data, error } = await supabase
       .from("products")
       .select(PRODUCT_COLUMNS)
@@ -99,7 +100,7 @@ export async function fetchLiveProductsByIds(
   }
 
   try {
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabasePublicClient();
     const { data, error } = await supabase
       .from("products")
       .select(PRODUCT_COLUMNS)
@@ -134,7 +135,7 @@ export async function fetchLiveRelatedProducts(
   }
 
   try {
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabasePublicClient();
     const { data, error } = await supabase
       .from("products")
       .select(PRODUCT_COLUMNS)
@@ -157,6 +158,73 @@ export async function fetchLiveRelatedProducts(
   } catch {
     return [];
   }
+}
+
+export type LivePublishedCatalogue = {
+  products: MappedStorefrontProduct[];
+  brands: Brand[];
+};
+
+export type LiveCatalogueResult =
+  | { ok: true; catalogue: LivePublishedCatalogue }
+  | { ok: false; reason: "unconfigured" | "error" };
+
+const PUBLISHED_PAGE_SIZE = 100;
+const PUBLISHED_MAX_ROWS = 2000;
+
+/**
+ * Published card-projection catalogue for PLP, search, home rails, and
+ * brand/collection membership. Anon/publishable key + RLS only.
+ */
+export async function fetchLivePublishedCatalogue(): Promise<LiveCatalogueResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, reason: "unconfigured" };
+  }
+
+  try {
+    const rows = await fetchAllPublishedProductRows();
+    const products = await mapPublishedRows(rows, "card");
+    const derived = deriveBrandsFromProducts(rows);
+    const brands: Brand[] = derived.map((brand) => ({
+      ...brand,
+      productCount: products.filter((product) => product.brandId === brand.id).length,
+    }));
+    return { ok: true, catalogue: { products, brands } };
+  } catch {
+    return { ok: false, reason: "error" };
+  }
+}
+
+async function fetchAllPublishedProductRows(): Promise<ProductRow[]> {
+  const supabase = createSupabasePublicClient();
+  const rows: ProductRow[] = [];
+  let from = 0;
+
+  while (from < PUBLISHED_MAX_ROWS) {
+    const to = Math.min(from + PUBLISHED_PAGE_SIZE - 1, PUBLISHED_MAX_ROWS - 1);
+    const { data, error } = await supabase
+      .from("products")
+      .select(PRODUCT_COLUMNS)
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      throw error;
+    }
+
+    const page = (data ?? [])
+      .map(parseProductRow)
+      .filter((row): row is ProductRow => Boolean(row && row.status === "published"));
+    rows.push(...page);
+
+    if (!data || data.length < PUBLISHED_PAGE_SIZE) {
+      break;
+    }
+    from += PUBLISHED_PAGE_SIZE;
+  }
+
+  return rows;
 }
 
 async function mapPublishedRow(
@@ -205,7 +273,7 @@ async function mapPublishedRows(
 }
 
 async function fetchVariants(productIds: string[]): Promise<ProductVariantRow[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicClient();
   const { data, error } = await supabase
     .from("product_variants")
     .select(VARIANT_COLUMNS)
@@ -220,7 +288,7 @@ async function fetchVariants(productIds: string[]): Promise<ProductVariantRow[]>
 }
 
 async function fetchImages(productIds: string[]): Promise<ProductImageRow[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicClient();
   const { data, error } = await supabase
     .from("product_images")
     .select(IMAGE_COLUMNS)
@@ -238,7 +306,7 @@ async function fetchCollectionSlugs(
   productIds: string[],
 ): Promise<Map<string, string[]>> {
   const slugs = new Map<string, string[]>();
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicClient();
   const { data: links, error: linkError } = await supabase
     .from("product_collections")
     .select("product_id, collection_id")

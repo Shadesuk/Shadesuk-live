@@ -6,14 +6,14 @@ import { cx } from "@/lib/cx";
 import { formatGbp } from "@/lib/money";
 import {
   getAvailabilityLabel,
-  getBrandName,
   getColourCount,
   getImageFallbackLabel,
   getPrimaryImage,
+  getProductBrandName,
   getProductHref,
   getSecondaryImage,
   isProductAvailable,
-} from "@/services/catalogue";
+} from "@/lib/product-display";
 import { recordProductView } from "@/lib/recently-viewed";
 import type { Product } from "@/types/catalogue";
 import styles from "./ProductCard.module.css";
@@ -25,7 +25,7 @@ type ProductCardProps = {
 
 export function ProductCard({ product, priority = false }: ProductCardProps) {
   const href = getProductHref(product);
-  const brand = getBrandName(product);
+  const brand = getProductBrandName(product);
   const colourCount = getColourCount(product);
   const primary = getPrimaryImage(product);
   const secondary = getSecondaryImage(product);

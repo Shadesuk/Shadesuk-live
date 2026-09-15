@@ -10,7 +10,7 @@ import {
   getFilterChips,
   hiddenFilterKeys,
   removeFilterChip,
-} from "@/services/collections";
+} from "@/lib/collection-query";
 import type { CatalogueFilters } from "@/types/catalogue";
 import {
   COLLECTION_PAGE_SIZE,

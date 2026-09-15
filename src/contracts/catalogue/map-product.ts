@@ -1,7 +1,7 @@
 import type { Product, ProductMeasurements, ProductVariant } from "@/types/catalogue";
 import { minorToMajorGbp } from "../money";
 import { productAvailabilityFromVariants, variantAvailability } from "./availability";
-import { brandIdForProduct } from "./brand";
+import { brandIdForProduct, deriveBrandSource } from "./brand";
 import { deriveColours } from "./colour";
 import { toStorefrontImages, type ImageDimensionSource } from "./image";
 import { merchandisingFromCollectionSlugs } from "./merchandising";
@@ -53,11 +53,13 @@ export function mapProductAggregateToStorefront(
     .filter((variant) => variant.status !== "draft" && variant.status !== "archived")
     .map(toStorefrontVariant);
 
+  const derivedBrand = deriveBrandSource(product.brand);
   const mapped: MappedStorefrontProduct = {
     id: product.id,
     slug: product.slug,
     name: product.name,
     brandId: brandIdForProduct(product.brand),
+    brandName: derivedBrand?.name,
     gender: parseGenderTokens(product.gender),
     shape: parseShapeTokens(product.shape),
     style: [],

@@ -1,50 +1,45 @@
 import { brandPath, routes, shapeLinks } from "@/lib/navigation";
 import {
+  collectionQueryPath,
+  countActiveFilters,
+  emptyCollectionQuery,
+  getFilterChips,
+  hasUserFilters,
+  hiddenFilterKeys,
+  matchesPriceRange,
+  parseCollectionQuery,
+  removeFilterChip,
+  serializeCollectionQuery,
+  genderLabel,
+  shapeLabel,
+} from "@/lib/collection-query";
+import {
   getAvailableFilters,
-  getBestSellers,
-  getBrandById,
-  getBrandBySlug,
   getBrands,
-  getNewArrivals,
   getPopulatedShapes,
   getProducts,
-  getProductsByBrand,
-  getProductsByGender,
-  getProductsByShape,
 } from "@/services/catalogue";
-import {
-  COLLECTION_PAGE_SIZE,
-  PRICE_RANGES,
-  SORT_IDS,
-  type CollectionDefinition,
-  type CollectionFilterChip,
-  type CollectionQuery,
-  type HiddenFilterKey,
-  type PriceRangeId,
-  type SortId,
-} from "@/types/collection";
-import {
-  GENDERS,
-  SHAPES,
-  type Brand,
-  type CatalogueFilters,
-  type Gender,
-  type Product,
-  type Shape,
-} from "@/types/catalogue";
+import type { CollectionDefinition, CollectionQuery, SortId } from "@/types/collection";
+import type { Brand, Product, Shape } from "@/types/catalogue";
 
-const GENDER_LABELS: Record<Gender, string> = {
-  men: "Men",
-  women: "Women",
-  unisex: "Unisex",
+export {
+  collectionQueryPath,
+  countActiveFilters,
+  emptyCollectionQuery,
+  getFilterChips,
+  hasUserFilters,
+  hiddenFilterKeys,
+  matchesPriceRange,
+  parseCollectionQuery,
+  removeFilterChip,
+  serializeCollectionQuery,
+  genderLabel,
+  shapeLabel,
 };
 
-const SHAPE_LABELS: Record<Shape, string> = {
-  aviator: "Aviator",
-  rectangle: "Rectangle",
-  square: "Square",
-  round: "Round",
-  "cat-eye": "Cat-Eye",
+export type CatalogueSnapshot = {
+  products: Product[];
+  brands: Brand[];
 };
 
 const collections: CollectionDefinition[] = [
@@ -133,8 +128,10 @@ export function getCollectionBySlug(
   );
 }
 
-export function getPopulatedShapeCollections(): CollectionDefinition[] {
-  return getPopulatedShapes()
+export function getPopulatedShapeCollections(
+  products: Product[] = getProducts(),
+): CollectionDefinition[] {
+  return getPopulatedShapes(products)
     .map((shape) => getCollectionBySlug(shape))
     .filter((collection): collection is CollectionDefinition =>
       Boolean(collection),
@@ -145,8 +142,10 @@ export function getPopulatedShapeCollections(): CollectionDefinition[] {
  * Public discovery collections for the hub.
  * Style collections remain unpublished until the taxonomy is resolved.
  */
-export function getPopulatedCollections(): CollectionDefinition[] {
-  return getPopulatedShapeCollections();
+export function getPopulatedCollections(
+  products: Product[] = getProducts(),
+): CollectionDefinition[] {
+  return getPopulatedShapeCollections(products);
 }
 
 export function getBrandCollection(brand: Brand): CollectionDefinition {
@@ -163,9 +162,10 @@ export function getBrandCollection(brand: Brand): CollectionDefinition {
 
 export function getBrandCollectionBySlug(
   slug: string,
+  brands: Brand[] = getBrands(),
 ): CollectionDefinition | undefined {
-  const brand = getBrandBySlug(slug);
-  if (!brand || brand.status !== "active") {
+  const brand = brands.find((item) => item.slug === slug && item.status === "active");
+  if (!brand) {
     return undefined;
   }
   return getBrandCollection(brand);
@@ -173,54 +173,55 @@ export function getBrandCollectionBySlug(
 
 export function getCollectionProducts(
   collection: CollectionDefinition,
+  products: Product[] = getProducts(),
+  brands: Brand[] = getBrands(),
 ): Product[] {
   if (collection.kind === "gender" && collection.gender) {
-    return getProductsByGender(collection.gender);
+    return products.filter((product) => product.gender.includes(collection.gender!));
   }
   if (collection.merchandising === "new-arrivals") {
-    return getNewArrivals();
+    return products.filter((product) => product.isNewArrival);
   }
   if (collection.merchandising === "best-sellers") {
-    return getBestSellers();
+    return products.filter((product) => product.isBestSeller);
   }
   if (collection.kind === "shape" && collection.shape) {
-    return getProductsByShape(collection.shape);
+    return products.filter((product) => product.shape.includes(collection.shape!));
   }
   if (collection.kind === "brand" && collection.brandId) {
-    return getProductsByBrand(collection.brandId);
+    return products.filter((product) => {
+      if (product.brandId === collection.brandId) {
+        return true;
+      }
+      const brand = brands.find(
+        (item) => item.id === collection.brandId || item.slug === collection.slug,
+      );
+      return Boolean(brand && product.brandId === brand.id);
+    });
   }
-  return getProducts();
+  return products;
 }
 
-function productMatchesBrand(product: Product, brandValues: string[]): boolean {
+function productMatchesBrand(
+  product: Product,
+  brandValues: string[],
+  brands: Brand[],
+): boolean {
   return brandValues.some((value) => {
     if (product.brandId === value) {
       return true;
     }
-    const brand = getBrands().find(
+    const brand = brands.find(
       (item) => item.id === value || item.slug === value,
     );
     return Boolean(brand && product.brandId === brand.id);
   });
 }
 
-export function matchesPriceRange(price: number, rangeId: PriceRangeId): boolean {
-  const range = PRICE_RANGES.find((item) => item.id === rangeId);
-  if (!range) {
-    return true;
-  }
-  if (range.min !== undefined && price < range.min) {
-    return false;
-  }
-  if (range.max !== undefined && price >= range.max) {
-    return false;
-  }
-  return true;
-}
-
 export function applyFilters(
   products: Product[],
   query: CollectionQuery,
+  brands: Brand[] = getBrands(),
 ): Product[] {
   return products.filter((product) => {
     if (
@@ -229,7 +230,7 @@ export function applyFilters(
     ) {
       return false;
     }
-    if (query.brands.length > 0 && !productMatchesBrand(product, query.brands)) {
+    if (query.brands.length > 0 && !productMatchesBrand(product, query.brands, brands)) {
       return false;
     }
     if (
@@ -274,26 +275,47 @@ export function applySort(products: Product[], sort: SortId): Product[] {
 export function getFilteredProductCount(
   collection: CollectionDefinition,
   query: CollectionQuery,
+  snapshot?: CatalogueSnapshot,
 ): number {
+  const products = snapshot
+    ? getCollectionProducts(collection, snapshot.products, snapshot.brands)
+    : getCollectionProducts(collection);
+  const brands = snapshot?.brands ?? getBrands();
   return applyFilters(
-    getCollectionProducts(collection),
+    products,
     contextualQuery(collection, query),
+    brands,
   ).length;
 }
 
 export function queryCollection(
   collection: CollectionDefinition,
   query: CollectionQuery,
-  scoped = getCollectionProducts(collection),
+  scoped?: Product[],
+  brands?: Brand[],
 ) {
+  const snapshotProducts = scoped ?? getCollectionProducts(collection);
+  const snapshotBrands = brands ?? getBrands();
   const filterQuery = contextualQuery(collection, query);
-  const filtered = applySort(applyFilters(scoped, filterQuery), filterQuery.sort);
+  const filtered = applySort(
+    applyFilters(snapshotProducts, filterQuery, snapshotBrands),
+    filterQuery.sort,
+  );
   return {
     products: filtered.slice(0, query.limit),
     total: filtered.length,
     hasMore: filtered.length > query.limit,
-    filterOptions: getAvailableFilters(scoped),
+    filterOptions: getAvailableFilters(snapshotProducts, snapshotBrands),
   };
+}
+
+export function queryCollectionFromSnapshot(
+  collection: CollectionDefinition,
+  query: CollectionQuery,
+  snapshot: CatalogueSnapshot,
+) {
+  const scoped = getCollectionProducts(collection, snapshot.products, snapshot.brands);
+  return queryCollection(collection, query, scoped, snapshot.brands);
 }
 
 function contextualQuery(
@@ -304,260 +326,4 @@ function contextualQuery(
     return { ...query, brands: [] };
   }
   return query;
-}
-
-function readList(value: string | string[] | undefined): string[] {
-  const raw = Array.isArray(value) ? value : value ? [value] : [];
-  return raw
-    .flatMap((item) => item.split(","))
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function isGender(value: string): value is Gender {
-  return (GENDERS as readonly string[]).includes(value);
-}
-
-function isShape(value: string): value is Shape {
-  return (SHAPES as readonly string[]).includes(value);
-}
-
-function isSort(value: string): value is SortId {
-  return (SORT_IDS as readonly string[]).includes(value);
-}
-
-function isPriceRange(value: string): value is PriceRangeId {
-  return PRICE_RANGES.some((range) => range.id === value);
-}
-
-export function parseCollectionQuery(
-  searchParams: Record<string, string | string[] | undefined>,
-): CollectionQuery {
-  const genders = readList(searchParams.gender).filter(isGender);
-  const shapes = readList(searchParams.shape).filter(isShape);
-  const sortValue = Array.isArray(searchParams.sort)
-    ? searchParams.sort[0]
-    : searchParams.sort;
-  const priceValue = Array.isArray(searchParams.price)
-    ? searchParams.price[0]
-    : searchParams.price;
-  const availability = readList(searchParams.availability);
-  const limitValue = Array.isArray(searchParams.limit)
-    ? searchParams.limit[0]
-    : searchParams.limit;
-  const parsedLimit = Number.parseInt(limitValue ?? "", 10);
-  const qValue = Array.isArray(searchParams.q)
-    ? searchParams.q[0]
-    : searchParams.q;
-  const q = qValue?.trim().replace(/\s+/g, " ");
-
-  return {
-    q: q || undefined,
-    genders,
-    brands: readList(searchParams.brand),
-    shapes,
-    colours: readList(searchParams.colour),
-    price: priceValue && isPriceRange(priceValue) ? priceValue : undefined,
-    inStockOnly: availability.includes("in_stock"),
-    sort: sortValue && isSort(sortValue) ? sortValue : "featured",
-    limit:
-      Number.isFinite(parsedLimit) && parsedLimit > 0
-        ? parsedLimit
-        : COLLECTION_PAGE_SIZE,
-  };
-}
-
-export function serializeCollectionQuery(
-  query: CollectionQuery,
-  options?: { resetLimit?: boolean },
-): string {
-  const params = new URLSearchParams();
-  if (query.q) {
-    params.set("q", query.q);
-  }
-  if (query.genders.length) {
-    params.set("gender", query.genders.join(","));
-  }
-  if (query.brands.length) {
-    params.set("brand", query.brands.join(","));
-  }
-  if (query.shapes.length) {
-    params.set("shape", query.shapes.join(","));
-  }
-  if (query.colours.length) {
-    params.set("colour", query.colours.join(","));
-  }
-  if (query.price) {
-    params.set("price", query.price);
-  }
-  if (query.inStockOnly) {
-    params.set("availability", "in_stock");
-  }
-  if (query.sort !== "featured") {
-    params.set("sort", query.sort);
-  }
-  const limit = options?.resetLimit ? COLLECTION_PAGE_SIZE : query.limit;
-  if (limit !== COLLECTION_PAGE_SIZE) {
-    params.set("limit", String(limit));
-  }
-  return params.toString();
-}
-
-export function emptyCollectionQuery(): CollectionQuery {
-  return {
-    genders: [],
-    brands: [],
-    shapes: [],
-    colours: [],
-    inStockOnly: false,
-    sort: "featured",
-    limit: COLLECTION_PAGE_SIZE,
-  };
-}
-
-export function collectionQueryPath(
-  href: string,
-  query: CollectionQuery,
-  options?: { resetLimit?: boolean },
-): string {
-  const search = serializeCollectionQuery(query, options);
-  return search ? `${href}?${search}` : href;
-}
-
-export function hiddenFilterKeys(
-  collection: CollectionDefinition,
-): HiddenFilterKey[] {
-  if (collection.kind === "gender") {
-    return ["gender"];
-  }
-  if (collection.kind === "shape") {
-    return ["shape"];
-  }
-  if (collection.kind === "brand") {
-    return ["brand"];
-  }
-  return [];
-}
-
-export function getFilterChips(
-  query: CollectionQuery,
-  collection: CollectionDefinition,
-  options: CatalogueFilters,
-): CollectionFilterChip[] {
-  const hidden = hiddenFilterKeys(collection);
-  const chips: CollectionFilterChip[] = [];
-
-  if (!hidden.includes("gender")) {
-    for (const gender of query.genders) {
-      chips.push({
-        key: `gender:${gender}`,
-        label: GENDER_LABELS[gender],
-      });
-    }
-  }
-
-  if (!hidden.includes("brand")) {
-    for (const brandId of query.brands) {
-      const brand =
-        options.brands.find(
-          (item) => item.id === brandId || item.slug === brandId,
-        ) ??
-        getBrandById(brandId) ??
-        getBrandBySlug(brandId);
-      chips.push({
-        key: `brand:${brandId}`,
-        label: brand?.name ?? brandId,
-      });
-    }
-  }
-
-  if (!hidden.includes("shape")) {
-    for (const shape of query.shapes) {
-      chips.push({
-        key: `shape:${shape}`,
-        label: SHAPE_LABELS[shape],
-      });
-    }
-  }
-
-  for (const colour of query.colours) {
-    const match = options.colours.find((item) => item.slug === colour);
-    chips.push({
-      key: `colour:${colour}`,
-      label: match?.name ?? colour,
-    });
-  }
-
-  if (query.price) {
-    const range = PRICE_RANGES.find((item) => item.id === query.price);
-    chips.push({
-      key: `price:${query.price}`,
-      label: range?.label ?? query.price,
-    });
-  }
-
-  if (query.inStockOnly) {
-    chips.push({ key: "availability:in_stock", label: "In stock" });
-  }
-
-  return chips;
-}
-
-export function removeFilterChip(
-  query: CollectionQuery,
-  key: string,
-): CollectionQuery {
-  const [group, value] = key.split(":");
-  if (group === "gender") {
-    return { ...query, genders: query.genders.filter((item) => item !== value) };
-  }
-  if (group === "brand") {
-    return { ...query, brands: query.brands.filter((item) => item !== value) };
-  }
-  if (group === "shape") {
-    return { ...query, shapes: query.shapes.filter((item) => item !== value) };
-  }
-  if (group === "colour") {
-    return { ...query, colours: query.colours.filter((item) => item !== value) };
-  }
-  if (group === "price") {
-    return { ...query, price: undefined };
-  }
-  if (group === "availability") {
-    return { ...query, inStockOnly: false };
-  }
-  return query;
-}
-
-export function countActiveFilters(
-  query: CollectionQuery,
-  collection: CollectionDefinition,
-  options: CatalogueFilters,
-): number {
-  return getFilterChips(query, collection, options).length;
-}
-
-export function hasUserFilters(
-  query: CollectionQuery,
-  collection: CollectionDefinition,
-): boolean {
-  const hidden = hiddenFilterKeys(collection);
-  if (!hidden.includes("gender") && query.genders.length > 0) {
-    return true;
-  }
-  if (!hidden.includes("brand") && query.brands.length > 0) {
-    return true;
-  }
-  if (!hidden.includes("shape") && query.shapes.length > 0) {
-    return true;
-  }
-  return query.colours.length > 0 || Boolean(query.price) || query.inStockOnly;
-}
-
-export function genderLabel(gender: Gender): string {
-  return GENDER_LABELS[gender];
-}
-
-export function shapeLabel(shape: Shape): string {
-  return SHAPE_LABELS[shape];
 }

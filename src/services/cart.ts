@@ -21,12 +21,9 @@ import { isDemoVariantId, isUuid } from "@/lib/ids";
 import { containsForbiddenCartOwnership } from "@/lib/ownership-keys";
 import { getCartSuggestions as suggestCartProducts } from "@/lib/cart-suggestions";
 import { productPath } from "@/lib/navigation";
-import {
-  getPrimaryImage,
-  getProductBySlug,
-  getProducts,
-  isProductAvailable,
-} from "@/services/catalogue";
+import { getPrimaryImage, isProductAvailable } from "@/lib/product-display";
+import { isDemoCatalogueEnabled } from "@/lib/demo-catalogue-mode";
+import { getProductBySlug } from "@/services/catalogue";
 import {
   fetchLiveVariantForCart,
   getOrCreateLiveAccountCart,
@@ -245,7 +242,7 @@ export async function removeGuestCartItem(itemId: string): Promise<PublicCart | 
   return assemblePublicCart(ctx);
 }
 
-export function getCartSuggestions(cart: PublicCart, products = getProducts()) {
+export function getCartSuggestions(cart: PublicCart, products: Product[] = []) {
   return suggestCartProducts(cart, products);
 }
 
@@ -496,7 +493,9 @@ async function hydrateDemoLine(line: DemoCartLine): Promise<{
   drop?: boolean;
 }> {
   const record = await getStorefrontProductBySlug(line.slug);
-  const product = record?.product ?? getProductBySlug(line.slug);
+  const product =
+    record?.product ??
+    (isDemoCatalogueEnabled() ? getProductBySlug(line.slug) : undefined);
   if (!product) {
     return { drop: true, issue: "product_removed" };
   }

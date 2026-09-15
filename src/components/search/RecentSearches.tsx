@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { searchPath, type SearchDiscoveryLink } from "@/services/search";
+import { searchPath, type SearchDiscoveryLink } from "@/lib/search-query";
 import styles from "./RecentSearches.module.css";
 
 type RecentSearchesProps = {

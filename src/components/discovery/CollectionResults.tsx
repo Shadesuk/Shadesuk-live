@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { COLLECTION_PAGE_SIZE, type CollectionDefinition, type CollectionQuery } from "@/types/collection";
 import type { Product } from "@/types/catalogue";
-import { collectionQueryPath } from "@/services/collections";
+import { collectionQueryPath } from "@/lib/collection-query";
 import { CollectionEmptyState } from "./CollectionEmptyState";
 import styles from "./CollectionResults.module.css";
 
