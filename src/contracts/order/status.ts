@@ -15,6 +15,17 @@ export const CUSTOMER_ORDER_STATUS_LABELS = {
 export type CustomerOrderStatusLabel =
   (typeof CUSTOMER_ORDER_STATUS_LABELS)[OrderStatus];
 
+/** Main-path steps for the guest/account tracking timeline. */
+export const CUSTOMER_TRACKING_STEPS = [
+  "placed",
+  "processing",
+  "dispatched",
+  "in_transit",
+  "out_for_delivery",
+  "delivered",
+] as const;
+export type CustomerTrackingStep = (typeof CUSTOMER_TRACKING_STEPS)[number];
+
 const FORWARD: Partial<Record<OrderStatus, readonly OrderStatus[]>> = {
   placed: ["processing", "exception"],
   processing: ["dispatched", "exception", "tracking_unavailable"],

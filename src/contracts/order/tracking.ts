@@ -30,6 +30,16 @@ export type GuestTrackingFailureCode =
 export const GUEST_TRACKING_GENERIC_ERROR =
   "We couldn't find an order with those details.";
 
+/** Distinct from not-found so retries are not mistaken for a wrong email. */
+export const GUEST_TRACKING_RATE_LIMITED =
+  "Too many attempts. Try again later.";
+
+/**
+ * Used for a constant-time email compare when no order row exists, so missing
+ * references do not become a timing oracle.
+ */
+export const GUEST_TRACKING_DUMMY_EMAIL = "guest-tracking-dummy@invalid.local";
+
 export type GuestTrackingLookup =
   | { ok: true; orderReference: string; email: string }
   | { ok: false; code: GuestTrackingFailureCode; message: string };
@@ -54,6 +64,7 @@ export function parseGuestTrackingRequest(
   const email = emailRaw ? normalizeEmail(emailRaw) : "";
 
   if (!orderReference || !email || !email.includes("@")) {
+    consumeGuestTrackingEmailCompare(email || GUEST_TRACKING_DUMMY_EMAIL);
     return {
       ok: false,
       code: "invalid_input",
@@ -77,6 +88,7 @@ export function guestTrackingVerified(input: {
   orderEmail: string;
 }): boolean {
   if (!isOrderReference(input.orderReference)) {
+    consumeGuestTrackingEmailCompare(input.requestEmail);
     return false;
   }
   return verifyGuestTrackingEmail({
@@ -85,8 +97,20 @@ export function guestTrackingVerified(input: {
   });
 }
 
+export function consumeGuestTrackingEmailCompare(
+  requestEmail: string,
+  orderEmail: string = GUEST_TRACKING_DUMMY_EMAIL,
+): boolean {
+  return emailsMatch(requestEmail || GUEST_TRACKING_DUMMY_EMAIL, orderEmail);
+}
+
 function emailFingerprint(email: string): Buffer {
   return createHash("sha256").update(email).digest();
+}
+
+/** Hex SHA-256 of the normalised email for in-app rate-limit keys. Not for display. */
+export function emailRateLimitFingerprint(email: string): string {
+  return emailFingerprint(normalizeEmail(email) || "empty").toString("hex");
 }
 
 function readString(
@@ -97,9 +121,17 @@ function readString(
   return typeof value === "string" ? value : undefined;
 }
 
-/** 3.13 must rate-limit before lookup. Not implemented in 3.3. */
+/**
+ * In-app guest tracking limits (not a WAF). Primary cap is 5 / 15 minutes.
+ * Buckets AND together: signed client cookie, IP, email fingerprint, and
+ * order reference. Spoofing x-forwarded-for alone must not reset the budget.
+ */
 export const GUEST_TRACKING_RATE_LIMIT = {
   windowSeconds: 15 * 60,
   maxAttempts: 5,
-  key: "ip+orderReference",
+  maxAttemptsPerReference: 8,
+  maxAttemptsPerIp: 10,
+  maxAttemptsPerEmail: 8,
+  maxAttemptsPerClient: 10,
+  key: "client+ip+email+reference",
 } as const;

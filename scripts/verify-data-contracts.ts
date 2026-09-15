@@ -355,5 +355,11 @@ if (tracking.total !== 49) {
 if (JSON.stringify(tracking).includes("internal only")) {
   throw new Error("Shipment notes must not appear on guest tracking views.");
 }
+if (!tracking.deliveryAddress?.line1 || tracking.deliveryAddress.line1 !== "1 Example Street") {
+  throw new Error("Guest tracking must map a customer-safe delivery address.");
+}
+if ("payment" in tracking || "customerFirstName" in tracking) {
+  throw new Error("Guest tracking view must not reuse CustomerOrderView fields.");
+}
 
 console.log("Data contracts OK");

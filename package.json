@@ -11,7 +11,8 @@
     "verify:pdp": "npx --yes tsx scripts/verify-pdp.ts",
     "verify:cart": "npx --yes tsx scripts/verify-cart.ts",
     "verify:checkout": "npx --yes tsx scripts/verify-checkout.ts",
-    "verify:account": "npx --yes tsx scripts/verify-account.ts"
+    "verify:account": "npx --yes tsx scripts/verify-account.ts",
+    "verify:tracking": "npx --yes tsx scripts/verify-tracking.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

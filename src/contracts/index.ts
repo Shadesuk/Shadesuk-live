@@ -46,17 +46,31 @@ export {
   parseOrderReferenceInput,
 } from "./order/reference";
 export {
+  consumeGuestTrackingEmailCompare,
+  emailRateLimitFingerprint,
   emailsMatch,
+  guestTrackingVerified,
+  GUEST_TRACKING_DUMMY_EMAIL,
   GUEST_TRACKING_GENERIC_ERROR,
   GUEST_TRACKING_RATE_LIMIT,
+  GUEST_TRACKING_RATE_LIMITED,
   normalizeEmail,
   parseGuestTrackingRequest,
   verifyGuestTrackingEmail,
 } from "./order/tracking";
 export type { GuestTrackingRequest } from "./order/tracking";
-export { toGuestOrderTrackingView, formatOrderHeading } from "./order/dto";
-export type { GuestOrderTrackingView } from "./order/dto";
-export { customerOrderStatusLabel, isLegalOrderStatusTransition } from "./order/status";
+export {
+  formatOrderHeading,
+  toGuestDeliveryAddress,
+  toGuestOrderTrackingView,
+} from "./order/dto";
+export type { GuestDeliveryAddressView, GuestOrderTrackingView } from "./order/dto";
+export {
+  CUSTOMER_TRACKING_STEPS,
+  customerOrderStatusLabel,
+  isLegalOrderStatusTransition,
+} from "./order/status";
+export type { CustomerTrackingStep } from "./order/status";
 
 export {
   customerPaymentState,
