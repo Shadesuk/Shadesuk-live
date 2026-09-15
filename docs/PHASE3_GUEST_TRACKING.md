@@ -13,7 +13,9 @@ This slice adds guest order tracking so the footer **Track Order** link no longe
 - Service-role read only after rate-limit + parse; anon still has no SELECT on orders
 - Timing-safe email compare (`SHA-256` + `timingSafeEqual`); dummy compare when no row exists
 - Generic error for malformed input, unknown reference, and wrong email: **We couldn't find an order with those details.**
-- Rate limit: 5 attempts / 15 minutes / ip + order reference (malformed refs share an `invalid` bucket)
+- In-app rate limit (not a WAF): 5 attempts / 15 minutes, AND-ed across a **signed httpOnly limiter cookie**, IP, email fingerprint, and order reference. Malformed refs share an `invalid` bucket. Additional caps: 8 / reference, 10 / IP, 8 / email, 10 / client.
+- IP is **not** the spoofable leftmost `X-Forwarded-For`. Prefer `x-vercel-forwarded-for` on Vercel, `cf-connecting-ip` when `cf-ray` is present, otherwise the **rightmost** XFF hop. The signed cookie + email + reference buckets still bind if an IP header is forged.
+- Limiter cookie HMAC uses the same fail-closed production secret as guest cart cookies (`GUEST_COOKIE_SECRET` or a Supabase secret). Unsigned cookies are ignored. The limiter id is never returned in action JSON and is not the cart `session_id`.
 - Result view uses `GuestOrderTrackingView` only (status, items, total, delivery snapshot, customer shipment fields)
 - Manual fulfilment: show pasted tracking URL / AWB when present on `shipments`; no carrier API
 - **TRACKING NOT AVAILABLE YET** is a normal state
@@ -36,8 +38,9 @@ This slice adds guest order tracking so the footer **Track Order** link no longe
 - Never reuse `CustomerOrderView` (it may contain payment provider ids) — guest tracking uses `GuestOrderTrackingView`
 - Shipment `notes` are not selected
 - `payments` is not queried
-- Production cookie HMAC fail-closed behaviour from PR #17 is unchanged
+- Production cookie HMAC fail-closed behaviour from PR #17 is unchanged (limiter cookie included)
 - Guest `session_id` is never sent to the browser
+- Tracking limiter id is never sent to the browser
 - No admin UI; no payment APIs
 
 ## Copy

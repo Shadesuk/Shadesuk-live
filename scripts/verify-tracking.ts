@@ -18,9 +18,20 @@ import { GENERIC_LOOKUP_ERROR, RATE_LIMITED, TRACK_YOUR_ORDER } from "../src/lib
 import { routes } from "../src/lib/navigation";
 import {
   guestTrackingAttemptAllowed,
-  guestTrackingRateLimitKey,
+  guestTrackingRateLimitBuckets,
   resetGuestTrackingRateLimitForTests,
 } from "../src/lib/tracking-rate-limit";
+import { clientAddressFromHeaders } from "../src/lib/request-address";
+import {
+  createTrackingLimiterId,
+  decodeTrackingLimiterCookie,
+  encodeTrackingLimiterCookie,
+  TRACKING_LIMITER_COOKIE_NAME,
+} from "../src/lib/tracking-limiter";
+import {
+  requireGuestCookieSecret,
+  resolveGuestCookieSecret,
+} from "../src/lib/guest-cookie-hmac";
 import { buildTrackingTimeline } from "../src/lib/tracking-timeline";
 import { safeHttpUrl } from "../src/lib/tracking-url";
 import { hasForbiddenOwnershipKey } from "../src/lib/ownership-keys";
@@ -44,8 +55,11 @@ if (RATE_LIMITED !== GUEST_TRACKING_RATE_LIMITED) {
 if (GUEST_TRACKING_RATE_LIMIT.maxAttempts !== 5 || GUEST_TRACKING_RATE_LIMIT.windowSeconds !== 15 * 60) {
   throw new Error("Guest tracking rate limit must be 5 attempts / 15 minutes.");
 }
-if (GUEST_TRACKING_RATE_LIMIT.key !== "ip+orderReference") {
-  throw new Error("Guest tracking rate-limit key must be ip+orderReference.");
+if (GUEST_TRACKING_RATE_LIMIT.key !== "client+ip+email+reference") {
+  throw new Error("Guest tracking must rate-limit by client cookie, IP, email, and reference.");
+}
+if (GUEST_TRACKING_RATE_LIMIT.maxAttemptsPerReference < GUEST_TRACKING_RATE_LIMIT.maxAttempts) {
+  throw new Error("Per-reference cap must still bound distributed IP spoofing.");
 }
 
 const guessable = parseGuestTrackingRequest({ orderReference: "12345", email: "a@b.com" });
@@ -104,20 +118,166 @@ if (
 }
 
 resetGuestTrackingRateLimitForTests();
-const limitKey = guestTrackingRateLimitKey("203.0.113.8", reference);
-if (limitKey !== `203.0.113.8:${reference}`) {
-  throw new Error("Rate-limit key must be ip + canonical order reference.");
+const limiterId = createTrackingLimiterId();
+const email = "guest@example.com";
+const buckets = guestTrackingRateLimitBuckets({
+  ip: "203.0.113.8",
+  limiterId,
+  orderReference: reference,
+  email,
+});
+if (!buckets.some((bucket) => bucket.key.includes(`ip-ref:203.0.113.8:${reference}`))) {
+  throw new Error("Rate-limit buckets must include IP + canonical reference.");
 }
-if (guestTrackingRateLimitKey("203.0.113.8", "SHU10294") !== "203.0.113.8:invalid") {
-  throw new Error("Malformed references must share the invalid rate-limit bucket.");
+if (!buckets.some((bucket) => bucket.key.startsWith("client-ref:"))) {
+  throw new Error("Rate-limit buckets must include the signed client cookie.");
 }
+if (!buckets.some((bucket) => bucket.key.startsWith("email-ref:"))) {
+  throw new Error("Rate-limit buckets must include an email fingerprint, not a raw mailbox.");
+}
+if (JSON.stringify(buckets).includes(email)) {
+  throw new Error("Rate-limit keys must not store the raw email.");
+}
+if (
+  guestTrackingRateLimitBuckets({
+    ip: "203.0.113.8",
+    limiterId,
+    orderReference: "SHU10294",
+    email,
+  }).some((bucket) => bucket.key.endsWith(`:${reference}`))
+) {
+  throw new Error("Malformed references must not share a valid-reference bucket.");
+}
+if (
+  !guestTrackingRateLimitBuckets({
+    ip: "203.0.113.8",
+    limiterId: null,
+    orderReference: "SHU10294",
+    email,
+  }).some((bucket) => bucket.key === "ref:invalid")
+) {
+  throw new Error("Malformed references must share the invalid reference bucket.");
+}
+
+resetGuestTrackingRateLimitForTests();
 for (let attempt = 0; attempt < GUEST_TRACKING_RATE_LIMIT.maxAttempts; attempt += 1) {
-  if (!guestTrackingAttemptAllowed(limitKey)) {
+  if (
+    !guestTrackingAttemptAllowed({
+      ip: "203.0.113.8",
+      limiterId,
+      orderReference: reference,
+      email,
+    })
+  ) {
     throw new Error("First five tracking attempts must be allowed.");
   }
 }
-if (guestTrackingAttemptAllowed(limitKey)) {
-  throw new Error("Sixth tracking attempt must be rate-limited.");
+if (
+  guestTrackingAttemptAllowed({
+    ip: "198.51.100.10",
+    limiterId,
+    orderReference: reference,
+    email,
+  })
+) {
+  throw new Error("Spoofed IP must not bypass the signed client-cookie bucket.");
+}
+
+resetGuestTrackingRateLimitForTests();
+const spoofHeaders = {
+  get(name: string) {
+    if (name.toLowerCase() === "x-forwarded-for") {
+      return "198.51.100.10, 203.0.113.9";
+    }
+    return null;
+  },
+};
+if (clientAddressFromHeaders(spoofHeaders, { vercel: false }) !== "203.0.113.9") {
+  throw new Error("X-Forwarded-For must use the rightmost hop, not the spoofable leftmost IP.");
+}
+const vercelHeaders = {
+  get(name: string) {
+    const key = name.toLowerCase();
+    if (key === "x-vercel-forwarded-for") {
+      return "203.0.113.9";
+    }
+    if (key === "x-forwarded-for") {
+      return "198.51.100.10";
+    }
+    return null;
+  },
+};
+if (clientAddressFromHeaders(vercelHeaders, { vercel: true }) !== "203.0.113.9") {
+  throw new Error("On Vercel, x-vercel-forwarded-for must beat a spoofed X-Forwarded-For.");
+}
+if (clientAddressFromHeaders(vercelHeaders, { vercel: false }) !== "198.51.100.10") {
+  throw new Error("Off Vercel, a client-supplied x-vercel-forwarded-for must not be trusted.");
+}
+
+const secret = "verify-tracking-limiter-secret";
+const cookieId = createTrackingLimiterId();
+const cookie = encodeTrackingLimiterCookie(cookieId, secret);
+if (decodeTrackingLimiterCookie(cookie, secret) !== cookieId) {
+  throw new Error("Signed tracking limiter cookies must round-trip.");
+}
+if (decodeTrackingLimiterCookie(cookie, "other-secret") !== null) {
+  throw new Error("Tracking limiter cookies must reject a bad HMAC.");
+}
+if (decodeTrackingLimiterCookie(cookie, "") !== null) {
+  throw new Error("Unsigned tracking limiter cookies must not be trusted.");
+}
+const tampered = cookie.replace(/[0-9a-f]$/i, (digit) => (digit === "0" ? "1" : "0"));
+if (decodeTrackingLimiterCookie(tampered, secret) === cookieId) {
+  throw new Error("Tracking limiter cookies must reject a tampered HMAC.");
+}
+if (TRACKING_LIMITER_COOKIE_NAME !== "shadesuk_track_rl") {
+  throw new Error("Tracking limiter cookie name must stay shadesuk_track_rl.");
+}
+if (
+  resolveGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "production",
+  }) !== ""
+) {
+  throw new Error("Production must fail closed without GUEST_COOKIE_SECRET or a Supabase secret.");
+}
+let productionCookieSecretThrew = false;
+try {
+  requireGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "production",
+  });
+} catch {
+  productionCookieSecretThrew = true;
+}
+if (!productionCookieSecretThrew) {
+  throw new Error("Tracking limiter cookie writes must not use a local HMAC fallback in production.");
+}
+
+resetGuestTrackingRateLimitForTests();
+for (let attempt = 0; attempt < GUEST_TRACKING_RATE_LIMIT.maxAttemptsPerReference; attempt += 1) {
+  if (
+    !guestTrackingAttemptAllowed({
+      ip: `198.51.100.${attempt + 1}`,
+      limiterId: createTrackingLimiterId(),
+      orderReference: reference,
+      email: `user${attempt}@example.com`,
+    })
+  ) {
+    throw new Error("Per-reference cap must allow the documented distributed budget.");
+  }
+}
+if (
+  guestTrackingAttemptAllowed({
+    ip: "203.0.113.8",
+    limiterId: createTrackingLimiterId(),
+    orderReference: reference,
+    email: "fresh@example.com",
+  })
+) {
+  throw new Error("Per-reference cap must stop a distributed X-Forwarded-For spray.");
 }
 
 if (safeHttpUrl("javascript:alert(1)") !== null || safeHttpUrl("https://carrier.example/t/1") === null) {
@@ -227,8 +387,31 @@ if (!actions.includes("cartActionOriginAllowed")) {
 if (!actions.includes("hasForbiddenOwnershipKey")) {
   throw new Error("Tracking mutations must reject ownership keys.");
 }
+if (!actions.includes("clientAddressFromHeaders") || !actions.includes("bindTrackingLimiterId")) {
+  throw new Error("Tracking must key rate limits on platform address + signed cookie, not XFF alone.");
+}
+if (actions.includes('x-forwarded-for")?.split(",")[0]') || actions.includes("split(\",\")[0]")) {
+  throw new Error("Tracking must not use the spoofable leftmost X-Forwarded-For hop.");
+}
 if (actions.includes("CustomerOrderView") || actions.includes("sessionId") || actions.includes("session_id")) {
   throw new Error("Tracking actions must not use CustomerOrderView or session ids.");
+}
+{
+  const inputBlock = actions.slice(
+    actions.indexOf("trackGuestOrderAction"),
+    actions.indexOf("Promise<GuestTrackingActionResult>"),
+  );
+  if (inputBlock.includes("limiterId") || inputBlock.includes("clientId")) {
+    throw new Error("Clients must not supply the tracking limiter id.");
+  }
+}
+
+const limiterCookie = readFileSync(resolve(root, "src/lib/tracking-limiter-cookie.ts"), "utf8");
+if (!limiterCookie.includes("httpOnly: true") || !limiterCookie.includes("requireGuestCookieSecret")) {
+  throw new Error("Tracking limiter cookie must be httpOnly and fail-closed on production HMAC.");
+}
+if (limiterCookie.includes("GUEST_CART_COOKIE_NAME") || limiterCookie.includes("session_id")) {
+  throw new Error("Tracking limiter cookie must not reuse the guest cart session id.");
 }
 
 const service = readFileSync(resolve(root, "src/services/guest-tracking.ts"), "utf8");
@@ -237,6 +420,9 @@ if (!service.includes("createSupabaseAdminClient")) {
 }
 if (!service.includes("guestTrackingAttemptAllowed")) {
   throw new Error("Guest tracking must rate-limit before lookup.");
+}
+if (!service.includes("limiterId")) {
+  throw new Error("Guest tracking lookup must accept the signed limiter id from the server.");
 }
 if (!service.includes("guestTrackingVerified") || !service.includes("toGuestOrderTrackingView")) {
   throw new Error("Guest tracking must verify email then return GuestOrderTrackingView.");
@@ -279,6 +465,9 @@ if (result.includes("CustomerOrderView") || result.includes("carrier api") || re
 const docs = readFileSync(resolve(root, "docs/PHASE3_GUEST_TRACKING.md"), "utf8");
 if (!docs.includes("no orders until payment") && !docs.includes("empty")) {
   throw new Error("Guest tracking docs must record empty/not-found until payment handoff.");
+}
+if (!docs.includes("signed") || !docs.includes("limiter")) {
+  throw new Error("Guest tracking docs must record the tighter in-app rate limiter.");
 }
 if (!docs.includes("Admin dashboard") || !docs.includes("carrier")) {
   throw new Error("Guest tracking docs must record admin/payment/carrier stubs.");

@@ -19,10 +19,7 @@ import { NETWORK_ERROR } from "@/lib/account-copy";
 import { hasSupabaseSecretKey, createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { safeHttpUrl } from "@/lib/tracking-url";
-import {
-  guestTrackingAttemptAllowed,
-  guestTrackingRateLimitKey,
-} from "@/lib/tracking-rate-limit";
+import { guestTrackingAttemptAllowed } from "@/lib/tracking-rate-limit";
 import type { GuestTrackingActionResult } from "@/types/tracking";
 
 const ORDER_COLUMNS =
@@ -45,12 +42,20 @@ export async function lookupGuestOrder(input: {
   orderReference: unknown;
   email: unknown;
   ip: string | null;
+  limiterId: string | null;
 }): Promise<GuestTrackingActionResult> {
   const orderReference =
     typeof input.orderReference === "string" ? input.orderReference : "";
   const email = typeof input.email === "string" ? input.email : "";
 
-  if (!guestTrackingAttemptAllowed(guestTrackingRateLimitKey(input.ip, orderReference))) {
+  if (
+    !guestTrackingAttemptAllowed({
+      ip: input.ip,
+      limiterId: input.limiterId,
+      orderReference,
+      email,
+    })
+  ) {
     consumeGuestTrackingEmailCompare(email);
     return { status: "rate_limited", message: GUEST_TRACKING_RATE_LIMITED };
   }

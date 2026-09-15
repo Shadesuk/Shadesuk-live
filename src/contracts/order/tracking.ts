@@ -108,6 +108,11 @@ function emailFingerprint(email: string): Buffer {
   return createHash("sha256").update(email).digest();
 }
 
+/** Hex SHA-256 of the normalised email for in-app rate-limit keys. Not for display. */
+export function emailRateLimitFingerprint(email: string): string {
+  return emailFingerprint(normalizeEmail(email) || "empty").toString("hex");
+}
+
 function readString(
   input: Partial<GuestTrackingRequest> | Record<string, unknown>,
   key: string,
@@ -116,9 +121,17 @@ function readString(
   return typeof value === "string" ? value : undefined;
 }
 
-/** 5 attempts / 15 minutes / ip+orderReference. Enforced in 3.13 before lookup. */
+/**
+ * In-app guest tracking limits (not a WAF). Primary cap is 5 / 15 minutes.
+ * Buckets AND together: signed client cookie, IP, email fingerprint, and
+ * order reference. Spoofing x-forwarded-for alone must not reset the budget.
+ */
 export const GUEST_TRACKING_RATE_LIMIT = {
   windowSeconds: 15 * 60,
   maxAttempts: 5,
-  key: "ip+orderReference",
+  maxAttemptsPerReference: 8,
+  maxAttemptsPerIp: 10,
+  maxAttemptsPerEmail: 8,
+  maxAttemptsPerClient: 10,
+  key: "client+ip+email+reference",
 } as const;

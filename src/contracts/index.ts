@@ -47,6 +47,7 @@ export {
 } from "./order/reference";
 export {
   consumeGuestTrackingEmailCompare,
+  emailRateLimitFingerprint,
   emailsMatch,
   guestTrackingVerified,
   GUEST_TRACKING_DUMMY_EMAIL,
