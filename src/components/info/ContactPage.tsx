@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import {
   CONTACT_CHANNEL,
@@ -7,6 +6,7 @@ import {
   CONTACT_TITLE,
 } from "@/lib/legal-copy";
 import { routes } from "@/lib/navigation";
+import { InfoTextLink } from "./InfoTextLink";
 import { RelatedLinks } from "./RelatedLinks";
 import styles from "./InfoPage.module.css";
 
@@ -22,10 +22,10 @@ export function ContactPage() {
         <ul className={styles.pathways}>
           {CONTACT_PATHWAYS.map((item) => (
             <li key={item.href}>
-              <Link className={styles.pathway} href={item.href}>
+              <InfoTextLink className={styles.pathway} href={item.href}>
                 <h2 className="text-micro">{item.label}</h2>
                 <p className="text-small">{item.body}</p>
-              </Link>
+              </InfoTextLink>
             </li>
           ))}
         </ul>

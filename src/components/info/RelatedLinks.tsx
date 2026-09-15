@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { InfoLink } from "@/lib/legal-copy";
+import { InfoTextLink } from "./InfoTextLink";
 import styles from "./InfoPage.module.css";
 
 export function RelatedLinks({ links }: { links: readonly InfoLink[] }) {
@@ -15,9 +15,9 @@ export function RelatedLinks({ links }: { links: readonly InfoLink[] }) {
       <ul>
         {links.map((link) => (
           <li key={link.href}>
-            <Link className="text-small" href={link.href}>
+            <InfoTextLink className="text-small" href={link.href}>
               {link.label}
-            </Link>
+            </InfoTextLink>
           </li>
         ))}
       </ul>

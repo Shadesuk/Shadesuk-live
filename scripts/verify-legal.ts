@@ -9,7 +9,13 @@ import {
 import { CHECKOUT_DRAFT_COOKIE } from "../src/lib/checkout-draft";
 import { DEMO_CART_LINES_COOKIE } from "../src/lib/demo-cart-cookie";
 import {
+  CONSUMER_RIGHTS_HELP_URL,
+  ICO_HELP_URL,
+  isAllowedHelpHref,
+} from "../src/lib/help-url";
+import {
   ABOUT_HEADING,
+  collectLegalHrefs,
   CONTACT_CHANNEL,
   CONTACT_LEDE,
   COOKIE_POLICY,
@@ -167,6 +173,43 @@ if (!sitemapSource.includes("INFO_PAGES")) {
 const checkoutPage = readFileSync(resolve(root, "src/app/checkout/page.tsx"), "utf8");
 if (!checkoutPage.includes("CheckoutPage")) {
   throw new Error("Checkout payment stub route must remain in place.");
+}
+
+if (ICO_HELP_URL !== "https://ico.org.uk") {
+  throw new Error("ICO help URL must stay the official https address.");
+}
+if (CONSUMER_RIGHTS_HELP_URL !== "https://www.gov.uk/consumer-protection-rights") {
+  throw new Error("Consumer-rights help URL must stay the official https GOV.UK address.");
+}
+if (isAllowedHelpHref("http://ico.org.uk") || isAllowedHelpHref("http://example.com")) {
+  throw new Error("Help hrefs must not allow http.");
+}
+if (isAllowedHelpHref("//ico.org.uk") || isAllowedHelpHref("javascript:alert(1)")) {
+  throw new Error("Help hrefs must reject protocol-relative and non-https schemes.");
+}
+if (!isAllowedHelpHref(ICO_HELP_URL) || !isAllowedHelpHref(CONSUMER_RIGHTS_HELP_URL) || !isAllowedHelpHref(routes.faq)) {
+  throw new Error("https and in-site help hrefs must remain allowed.");
+}
+
+const hrefs = collectLegalHrefs();
+if (!hrefs.includes(ICO_HELP_URL) || !hrefs.includes(CONSUMER_RIGHTS_HELP_URL)) {
+  throw new Error("Privacy and refunds must surface the official https help URLs.");
+}
+for (const href of hrefs) {
+  if (!isAllowedHelpHref(href)) {
+    throw new Error(`Legal/help href must be an in-site path or https: ${href}`);
+  }
+  if (href.startsWith("http://")) {
+    throw new Error(`Legal/help pages must not surface http URLs: ${href}`);
+  }
+}
+if (/https?:\/\//i.test(legalBundle)) {
+  const found = legalBundle.match(/https?:\/\/[^"\\]+/g) ?? [];
+  for (const url of found) {
+    if (!url.startsWith("https://")) {
+      throw new Error(`Legal copy must not include a non-https URL: ${url}`);
+    }
+  }
 }
 
 console.log("verify-legal: ok");

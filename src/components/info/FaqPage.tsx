@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { FAQ_GROUPS, FAQ_LEDE, FAQ_TITLE } from "@/lib/legal-copy";
 import { routes } from "@/lib/navigation";
+import { InfoTextLink } from "./InfoTextLink";
 import { RelatedLinks } from "./RelatedLinks";
 import styles from "./InfoPage.module.css";
 
@@ -31,9 +31,9 @@ export function FaqPage() {
                       ))}
                       {item.link ? (
                         <p className="text-small">
-                          <Link className={styles.inlineLink} href={item.link.href}>
+                          <InfoTextLink className={styles.inlineLink} href={item.link.href}>
                             {item.link.label}
-                          </Link>
+                          </InfoTextLink>
                         </p>
                       ) : null}
                     </div>

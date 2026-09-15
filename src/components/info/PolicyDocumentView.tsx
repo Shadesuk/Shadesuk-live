@@ -1,5 +1,6 @@
 import type { PolicyDocument } from "@/lib/legal-copy";
 import { ContentWidth } from "@/components/layout/ContentWidth";
+import { InfoTextLink } from "./InfoTextLink";
 import { RelatedLinks } from "./RelatedLinks";
 import styles from "./InfoPage.module.css";
 
@@ -29,6 +30,13 @@ export function PolicyDocumentView({ document }: { document: PolicyDocument }) {
                     <li key={item}>{item}</li>
                   ))}
                 </ul>
+              ) : null}
+              {section.link ? (
+                <p className="text-small">
+                  <InfoTextLink className={styles.inlineLink} href={section.link.href}>
+                    {section.link.label}
+                  </InfoTextLink>
+                </p>
               ) : null}
             </div>
           </section>

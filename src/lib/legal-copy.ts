@@ -7,6 +7,10 @@ import {
   SHIPPING_MANUAL_NOTE,
   SHIPPING_MINIMUM,
 } from "@/lib/checkout-copy";
+import {
+  CONSUMER_RIGHTS_HELP_URL,
+  ICO_HELP_URL,
+} from "@/lib/help-url";
 import { routes } from "@/lib/navigation";
 import { TRACKING_UNAVAILABLE_COPY } from "@/contracts";
 
@@ -24,6 +28,7 @@ export type PolicySection = {
   title: string;
   paragraphs: string[];
   items?: string[];
+  link?: InfoLink;
 };
 
 export type PolicyDocument = {
@@ -292,6 +297,10 @@ export const REFUND_POLICY: PolicyDocument = {
         "If you buy as a consumer in the United Kingdom, the Consumer Rights Act 2015 applies. Goods must be as described, of satisfactory quality, and fit for purpose.",
         "A short commercial returns window, if one is later confirmed, cannot take those rights away.",
       ],
+      link: {
+        href: CONSUMER_RIGHTS_HELP_URL,
+        label: "GOV.UK consumer protection",
+      },
     },
     {
       id: "cancellation",
@@ -466,6 +475,10 @@ export const PRIVACY_POLICY: PolicyDocument = {
         "Under UK GDPR you can ask for access, correction, deletion, restriction, objection, or portability, and you can complain to the ICO.",
         "Some rights yield where we must keep a record. We will not pretend a right has been refused because a form is missing.",
       ],
+      link: {
+        href: ICO_HELP_URL,
+        label: "Information Commissioner's Office",
+      },
     },
     {
       id: "transfers",
@@ -531,3 +544,28 @@ export const INFO_PAGES = [
   { href: routes.privacy, title: PRIVACY_POLICY.title },
   { href: routes.cookies, title: COOKIE_POLICY.title },
 ] as const;
+
+export function collectLegalHrefs(): string[] {
+  const hrefs: string[] = INFO_PAGES.map((page) => page.href);
+  for (const item of CONTACT_PATHWAYS) {
+    hrefs.push(item.href);
+  }
+  for (const group of FAQ_GROUPS) {
+    for (const item of group.items) {
+      if (item.link) {
+        hrefs.push(item.link.href);
+      }
+    }
+  }
+  for (const document of [SHIPPING_POLICY, REFUND_POLICY, TERMS, PRIVACY_POLICY, COOKIE_POLICY]) {
+    for (const link of document.related) {
+      hrefs.push(link.href);
+    }
+    for (const section of document.sections) {
+      if (section.link) {
+        hrefs.push(section.link.href);
+      }
+    }
+  }
+  return hrefs;
+}
