@@ -30,6 +30,16 @@ export type GuestTrackingFailureCode =
 export const GUEST_TRACKING_GENERIC_ERROR =
   "We couldn't find an order with those details.";
 
+/** Distinct from not-found so retries are not mistaken for a wrong email. */
+export const GUEST_TRACKING_RATE_LIMITED =
+  "Too many attempts. Try again later.";
+
+/**
+ * Used for a constant-time email compare when no order row exists, so missing
+ * references do not become a timing oracle.
+ */
+export const GUEST_TRACKING_DUMMY_EMAIL = "guest-tracking-dummy@invalid.local";
+
 export type GuestTrackingLookup =
   | { ok: true; orderReference: string; email: string }
   | { ok: false; code: GuestTrackingFailureCode; message: string };
@@ -54,6 +64,7 @@ export function parseGuestTrackingRequest(
   const email = emailRaw ? normalizeEmail(emailRaw) : "";
 
   if (!orderReference || !email || !email.includes("@")) {
+    consumeGuestTrackingEmailCompare(email || GUEST_TRACKING_DUMMY_EMAIL);
     return {
       ok: false,
       code: "invalid_input",
@@ -77,12 +88,20 @@ export function guestTrackingVerified(input: {
   orderEmail: string;
 }): boolean {
   if (!isOrderReference(input.orderReference)) {
+    consumeGuestTrackingEmailCompare(input.requestEmail);
     return false;
   }
   return verifyGuestTrackingEmail({
     requestEmail: input.requestEmail,
     orderEmail: input.orderEmail,
   });
+}
+
+export function consumeGuestTrackingEmailCompare(
+  requestEmail: string,
+  orderEmail: string = GUEST_TRACKING_DUMMY_EMAIL,
+): boolean {
+  return emailsMatch(requestEmail || GUEST_TRACKING_DUMMY_EMAIL, orderEmail);
 }
 
 function emailFingerprint(email: string): Buffer {
@@ -97,7 +116,7 @@ function readString(
   return typeof value === "string" ? value : undefined;
 }
 
-/** 3.13 must rate-limit before lookup. Not implemented in 3.3. */
+/** 5 attempts / 15 minutes / ip+orderReference. Enforced in 3.13 before lookup. */
 export const GUEST_TRACKING_RATE_LIMIT = {
   windowSeconds: 15 * 60,
   maxAttempts: 5,

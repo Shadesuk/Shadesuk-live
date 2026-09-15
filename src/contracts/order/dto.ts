@@ -40,8 +40,23 @@ export type CustomerOrderView = {
 };
 
 /**
+ * Customer-safe delivery snapshot for guest tracking. Known address fields
+ * only — never the raw jsonb bag, never email, never payment ids.
+ */
+export type GuestDeliveryAddressView = {
+  name: string | null;
+  line1: string | null;
+  line2: string | null;
+  city: string | null;
+  county: string | null;
+  postcode: string | null;
+  country: string | null;
+};
+
+/**
  * Minimal guest-tracking payload. No payment provider ids, no webhook
  * payloads, no shipment notes, no other customers' data.
+ * Do not reuse CustomerOrderView for this surface.
  */
 export type GuestOrderTrackingView = {
   orderReference: string;
@@ -51,6 +66,7 @@ export type GuestOrderTrackingView = {
   items: Array<Pick<OrderItemSnapshotView, "productName" | "colourName" | "variantName" | "quantity">>;
   total: number;
   currency: typeof STORE_CURRENCY;
+  deliveryAddress: GuestDeliveryAddressView | null;
   shipment: CustomerShipmentView | null;
 };
 
@@ -89,8 +105,50 @@ export function toGuestOrderTrackingView(input: {
     })),
     total: minorToMajorGbp(input.order.total_minor),
     currency: STORE_CURRENCY,
+    deliveryAddress: toGuestDeliveryAddress(input.order.delivery_address),
     shipment: input.shipment,
   };
+}
+
+export function toGuestDeliveryAddress(
+  input: Record<string, unknown> | null | undefined,
+): GuestDeliveryAddressView | null {
+  if (!input) {
+    return null;
+  }
+  const firstName = readAddressField(input, ["first_name", "firstName", "given_name"]);
+  const lastName = readAddressField(input, ["last_name", "lastName", "family_name"]);
+  const name = [firstName, lastName].filter(Boolean).join(" ").trim() || null;
+  const address: GuestDeliveryAddressView = {
+    name,
+    line1: readAddressField(input, ["address_line_1", "line1", "line_1"]),
+    line2: readAddressField(input, ["address_line_2", "line2", "line_2"]),
+    city: readAddressField(input, ["city", "town"]),
+    county: readAddressField(input, ["county", "region"]),
+    postcode: readAddressField(input, ["postcode", "postal_code", "zip"]),
+    country: readAddressField(input, ["country"]),
+  };
+  if (Object.values(address).every((value) => !value)) {
+    return null;
+  }
+  return address;
+}
+
+function readAddressField(input: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = input[key];
+    if (typeof value === "string") {
+      const cleaned = sanitiseAddressLine(value);
+      if (cleaned) {
+        return cleaned;
+      }
+    }
+  }
+  return null;
+}
+
+function sanitiseAddressLine(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 120);
 }
 
 export const ORDER_DISPLAY_PREFIX = "ORDER #";
