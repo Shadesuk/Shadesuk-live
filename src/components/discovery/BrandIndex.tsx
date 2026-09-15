@@ -14,6 +14,7 @@ export function BrandIndex({ brands }: { brands: Brand[] }) {
     href: brandPath(brand.slug),
     title: brand.name,
     meta: shadeCountLabel(brand.productCount),
+    image: brand.logo,
   }));
 
   return (
@@ -25,7 +26,11 @@ export function BrandIndex({ brands }: { brands: Brand[] }) {
             description="Browse catalogue brands."
           >
             {items.length > 0 ? (
-              <DiscoveryList items={items} labelledBy="discovery-index-heading" />
+              <DiscoveryList
+                items={items}
+                labelledBy="discovery-index-heading"
+                variant="cards"
+              />
             ) : (
               <EmptyState
                 title="No brands available."

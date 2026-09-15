@@ -52,12 +52,7 @@
 }
 
 .fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-16);
-  color: var(--color-navy);
-  text-align: center;
+  background: var(--color-stone);
 }
 
 .meta {

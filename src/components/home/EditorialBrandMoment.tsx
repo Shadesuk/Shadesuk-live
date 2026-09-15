@@ -8,7 +8,7 @@ export function EditorialBrandMoment() {
   return (
     <Section labelledBy="editorial-heading">
       <FullBleed>
-        <MediaPlaceholder label="Editorial image" ratio="editorial" />
+        <MediaPlaceholder label="Editorial photography" ratio="editorial" />
       </FullBleed>
       <ContentWidth className={styles.copy}>
         <h2 id="editorial-heading" className="text-h1">

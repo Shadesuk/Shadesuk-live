@@ -3,6 +3,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { shadeCountLabel } from "@/components/discovery/ProductCount";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { getCoverImage } from "@/lib/product-display";
 import { routes } from "@/lib/navigation";
 import {
   getCollectionProducts,
@@ -20,11 +21,15 @@ export function CollectionsHub({
   brands: Brand[];
 }) {
   const collections = getPopulatedCollections(products);
-  const items = collections.map((collection) => ({
-    href: collection.href,
-    title: collection.title,
-    meta: shadeCountLabel(getCollectionProducts(collection, products, brands).length),
-  }));
+  const items = collections.map((collection) => {
+    const members = getCollectionProducts(collection, products, brands);
+    return {
+      href: collection.href,
+      title: collection.title,
+      meta: shadeCountLabel(members.length),
+      image: getCoverImage(members),
+    };
+  });
 
   return (
     <PageContainer>
@@ -36,7 +41,11 @@ export function CollectionsHub({
           >
             {items.length > 0 ? (
               <DiscoveryIndexSection headingId="shapes-heading" title="Shapes">
-                <DiscoveryList items={items} labelledBy="shapes-heading" />
+                <DiscoveryList
+                  items={items}
+                  labelledBy="shapes-heading"
+                  variant="cards"
+                />
               </DiscoveryIndexSection>
             ) : (
               <EmptyState

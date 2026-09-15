@@ -70,6 +70,16 @@ export function getSecondaryImage(product: Product): ProductImage | undefined {
   );
 }
 
+export function getCoverImage(products: Product[]): ProductImage | undefined {
+  for (const product of products) {
+    const image = getPrimaryImage(product);
+    if (image?.src) {
+      return image;
+    }
+  }
+  return undefined;
+}
+
 export function getImageFallbackLabel(role: ProductImageRole = "front"): string {
   return IMAGE_FALLBACK[role];
 }

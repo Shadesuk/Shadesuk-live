@@ -1,26 +1,31 @@
-import { cx } from "@/lib/cx";
-import styles from "./MediaPlaceholder.module.css";
+import { MediaSlot, type MediaSlotAsset } from "@/components/media/MediaSlot";
 
 type MediaPlaceholderProps = {
   label: string;
   ratio?: "campaign" | "editorial" | "square" | "story";
+  image?: MediaSlotAsset | null;
+  compactEmpty?: boolean;
+  priority?: boolean;
   className?: string;
 };
 
 export function MediaPlaceholder({
   label,
   ratio = "editorial",
+  image,
+  compactEmpty = false,
+  priority = false,
   className,
 }: MediaPlaceholderProps) {
   return (
-    <div
-      className={cx(styles.frame, styles[ratio], className)}
-      role="img"
-      aria-label={label}
-    >
-      <span className="text-micro" aria-hidden="true">
-        {label}
-      </span>
-    </div>
+    <MediaSlot
+      label={label}
+      ratio={ratio}
+      image={image}
+      compactEmpty={compactEmpty}
+      priority={priority}
+      className={className}
+      sizes="100vw"
+    />
   );
 }
