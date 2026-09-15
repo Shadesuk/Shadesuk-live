@@ -135,7 +135,7 @@
   bottom: 0;
   left: 0;
   z-index: 30;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-16);
@@ -182,7 +182,8 @@
     align-items: start;
   }
 
-  .sticky {
+  .sticky,
+  .stickyVisible {
     display: none;
   }
 }

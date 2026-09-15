@@ -44,14 +44,28 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
     if (!node || typeof IntersectionObserver === "undefined") {
       return;
     }
+
+    const desktopQuery = window.matchMedia("(min-width: 1200px)");
+    let ctaVisible = true;
+
+    function syncSticky() {
+      setSticky(!desktopQuery.matches && !ctaVisible);
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setSticky(!entry.isIntersecting);
+        ctaVisible = entry.isIntersecting;
+        syncSticky();
       },
       { threshold: 0 },
     );
+
+    desktopQuery.addEventListener("change", syncSticky);
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      desktopQuery.removeEventListener("change", syncSticky);
+      observer.disconnect();
+    };
   }, []);
   const colour = colours.find((item) => item.id === colourId);
   const colourCount = getColourCount(product);
@@ -255,7 +269,7 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
               +
             </button>
           </div>
-          <div className={styles.cta} ref={ctaRef}>
+          <div className={styles.cta} ref={ctaRef} inert={sticky || undefined}>
             <Button
               onClick={handleAdd}
               loading={ui === "adding"}
@@ -290,23 +304,25 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
         </div>
       </div>
       <ProductContent product={product} colour={colour} />
-      <div
-        className={cx(styles.sticky, sticky && styles.stickyVisible)}
-        data-sticky-purchase={sticky ? "true" : "false"}
-      >
-        <div className={styles.stickyCopy}>
-          <p className="text-small">
-            {product.name} — {formatGbp(product.price)}
-          </p>
-        </div>
-        <Button
-          onClick={handleAdd}
-          loading={ui === "adding"}
-          disabled={!canPurchase || ui === "adding"}
+      {sticky ? (
+        <div
+          className={cx(styles.sticky, styles.stickyVisible)}
+          data-sticky-purchase="true"
         >
-          {ctaLabel}
-        </Button>
-      </div>
+          <div className={styles.stickyCopy}>
+            <p className="text-small">
+              {product.name} — {formatGbp(product.price)}
+            </p>
+          </div>
+          <Button
+            onClick={handleAdd}
+            loading={ui === "adding"}
+            disabled={!canPurchase || ui === "adding"}
+          >
+            {ctaLabel}
+          </Button>
+        </div>
+      ) : null}
     </>
   );
 }
