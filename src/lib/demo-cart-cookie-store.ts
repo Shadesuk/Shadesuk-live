@@ -9,6 +9,7 @@ import {
   type DemoCartLine,
 } from "@/lib/demo-cart-cookie";
 import { guestCartCookieSecure } from "@/lib/guest-cart-cookie-secure";
+import { requireGuestCookieSecret } from "@/lib/guest-cookie-hmac";
 
 export async function readDemoCartLines(sessionId: string): Promise<DemoCartLine[]> {
   const store = await cookies();
@@ -19,8 +20,12 @@ export async function writeDemoCartLines(
   sessionId: string,
   items: DemoCartLine[],
 ): Promise<void> {
+  const secret = requireGuestCookieSecret();
+  const value = encodeDemoCartCookie(sessionId, items, secret);
+  if (!value) {
+    return;
+  }
   const store = await cookies();
-  const value = encodeDemoCartCookie(sessionId, items);
   store.set({
     name: DEMO_CART_LINES_COOKIE,
     value,

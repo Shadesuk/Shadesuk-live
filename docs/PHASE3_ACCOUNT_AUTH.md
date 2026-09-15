@@ -20,6 +20,7 @@ This slice adds `/account` and the locked auth surfaces. Guest checkout stays av
 - Account pages call `getUser()` on the server. Nested account routes redirect to `/account` without a session
 - CSRF/origin on mutating Server Actions; Secure auth cookies in production
 - Guest cart merge on sign-in / register / Google callback using `CART_MERGE_POLICY` (live carts when service-role writes are available). Guest `session_id` is never returned to the browser
+- Cookie HMAC (guest cart-lines / checkout draft, used on sign-in merge) fails closed in production if neither `GUEST_COOKIE_SECRET` nor a Supabase secret is set. The local HMAC fallback is `next dev` only
 - **Continue with Google** calls `signInWithOAuth({ provider: "google" })` and `/auth/callback`
 
 ## Google / dashboard still needed
@@ -53,6 +54,7 @@ Until these are set in the **Supabase dashboard**, the Google button stays visib
 - Password reset always returns **If an account exists for that email, we have sent reset instructions.**
 - Profiles and addresses are queried with the cookie-bound user client (RLS), not dumped from the admin client to public handlers
 - `createSupabaseAdminClient` is used only for trusted guest-cart merge / live cart writes already established in earlier slices
+- Production cookie HMAC does not use a local fallback. Writes throw if `GUEST_COOKIE_SECRET` and the Supabase secret are both unset. Reads treat unsigned cookies as empty. Account pages still fail closed on auth: no session → sign-in UI, not another customer’s data. Guest checkout does not require an account session.
 
 ## Copy
 

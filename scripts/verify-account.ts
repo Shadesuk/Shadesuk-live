@@ -25,6 +25,10 @@ import {
 import { CART_MERGE_POLICY } from "../src/contracts";
 import { CONTINUE_AS_GUEST } from "../src/lib/checkout-copy";
 import { routes } from "../src/lib/navigation";
+import {
+  requireGuestCookieSecret,
+  resolveGuestCookieSecret,
+} from "../src/lib/guest-cookie-hmac";
 import { hasForbiddenOwnershipKey } from "../src/lib/ownership-keys";
 
 if (routes.account !== "/account") {
@@ -191,10 +195,50 @@ const envExample = readFileSync(resolve(root, ".env.example"), "utf8");
 if (envExample.includes("GOOGLE_CLIENT") || envExample.includes("GOOGLE_SECRET")) {
   throw new Error("Do not invent Google client secrets in .env.example.");
 }
+if (!envExample.includes("fails closed") && !envExample.toLowerCase().includes("fail closed")) {
+  throw new Error(".env.example must document production HMAC fail-closed.");
+}
+
+const hmacHelper = readFileSync(resolve(root, "src/lib/guest-cookie-hmac.ts"), "utf8");
+if (!hmacHelper.includes('nodeEnv === "production"') || !hmacHelper.includes("LOCAL_DEV_FALLBACK")) {
+  throw new Error("Guest cookie HMAC must keep the local fallback off the production path.");
+}
+
+const demoStore = readFileSync(resolve(root, "src/lib/demo-cart-cookie-store.ts"), "utf8");
+const checkoutStore = readFileSync(resolve(root, "src/lib/checkout-draft-store.ts"), "utf8");
+if (!demoStore.includes("requireGuestCookieSecret") || !checkoutStore.includes("requireGuestCookieSecret")) {
+  throw new Error("Cookie writes must require a real HMAC secret in production.");
+}
 
 const docs = readFileSync(resolve(root, "docs/PHASE3_ACCOUNT_AUTH.md"), "utf8");
 if (!docs.includes("Supabase dashboard") || !docs.includes("Continue with Google")) {
   throw new Error("Account auth docs must record dashboard-pending Google setup.");
+}
+if (!docs.includes("fail closed") || !docs.includes("GUEST_COOKIE_SECRET")) {
+  throw new Error("Account auth docs must record production HMAC fail-closed.");
+}
+
+if (
+  resolveGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "production",
+  }) !== ""
+) {
+  throw new Error("Production must fail closed without GUEST_COOKIE_SECRET or a Supabase secret.");
+}
+let productionCookieSecretThrew = false;
+try {
+  requireGuestCookieSecret({
+    guestCookieSecret: "",
+    supabaseSecret: "",
+    nodeEnv: "production",
+  });
+} catch {
+  productionCookieSecretThrew = true;
+}
+if (!productionCookieSecretThrew) {
+  throw new Error("Account/auth cookie writes must not use a local HMAC fallback in production.");
 }
 
 if (ACCOUNT_EXISTS.toLowerCase().includes("try a different")) {

@@ -62,6 +62,10 @@ Session refresh for `/account/**` and `/auth/**` runs in `src/proxy.ts`
 
 Guest checkout at `/checkout` does not require a session.
 
+Guest cart and checkout-draft cookies are HMAC-signed. Production fails closed
+if neither `GUEST_COOKIE_SECRET` nor a Supabase secret is set (no local HMAC
+fallback). `next dev` may use a development-only fallback.
+
 Google is **Continue with Google** via Supabase Auth. Enable the provider in
 the Supabase dashboard. Do not add Google client secrets to this app. Details:
 `docs/PHASE3_ACCOUNT_AUTH.md`.
