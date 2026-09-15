@@ -1,0 +1,38 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-stone);
+}
+
+.item {
+  border-bottom: 1px solid var(--color-stone);
+}
+
+.item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--touch-min);
+  cursor: pointer;
+  list-style: none;
+}
+
+.item summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding-bottom: var(--space-16);
+}
+
+.panel p,
+.panel ul {
+  margin: 0;
+}
+
+.panel ul {
+  padding-left: 1.1em;
+}
