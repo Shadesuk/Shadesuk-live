@@ -39,6 +39,8 @@ export default async function HomePage() {
       newArrivals={getNewArrivalsFrom(catalogue.products).slice(0, 4)}
       storyProduct={getEditorialProductFrom(catalogue.products)}
       shapes={getPopulatedShapesFrom(catalogue.products)}
+      catalogueSource={catalogue.source}
+      catalogueUnavailable={catalogue.unavailable}
     />
   );
 }

@@ -12,6 +12,7 @@ type ErrorStateProps = {
   description?: string;
   onRetry?: () => void;
   actions?: ReactNode;
+  titleAs?: "h1" | "h2";
 };
 
 export function ErrorState({
@@ -19,12 +20,13 @@ export function ErrorState({
   description = ERROR_DESCRIPTION,
   onRetry,
   actions,
+  titleAs = "h1",
 }: ErrorStateProps) {
   return (
     <EmptyState
       title={title}
       description={description}
-      titleAs="h1"
+      titleAs={titleAs}
       actions={
         actions ??
         (onRetry ? (

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { demoCatalogue } from "@/data/catalogue";
 import { brandPath } from "@/lib/navigation";
 import { menuBrandLinksFrom } from "@/lib/menu-brands";

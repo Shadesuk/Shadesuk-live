@@ -15,9 +15,7 @@ import {
 } from "@/lib/collection-query";
 import {
   getAvailableFilters,
-  getBrands,
   getPopulatedShapes,
-  getProducts,
 } from "@/services/catalogue";
 import type { CollectionDefinition, CollectionQuery, SortId } from "@/types/collection";
 import type { Brand, Product, Shape } from "@/types/catalogue";
@@ -129,7 +127,7 @@ export function getCollectionBySlug(
 }
 
 export function getPopulatedShapeCollections(
-  products: Product[] = getProducts(),
+  products: Product[],
 ): CollectionDefinition[] {
   return getPopulatedShapes(products)
     .map((shape) => getCollectionBySlug(shape))
@@ -143,7 +141,7 @@ export function getPopulatedShapeCollections(
  * Style collections remain unpublished until the taxonomy is resolved.
  */
 export function getPopulatedCollections(
-  products: Product[] = getProducts(),
+  products: Product[],
 ): CollectionDefinition[] {
   return getPopulatedShapeCollections(products);
 }
@@ -162,7 +160,7 @@ export function getBrandCollection(brand: Brand): CollectionDefinition {
 
 export function getBrandCollectionBySlug(
   slug: string,
-  brands: Brand[] = getBrands(),
+  brands: Brand[],
 ): CollectionDefinition | undefined {
   const brand = brands.find((item) => item.slug === slug && item.status === "active");
   if (!brand) {
@@ -173,8 +171,8 @@ export function getBrandCollectionBySlug(
 
 export function getCollectionProducts(
   collection: CollectionDefinition,
-  products: Product[] = getProducts(),
-  brands: Brand[] = getBrands(),
+  products: Product[],
+  brands: Brand[] = [],
 ): Product[] {
   if (collection.kind === "gender" && collection.gender) {
     return products.filter((product) => product.gender.includes(collection.gender!));
@@ -221,7 +219,7 @@ function productMatchesBrand(
 export function applyFilters(
   products: Product[],
   query: CollectionQuery,
-  brands: Brand[] = getBrands(),
+  brands: Brand[] = [],
 ): Product[] {
   return products.filter((product) => {
     if (
@@ -275,37 +273,36 @@ export function applySort(products: Product[], sort: SortId): Product[] {
 export function getFilteredProductCount(
   collection: CollectionDefinition,
   query: CollectionQuery,
-  snapshot?: CatalogueSnapshot,
+  snapshot: CatalogueSnapshot,
 ): number {
-  const products = snapshot
-    ? getCollectionProducts(collection, snapshot.products, snapshot.brands)
-    : getCollectionProducts(collection);
-  const brands = snapshot?.brands ?? getBrands();
+  const products = getCollectionProducts(
+    collection,
+    snapshot.products,
+    snapshot.brands,
+  );
   return applyFilters(
     products,
     contextualQuery(collection, query),
-    brands,
+    snapshot.brands,
   ).length;
 }
 
 export function queryCollection(
   collection: CollectionDefinition,
   query: CollectionQuery,
-  scoped?: Product[],
-  brands?: Brand[],
+  products: Product[],
+  brands: Brand[],
 ) {
-  const snapshotProducts = scoped ?? getCollectionProducts(collection);
-  const snapshotBrands = brands ?? getBrands();
   const filterQuery = contextualQuery(collection, query);
   const filtered = applySort(
-    applyFilters(snapshotProducts, filterQuery, snapshotBrands),
+    applyFilters(products, filterQuery, brands),
     filterQuery.sort,
   );
   return {
     products: filtered.slice(0, query.limit),
     total: filtered.length,
     hasMore: filtered.length > query.limit,
-    filterOptions: getAvailableFilters(snapshotProducts, snapshotBrands),
+    filterOptions: getAvailableFilters(products, brands),
   };
 }
 

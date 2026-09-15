@@ -1,7 +1,10 @@
 /**
  * Demo catalogue fixtures for structural frontend work.
  * Not production inventory. Not real brands. No photography assets yet.
+ * Server-only — never import from a Client Component.
  */
+import "server-only";
+
 import type { BrandSource, Catalogue, Product } from "@/types/catalogue";
 
 export const DEMO_CATALOGUE_NOTICE =

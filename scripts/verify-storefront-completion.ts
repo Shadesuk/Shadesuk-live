@@ -127,6 +127,53 @@ if (!security.includes("BLOCKING") || !security.includes("DEFERRED")) {
   throw new Error("Security classification must use BLOCKING / NON-BLOCKING / DEFERRED.");
 }
 
+const suggestRoute = readFileSync(
+  resolve(root, "src/app/api/search/suggest/route.ts"),
+  "utf8",
+);
+if (!suggestRoute.includes("searchSuggestAttemptAllowed")) {
+  throw new Error("Search suggest must be rate-limited.");
+}
+
+const liveCatalogue = readFileSync(
+  resolve(root, "src/services/live-catalogue.ts"),
+  "utf8",
+);
+if (!liveCatalogue.includes("SNAPSHOT_TTL_MS") || !liveCatalogue.includes("snapshotCache")) {
+  throw new Error("Published catalogue snapshot must be TTL-cached for suggest/PLP.");
+}
+
+const collectionsSource = readFileSync(
+  resolve(root, "src/services/collections.ts"),
+  "utf8",
+);
+if (
+  collectionsSource.includes("products: Product[] = getProducts()") ||
+  collectionsSource.includes("scoped ?? getCollectionProducts(collection)")
+) {
+  throw new Error("Collection membership must not default to the demo catalogue.");
+}
+
+const demoMode = readFileSync(resolve(root, "src/lib/demo-catalogue-mode.ts"), "utf8");
+if (!demoMode.includes("isProductionCatalogueLock")) {
+  throw new Error("DEMO_CATALOGUE must be ignored on the production origin.");
+}
+
+const catalogueService = readFileSync(resolve(root, "src/services/catalogue.ts"), "utf8");
+const catalogueData = readFileSync(resolve(root, "src/data/catalogue.ts"), "utf8");
+if (!catalogueService.includes('import "server-only"') || !catalogueData.includes('import "server-only"')) {
+  throw new Error("Demo catalogue modules must be marked server-only.");
+}
+
+const homepage = readFileSync(resolve(root, "src/components/home/Homepage.tsx"), "utf8");
+if (!homepage.includes("HomepageCatalogueError") || !homepage.includes("catalogueUnavailable")) {
+  throw new Error("Homepage must distinguish live catalogue errors from empty rails.");
+}
+
+if (!security.includes("GET /api/search/suggest") && !security.includes("Rate-limit `GET /api/search/suggest`")) {
+  throw new Error("Security classification must record the suggest rate-limit.");
+}
+
 const notes = readFileSync(
   resolve(root, "docs/STOREFRONT_PHASE_COMPLETION_NOTES.md"),
   "utf8",

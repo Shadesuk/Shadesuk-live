@@ -172,11 +172,52 @@ export type LiveCatalogueResult =
 const PUBLISHED_PAGE_SIZE = 100;
 const PUBLISHED_MAX_ROWS = 2000;
 
+const SNAPSHOT_TTL_MS = 60_000;
+const ERROR_TTL_MS = 5_000;
+
+type SnapshotCacheEntry = {
+  expiresAt: number;
+  value: LiveCatalogueResult;
+};
+
+let snapshotCache: SnapshotCacheEntry | null = null;
+let snapshotInflight: Promise<LiveCatalogueResult> | null = null;
+
 /**
  * Published card-projection catalogue for PLP, search, home rails, and
  * brand/collection membership. Anon/publishable key + RLS only.
+ *
+ * Process-local TTL cache so `/api/search/suggest` (and other readers) do not
+ * re-page up to PUBLISHED_MAX_ROWS on every keystroke. Published-only stays.
  */
 export async function fetchLivePublishedCatalogue(): Promise<LiveCatalogueResult> {
+  const now = Date.now();
+  if (snapshotCache && snapshotCache.expiresAt > now) {
+    return snapshotCache.value;
+  }
+  if (snapshotInflight) {
+    return snapshotInflight;
+  }
+
+  snapshotInflight = loadLivePublishedCatalogue()
+    .then((value) => {
+      const ttl = value.ok ? SNAPSHOT_TTL_MS : ERROR_TTL_MS;
+      snapshotCache = { expiresAt: Date.now() + ttl, value };
+      return value;
+    })
+    .finally(() => {
+      snapshotInflight = null;
+    });
+
+  return snapshotInflight;
+}
+
+export function resetLivePublishedCatalogueCacheForTests(): void {
+  snapshotCache = null;
+  snapshotInflight = null;
+}
+
+async function loadLivePublishedCatalogue(): Promise<LiveCatalogueResult> {
   if (!isSupabaseConfigured()) {
     return { ok: false, reason: "unconfigured" };
   }

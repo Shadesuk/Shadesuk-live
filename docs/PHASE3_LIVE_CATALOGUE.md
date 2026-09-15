@@ -13,9 +13,12 @@ Supabase **published** catalogue rows are authoritative for production catalogue
 ## Production vs demo paths
 
 ```text
-DEMO_CATALOGUE=true|1
+DEMO_CATALOGUE is ignored on the production origin
+  (VERCEL_ENV=production, or NODE_ENV=production outside Vercel preview).
+  A leftover flag cannot publish Frame 01–06 as live stock.
+
+DEMO_CATALOGUE=true|1 (dev or Vercel preview only)
   → fixture catalogue (Frame 01–06), even if Supabase is configured.
-    Explicit demo/development isolation only.
 
 Else fetch published products via the publishable/anon key + RLS
   (never the service-role client).
@@ -25,7 +28,7 @@ Else fetch published products via the publishable/anon key + RLS
 
   Live unconfigured or live error
     → if NODE_ENV=development (and DEMO_CATALOGUE is not false): demo fixtures
-    → if production: empty states (unconfigured) or collection error (fetch failure)
+    → if production: empty states (unconfigured) or collection/home error (fetch failure)
 ```
 
 Production with an empty published catalogue **does not** silently serve Frame 01–06.
@@ -96,4 +99,10 @@ If Supabase is configured and `products` has **0 published rows**:
 
 That is an empty catalogue, not a demo store.
 
-If the live fetch **errors** (not merely empty), collection routes use the existing “We couldn’t load this collection.” error UI.
+If the live fetch **errors** (not merely empty):
+
+- Collection routes throw and use “We couldn’t load this collection.”
+- Homepage keeps campaign / gender / trust chrome and shows “We couldn’t load products.” instead of omitting rails (empty DB still omits rails).
+- `GET /api/search/suggest` returns 503 with an empty suggestion slice.
+
+`GET /api/search/suggest` is rate-limited (process-local, 20/10s burst and 60/min per IP). The published snapshot is TTL-cached so suggest does not re-page ≤2000 published rows on every keystroke. Published-only stays.

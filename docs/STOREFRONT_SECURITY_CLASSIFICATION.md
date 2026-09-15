@@ -26,6 +26,12 @@ Prior Mediums carried from PRs #15–#19 and the 3.1 security appendix.
 | Legal/help hrefs https-only | NON-BLOCKING | **Already in** (PR #19). Not reopened. |
 | Guest tracking lookup requires reference + email + rate limit | BLOCKING for `/track-order` | **Already in** (PR #18). Not reopened. |
 | Root robots fail-closed (`index: false`) with opt-in indexable pages | NON-BLOCKING / SEO | **Kept and completed.** Catalogue, home, and legal opt in; search/account/cart/checkout/track-order stay noindex. |
+| Rate-limit `GET /api/search/suggest` | BLOCKING for pre-launch search | **Fixed.** Process-local 20/10s burst + 60/min per resolved IP. 429 + `Retry-After`. |
+| Cache published snapshot for suggest (do not re-page ≤2000 rows per keystroke) | BLOCKING for pre-launch search | **Fixed.** 60s TTL + in-flight coalesce on `fetchLivePublishedCatalogue`. Fuzzy correction scans ≤64 nearby dictionary terms. Published-only stays. |
+| Ignore `DEMO_CATALOGUE` in production | BLOCKING if fixtures can ship as live | **Fixed.** Flag is ignored when `VERCEL_ENV=production` or `NODE_ENV=production` outside Vercel preview. Preview may still force fixtures. |
+| `getCollectionProducts` must not default to demo | BLOCKING if omitted snapshot serves Frame 01–06 | **Fixed.** Snapshot `products` is required. `queryCollection` / `getFilteredProductCount` fail closed the same way. |
+| `catalogue.ts` / demo fixtures server-only | NON-BLOCKING (client already stopped importing) | **Fixed.** `import "server-only"` on `src/data/catalogue.ts` and `src/services/catalogue.ts`. |
+| Homepage live-error vs empty rails | NON-BLOCKING / honesty | **Fixed.** Empty DB still omits rails. Live fetch error shows “We couldn’t load products.” and does not look like an empty catalogue. |
 
 ---
 
@@ -69,7 +75,10 @@ Prior Mediums carried from PRs #15–#19 and the 3.1 security appendix.
 | Item | Class | Phase reason |
 | --- | --- | --- |
 | Entire catalogue in the client bundle | **BLOCKING** at live cutover | **Addressed on PR #20.** Cards receive props; suggestions go through `/api/search/suggest`. Keep it that way. |
-| Demo fixtures served as live in production | **BLOCKING** | **Addressed on PR #20.** Demo only via `DEMO_CATALOGUE` or `next dev` fallback. |
+| Demo fixtures served as live in production | **BLOCKING** | **Fixed in this slice.** `DEMO_CATALOGUE` is ignored on the production origin. Demo remains allowed in `next dev` and Vercel preview. |
+| Suggest endpoint unauthenticated scrape / snapshot cost | **BLOCKING** pre-launch | **Fixed in this slice.** Rate limit + TTL snapshot cache. Published-only. Process-local only — edge/WAF still recommended at launch. |
+| Suggest rate-limit buckets beyond spoofable `X-Forwarded-For` | **NON-BLOCKING** | Same as tracking: platform headers + rightmost hop. Signed suggest cookie not added (would mint on every keystroke). |
+| Full-text / Postgres search instead of in-memory snapshot | **DEFERRED** | Later search scale-up when published count exceeds the 2000-row cap. Cache + bound fuzzy match is the this-phase control. |
 
 ### Analytics / SEO
 

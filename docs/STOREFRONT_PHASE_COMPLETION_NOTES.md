@@ -19,6 +19,7 @@ Evidence pack for the eventual Phase 3 Completion Report. This is **not** a clai
 - WCAG 2.2 AA targeted fixes on chrome + purchase path.
 - Clear 320px header overflow and checkout-step contrast bugs.
 - Tracking URLs https-only.
+- PR #20 fold-in: suggest rate-limit + snapshot cache; `DEMO_CATALOGUE` ignored in production; collection queries fail closed without a snapshot; demo catalogue is server-only; homepage live-error is distinct from empty rails.
 - Bounded Impeccable inspection on home, PLP, PDP, cart, checkout, account (one defect pass + at most one confirmation).
 
 ---

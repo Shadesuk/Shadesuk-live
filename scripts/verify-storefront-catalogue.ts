@@ -4,9 +4,21 @@ import { getProducts } from "../src/services/catalogue";
 import { searchProducts } from "../src/services/search";
 import { applyFilters, emptyCollectionQuery, getCollectionById, getCollectionProducts } from "../src/services/collections";
 
-const forced = resolveDemoCatalogueMode({ demoCatalogue: "true", nodeEnv: "production" });
-if (!forced.enabled || !forced.forced) {
-  throw new Error("DEMO_CATALOGUE=true must force the demo catalogue on");
+const productionLocked = resolveDemoCatalogueMode({
+  demoCatalogue: "true",
+  nodeEnv: "production",
+});
+if (productionLocked.enabled || productionLocked.forced) {
+  throw new Error("DEMO_CATALOGUE must be ignored in production");
+}
+
+const previewForced = resolveDemoCatalogueMode({
+  demoCatalogue: "true",
+  nodeEnv: "production",
+  vercelEnv: "preview",
+});
+if (!previewForced.enabled || !previewForced.forced) {
+  throw new Error("DEMO_CATALOGUE=true may still force demo on Vercel preview");
 }
 
 const offInDev = resolveDemoCatalogueMode({ demoCatalogue: "false", nodeEnv: "development" });

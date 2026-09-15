@@ -6,6 +6,7 @@ import {
   getBrands,
   getMenuBrandLinks,
   getPopulatedShapes,
+  getProducts,
 } from "../src/services/catalogue";
 import {
   emptyCollectionQuery,
@@ -43,15 +44,15 @@ if (lineA.description || lineA.logo) {
   throw new Error("Demo brands must not invent descriptions or logos");
 }
 
-if (getBrandBySlug("not-a-brand") || getBrandCollectionBySlug("not-a-brand")) {
+if (getBrandBySlug("not-a-brand") || getBrandCollectionBySlug("not-a-brand", getBrands())) {
   throw new Error("Unknown brands must not resolve");
 }
 
-if (getBrandCollectionBySlug("everyday") || getCollectionBySlug("everyday")) {
+if (getBrandCollectionBySlug("everyday", getBrands()) || getCollectionBySlug("everyday")) {
   throw new Error("Style collections must remain unpublished");
 }
 
-const brandCollection = getBrandCollectionBySlug("demo-line-a");
+const brandCollection = getBrandCollectionBySlug("demo-line-a", getBrands());
 if (!brandCollection || brandCollection.kind !== "brand") {
   throw new Error("Brand pages should reuse a brand collection definition");
 }
@@ -59,6 +60,7 @@ if (!hiddenFilterKeys(brandCollection).includes("brand")) {
   throw new Error("Brand pages should hide the brand filter");
 }
 
+const lineAProducts = getBrandProducts("demo-line-a");
 const filtered = queryCollection(
   brandCollection,
   parseCollectionQuery({
@@ -66,6 +68,8 @@ const filtered = queryCollection(
     colour: "black",
     sort: "price-asc",
   }),
+  lineAProducts,
+  getBrands(),
 );
 if (filtered.total !== 1 || filtered.products[0]?.slug !== "frame-01") {
   throw new Error("Brand page filters/sort should compose the shared collection query");
@@ -74,6 +78,8 @@ if (filtered.total !== 1 || filtered.products[0]?.slug !== "frame-01") {
 const foreignBrand = queryCollection(
   brandCollection,
   parseCollectionQuery({ brand: "demo-line-b" }),
+  lineAProducts,
+  getBrands(),
 );
 if (foreignBrand.total !== lineA.productCount) {
   throw new Error("Brand identity stays in the path; brand query filters must not escape the page");
@@ -82,12 +88,12 @@ if (foreignBrand.total !== lineA.productCount) {
 const page = queryCollection(brandCollection, {
   ...emptyCollectionQuery(),
   limit: 4,
-});
+}, lineAProducts, getBrands());
 if (page.total !== lineA.productCount) {
   throw new Error("Brand page counts must come from catalogue data");
 }
 
-const hub = getPopulatedCollections();
+const hub = getPopulatedCollections(getProducts());
 const populatedShapes = getPopulatedShapes();
 if (hub.length !== populatedShapes.length) {
   throw new Error("Collections hub should only publish populated shape collections");
