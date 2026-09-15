@@ -53,6 +53,19 @@ server log instead. In development the full report comes back in the response.
 Either way it never returns key material or an upstream response body, and the
 secret key is only ever sent over https or to a loopback address.
 
+### Account / Auth
+
+`/account` is a real route. Signed-out visitors see Sign in / Create account /
+Forgot password. Signed-in visitors are gated with `getUser()` on the server.
+Session refresh for `/account/**` and `/auth/**` runs in `src/proxy.ts`
+(Next.js 16 Proxy; the former middleware file).
+
+Guest checkout at `/checkout` does not require a session.
+
+Google is **Continue with Google** via Supabase Auth. Enable the provider in
+the Supabase dashboard. Do not add Google client secrets to this app. Details:
+`docs/PHASE3_ACCOUNT_AUTH.md`.
+
 ### Migrations (not yet linked)
 
 The CLI is used through `npx` rather than a dependency, so a Vercel build never

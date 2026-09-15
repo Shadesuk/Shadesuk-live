@@ -1,6 +1,7 @@
 import "server-only";
 
-import type { CartItemRow, CartRow, ProductVariantRow } from "@/contracts";
+import type { CartItemRow, CartMergeConflict, CartRow, ProductVariantRow } from "@/contracts";
+import { variantAvailability } from "@/contracts/catalogue/availability";
 import { isUuid } from "@/lib/ids";
 import { isLiveVariantEligibleForCart } from "@/lib/live-cart-eligibility";
 import { hasSupabaseSecretKey, createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -70,6 +71,166 @@ export async function getOrCreateLiveGuestCart(sessionId: string): Promise<CartR
     .eq("status", "active")
     .maybeSingle();
   return raced.data ? parseCartRow(raced.data) : null;
+}
+
+export async function getOrCreateLiveAccountCart(userId: string): Promise<CartRow | null> {
+  if (!liveCartWritesAvailable() || !isUuid(userId)) {
+    return null;
+  }
+  const admin = createSupabaseAdminClient();
+  const existing = await admin
+    .from("carts")
+    .select(CART_COLUMNS)
+    .eq("user_id", userId)
+    .is("session_id", null)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (existing.error) {
+    return null;
+  }
+  if (existing.data) {
+    return parseCartRow(existing.data);
+  }
+
+  const inserted = await admin
+    .from("carts")
+    .insert({
+      session_id: null,
+      user_id: userId,
+      status: "active",
+      currency: "GBP",
+    })
+    .select(CART_COLUMNS)
+    .single();
+
+  if (inserted.data) {
+    return parseCartRow(inserted.data);
+  }
+
+  const raced = await admin
+    .from("carts")
+    .select(CART_COLUMNS)
+    .eq("user_id", userId)
+    .is("session_id", null)
+    .eq("status", "active")
+    .maybeSingle();
+  return raced.data ? parseCartRow(raced.data) : null;
+}
+
+export async function loadLiveAccountCart(userId: string): Promise<{
+  cart: CartRow;
+  items: CartItemRow[];
+} | null> {
+  if (!liveCartWritesAvailable() || !isUuid(userId)) {
+    return null;
+  }
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("carts")
+    .select(CART_COLUMNS)
+    .eq("user_id", userId)
+    .is("session_id", null)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error || !data) {
+    return null;
+  }
+  const cart = parseCartRow(data);
+  if (!cart) {
+    return null;
+  }
+  const items = await listLiveCartItems(cart.id);
+  return { cart, items };
+}
+
+/**
+ * Guest → account merge. Bound to the httpOnly guest cookie + verified user id.
+ * Never accepts session_id from the client. Drops are returned as conflicts.
+ */
+export async function mergeLiveGuestCartIntoAccount(input: {
+  sessionId: string;
+  userId: string;
+}): Promise<CartMergeConflict[]> {
+  if (!liveCartWritesAvailable() || !isUuid(input.userId)) {
+    return [];
+  }
+  const guest = await loadLiveGuestCart(input.sessionId);
+  const account = await getOrCreateLiveAccountCart(input.userId);
+  if (!guest || !account || guest.cart.id === account.id) {
+    return [];
+  }
+
+  const conflicts: CartMergeConflict[] = [];
+  const accountItems = await listLiveCartItems(account.id);
+
+  for (const item of guest.items) {
+    const live = await fetchLiveVariantForCart(item.product_variant_id);
+    if (!live) {
+      conflicts.push("product_removed_dropped");
+      continue;
+    }
+    if (variantAvailability(live.variant) !== "in_stock") {
+      conflicts.push("variant_sold_out_dropped");
+      continue;
+    }
+
+    const existing = accountItems.find(
+      (row) => row.product_variant_id === item.product_variant_id,
+    );
+    const summed = (existing?.quantity ?? 0) + item.quantity;
+    const capped = Math.max(1, Math.min(summed, live.variant.stock_quantity));
+    if (existing) {
+      conflicts.push("same_variant_quantities_summed");
+      if (capped < summed) {
+        conflicts.push("quantity_capped_to_stock");
+      }
+      const updated = await updateLiveCartItemQuantity({
+        cartId: account.id,
+        itemId: existing.id,
+        quantity: capped,
+      });
+      if (updated) {
+        existing.quantity = updated.quantity;
+      }
+      continue;
+    }
+
+    if (capped < item.quantity) {
+      conflicts.push("quantity_capped_to_stock");
+    }
+    if (item.unit_price_minor !== live.variant.price_minor) {
+      conflicts.push("price_changed_retained_pending_revalidation");
+    }
+    const written = await upsertLiveCartItem({
+      cartId: account.id,
+      variantId: item.product_variant_id,
+      quantity: capped,
+      unitPriceMinor: item.unit_price_minor,
+    });
+    if (written) {
+      accountItems.push(written);
+    }
+  }
+
+  await convertLiveGuestCart(guest.cart.id);
+  return conflicts;
+}
+
+async function convertLiveGuestCart(cartId: string): Promise<void> {
+  if (!liveCartWritesAvailable() || !isUuid(cartId)) {
+    return;
+  }
+  const admin = createSupabaseAdminClient();
+  await admin
+    .from("carts")
+    .update({
+      status: "converted",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", cartId)
+    .is("user_id", null)
+    .eq("status", "active");
 }
 
 export async function loadLiveGuestCart(sessionId: string): Promise<{

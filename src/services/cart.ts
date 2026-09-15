@@ -10,6 +10,7 @@ import {
   resolveSelectedVariant,
 } from "@/lib/add-to-bag";
 import { cartIssueMessage } from "@/lib/cart-copy";
+import { getOptionalAccountUser } from "@/lib/account-session";
 import {
   readDemoCartLines,
   writeDemoCartLines,
@@ -28,10 +29,13 @@ import {
 } from "@/services/catalogue";
 import {
   fetchLiveVariantForCart,
+  getOrCreateLiveAccountCart,
   getOrCreateLiveGuestCart,
   listLiveCartItems,
   liveCartWritesAvailable,
+  loadLiveAccountCart,
   loadLiveGuestCart,
+  mergeLiveGuestCartIntoAccount,
   removeLiveCartItem,
   updateLiveCartItemQuantity,
   upsertLiveCartItem,
@@ -51,11 +55,47 @@ const emptyCart = (): PublicCart => ({
 });
 
 export async function getPublicCart(): Promise<PublicCart> {
-  const sessionId = await readGuestCartSessionId();
-  if (!sessionId) {
+  const ctx = await resolveCartContext();
+  if (ctx.userId && ctx.sessionId) {
+    await mergeGuestCartOnSignIn(ctx.userId);
+  }
+  if (!ctx.userId && !ctx.sessionId) {
     return emptyCart();
   }
-  return assemblePublicCart(sessionId);
+  return assemblePublicCart(ctx);
+}
+
+export async function mergeGuestCartOnSignIn(userId: string): Promise<void> {
+  const sessionId = await readGuestCartSessionId();
+  if (!sessionId) {
+    return;
+  }
+  await mergeLiveGuestCartIntoAccount({ sessionId, userId });
+  const demo = await readDemoCartLines(sessionId);
+  if (!demo.length) {
+    return;
+  }
+  const kept: DemoCartLine[] = [];
+  for (const line of demo) {
+    if (!isUuid(line.variantId)) {
+      kept.push(line);
+      continue;
+    }
+    const live = await tryAddLiveLine({
+      sessionId,
+      userId,
+      productId: line.productId,
+      variantId: line.variantId,
+      quantity: line.quantity,
+      unitPriceMinor: line.unitPriceMinor,
+    });
+    if (live !== "written") {
+      kept.push(line);
+    }
+  }
+  if (kept.length !== demo.length) {
+    await writeDemoCartLines(sessionId, kept);
+  }
 }
 
 export async function addItemToGuestCart(input: AddToBagInput): Promise<AddToBagResult> {
@@ -80,13 +120,15 @@ export async function addItemToGuestCart(input: AddToBagInput): Promise<AddToBag
     return { status: "error" };
   }
 
-  const sessionId = await bindGuestCartSession();
+  const ctx = await resolveCartContext();
+  const sessionId = ctx.userId ? ctx.sessionId ?? (await bindGuestCartSession()) : await bindGuestCartSession();
   const quantity = Math.floor(input.quantity);
   const unitPriceMinor = resolveUnitPriceMinor(product, variantId);
   const size = variant?.size ?? input.size;
 
   const live = await tryAddLiveLine({
     sessionId,
+    userId: ctx.userId,
     productId: product.id,
     variantId,
     quantity,
@@ -110,7 +152,7 @@ export async function addItemToGuestCart(input: AddToBagInput): Promise<AddToBag
     });
   }
 
-  const cart = await assemblePublicCart(sessionId);
+  const cart = await assemblePublicCart(await resolveCartContext());
   revalidateCartPaths();
   return { status: "added", cart };
 }
@@ -119,8 +161,8 @@ export async function updateGuestCartQuantity(
   itemId: string,
   quantity: number,
 ): Promise<PublicCart | null> {
-  const sessionId = await readGuestCartSessionId();
-  if (!sessionId || !itemId.trim()) {
+  const ctx = await resolveCartContext();
+  if ((!ctx.userId && !ctx.sessionId) || !itemId.trim()) {
     return null;
   }
   const nextQty = Math.floor(quantity);
@@ -134,7 +176,11 @@ export async function updateGuestCartQuantity(
     return null;
   }
 
-  const liveCart = await loadLiveGuestCart(sessionId);
+  const liveCart = ctx.userId
+    ? await loadLiveAccountCart(ctx.userId)
+    : ctx.sessionId
+      ? await loadLiveGuestCart(ctx.sessionId)
+      : null;
   const liveItem = liveCart?.items.find((item) => item.id === itemId);
   if (liveItem && liveCart) {
     const liveVariant = await fetchLiveVariantForCart(liveItem.product_variant_id);
@@ -150,54 +196,82 @@ export async function updateGuestCartQuantity(
       });
     }
     revalidateCartPaths();
-    return assemblePublicCart(sessionId);
+    return assemblePublicCart(ctx);
   }
 
-  const demo = await readDemoCartLines(sessionId);
+  if (!ctx.sessionId) {
+    return assemblePublicCart(ctx);
+  }
+
+  const demo = await readDemoCartLines(ctx.sessionId);
   const index = demo.findIndex((item) => item.id === itemId);
   if (index === -1) {
-    return assemblePublicCart(sessionId);
+    return assemblePublicCart(ctx);
   }
   const current = demo[index];
   if (!current) {
-    return assemblePublicCart(sessionId);
+    return assemblePublicCart(ctx);
   }
   demo[index] = { ...current, quantity: Math.min(nextQty, ADD_TO_BAG_QUANTITY_MAX) };
-  await writeDemoCartLines(sessionId, demo);
+  await writeDemoCartLines(ctx.sessionId, demo);
   revalidateCartPaths();
-  return assemblePublicCart(sessionId);
+  return assemblePublicCart(ctx);
 }
 
 export async function removeGuestCartItem(itemId: string): Promise<PublicCart | null> {
-  const sessionId = await readGuestCartSessionId();
-  if (!sessionId || !itemId.trim()) {
+  const ctx = await resolveCartContext();
+  if ((!ctx.userId && !ctx.sessionId) || !itemId.trim()) {
     return null;
   }
 
-  const liveCart = await loadLiveGuestCart(sessionId);
+  const liveCart = ctx.userId
+    ? await loadLiveAccountCart(ctx.userId)
+    : ctx.sessionId
+      ? await loadLiveGuestCart(ctx.sessionId)
+      : null;
   if (liveCart?.items.some((item) => item.id === itemId)) {
     await removeLiveCartItem({ cartId: liveCart.cart.id, itemId });
   }
 
-  const demo = await readDemoCartLines(sessionId);
-  const next = demo.filter((item) => item.id !== itemId);
-  if (next.length !== demo.length) {
-    await writeDemoCartLines(sessionId, next);
+  if (ctx.sessionId) {
+    const demo = await readDemoCartLines(ctx.sessionId);
+    const next = demo.filter((item) => item.id !== itemId);
+    if (next.length !== demo.length) {
+      await writeDemoCartLines(ctx.sessionId, next);
+    }
   }
 
   revalidateCartPaths();
-  return assemblePublicCart(sessionId);
+  return assemblePublicCart(ctx);
 }
 
 export function getCartSuggestions(cart: PublicCart, products = getProducts()) {
   return suggestCartProducts(cart, products);
 }
 
-async function assemblePublicCart(sessionId: string): Promise<PublicCart> {
+type CartContext = {
+  userId?: string;
+  sessionId?: string | null;
+};
+
+async function resolveCartContext(): Promise<CartContext> {
+  const user = await getOptionalAccountUser();
+  const sessionId = await readGuestCartSessionId();
+  return {
+    userId: user?.id,
+    sessionId,
+  };
+}
+
+async function assemblePublicCart(ctx: CartContext): Promise<PublicCart> {
   const issues: PublicCart["issues"] = [];
   const items: PublicCartItem[] = [];
 
-  const liveCart = await loadLiveGuestCart(sessionId);
+  const liveCart = ctx.userId
+    ? await loadLiveAccountCart(ctx.userId)
+    : ctx.sessionId
+      ? await loadLiveGuestCart(ctx.sessionId)
+      : null;
   if (liveCart) {
     const dropped: string[] = [];
     for (const row of liveCart.items) {
@@ -227,7 +301,7 @@ async function assemblePublicCart(sessionId: string): Promise<PublicCart> {
     }
   }
 
-  const demo = await readDemoCartLines(sessionId);
+  const demo = ctx.sessionId ? await readDemoCartLines(ctx.sessionId) : [];
   const keptDemo: DemoCartLine[] = [];
   let demoDirty = false;
   for (const line of demo) {
@@ -258,8 +332,8 @@ async function assemblePublicCart(sessionId: string): Promise<PublicCart> {
       }
     }
   }
-  if (demoDirty) {
-    await writeDemoCartLines(sessionId, keptDemo);
+  if (demoDirty && ctx.sessionId) {
+    await writeDemoCartLines(ctx.sessionId, keptDemo);
   }
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -279,6 +353,7 @@ async function assemblePublicCart(sessionId: string): Promise<PublicCart> {
 
 async function tryAddLiveLine(input: {
   sessionId: string;
+  userId?: string;
   productId: string;
   variantId: string;
   quantity: number;
@@ -297,7 +372,9 @@ async function tryAddLiveLine(input: {
   if (variantAvailability(live.variant) !== "in_stock") {
     return "unavailable";
   }
-  const cart = await getOrCreateLiveGuestCart(input.sessionId);
+  const cart = input.userId
+    ? await getOrCreateLiveAccountCart(input.userId)
+    : await getOrCreateLiveGuestCart(input.sessionId);
   if (!cart) {
     return "error";
   }
@@ -491,4 +568,5 @@ function revalidateCartPaths(): void {
   revalidatePath("/", "layout");
   revalidatePath("/cart");
   revalidatePath("/checkout");
+  revalidatePath("/account");
 }
