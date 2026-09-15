@@ -50,6 +50,15 @@
   position: relative;
 }
 
+.header[data-reduced="true"] .bar {
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "brand utils";
+}
+
+.header[data-reduced="true"] .brand {
+  justify-self: start;
+}
+
 .searchCopy {
   display: flex;
   flex-direction: column;

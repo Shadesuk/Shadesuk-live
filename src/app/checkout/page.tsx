@@ -1,18 +1,30 @@
 import type { Metadata } from "next";
-import { CheckoutPlaceholder } from "@/components/cart/CheckoutPlaceholder";
+import { redirect } from "next/navigation";
+import { CheckoutPage } from "@/components/checkout/CheckoutPage";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { routes } from "@/lib/navigation";
+import { getCheckoutSnapshot } from "@/services/checkout";
 
 export const metadata: Metadata = {
   title: "Checkout",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
-export default function CheckoutRoute() {
+export default async function CheckoutRoute() {
+  const { cart, draft } = await getCheckoutSnapshot();
+  if (cart.items.length === 0) {
+    redirect(routes.cart);
+  }
+
   return (
     <PageContainer>
       <main id="main">
         <ContentWidth>
-          <CheckoutPlaceholder />
+          <CheckoutPage initialCart={cart} initialDraft={draft} />
         </ContentWidth>
       </main>
     </PageContainer>

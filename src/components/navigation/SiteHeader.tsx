@@ -13,7 +13,7 @@ import { ShopMenu } from "./ShopMenu";
 import { UtilityButton } from "./UtilityButton";
 import styles from "./SiteHeader.module.css";
 
-export function SiteHeader() {
+export function SiteHeader({ reduced = false }: { reduced?: boolean }) {
   const { acquirePageLock, releasePageLock } = useChrome();
   const { cart, open: bagOpen, openBag, closeBag } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -74,59 +74,67 @@ export function SiteHeader() {
   }, []);
 
   return (
-    <header className={styles.header}>
+    <header className={styles.header} data-reduced={reduced || undefined}>
       <ContentWidth className={styles.bar}>
-        <div className={styles.menu}>
-          <UtilityButton
-            onClick={() => setMenuOpen(true)}
-            expanded={menuOpen}
-            controls="site-mobile-nav"
-            hasPopup="dialog"
-          >
-            Menu
-          </UtilityButton>
-        </div>
+        {reduced ? null : (
+          <div className={styles.menu}>
+            <UtilityButton
+              onClick={() => setMenuOpen(true)}
+              expanded={menuOpen}
+              controls="site-mobile-nav"
+              hasPopup="dialog"
+            >
+              Menu
+            </UtilityButton>
+          </div>
+        )}
 
         <div className={styles.brand}>
           <BrandMark priority />
         </div>
 
-        <nav className={styles.primary} aria-label="Primary">
-          {primaryNav.map((item) =>
-            "menu" in item && item.menu === "shop" ? (
-              <div key={item.label} className={styles.shop} ref={shopRef}>
-                <UtilityButton
-                  onClick={() => setShopOpen((open) => !open)}
-                  expanded={shopOpen}
-                  controls={shopMenuId}
-                  hasPopup="true"
-                >
+        {reduced ? null : (
+          <nav className={styles.primary} aria-label="Primary">
+            {primaryNav.map((item) =>
+              "menu" in item && item.menu === "shop" ? (
+                <div key={item.label} className={styles.shop} ref={shopRef}>
+                  <UtilityButton
+                    onClick={() => setShopOpen((open) => !open)}
+                    expanded={shopOpen}
+                    controls={shopMenuId}
+                    hasPopup="true"
+                  >
+                    {item.label}
+                  </UtilityButton>
+                  {shopOpen ? (
+                    <ShopMenu id={shopMenuId} onNavigate={closeShop} />
+                  ) : null}
+                </div>
+              ) : (
+                <NavLink key={item.href} href={item.href}>
                   {item.label}
-                </UtilityButton>
-                {shopOpen ? (
-                  <ShopMenu id={shopMenuId} onNavigate={closeShop} />
-                ) : null}
-              </div>
-            ) : (
-              <NavLink key={item.href} href={item.href}>
-                {item.label}
-              </NavLink>
-            ),
-          )}
-        </nav>
+                </NavLink>
+              ),
+            )}
+          </nav>
+        )}
 
         <div className={styles.utils}>
-          <UtilityButton
-            onClick={() => setSearchOpen(true)}
-            expanded={searchOpen}
-            controls="site-search-dialog"
-            hasPopup="dialog"
-          >
-            Search
-          </UtilityButton>
-          <NavLink href={routes.account} className={styles.account}>
-            Account
-          </NavLink>
+          {reduced ? null : (
+            <UtilityButton
+              onClick={() => setSearchOpen(true)}
+              expanded={searchOpen}
+              controls="site-search-dialog"
+              hasPopup="dialog"
+            >
+              Search
+            </UtilityButton>
+          )}
+          {reduced ? null : (
+            <NavLink href={routes.account} className={styles.account}>
+              Account
+            </NavLink>
+          )}
           <UtilityButton
             hasPopup="dialog"
             expanded={bagOpen}
@@ -145,12 +153,14 @@ export function SiteHeader() {
         </div>
       </ContentWidth>
 
-      <MobileNavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+      {reduced ? null : <MobileNavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
 
-      <SearchOverlay
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-      />
+      {reduced ? null : (
+        <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
     </header>
   );
 }
