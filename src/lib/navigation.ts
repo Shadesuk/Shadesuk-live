@@ -12,6 +12,7 @@ export const routes = {
   about: "/about",
   account: "/account",
   cart: "/cart",
+  checkout: "/checkout",
   faq: "/faq",
   contact: "/contact",
   shipping: "/shipping-policy",

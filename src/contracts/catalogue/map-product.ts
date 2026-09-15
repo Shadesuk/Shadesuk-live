@@ -125,6 +125,10 @@ function toStorefrontVariant(variant: ProductVariantRow): ProductVariant {
   if (sku) {
     mapped.sku = sku;
   }
+  const size = blankToUndefined(variant.size_name);
+  if (size) {
+    mapped.size = size;
+  }
   return mapped;
 }
 

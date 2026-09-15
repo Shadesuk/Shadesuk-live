@@ -89,6 +89,7 @@ export type ProductVariant = {
   colourId: string;
   availability: Availability;
   sku?: string;
+  size?: string;
 };
 
 export type Product = {

@@ -1,18 +1,13 @@
+import { demoVariantId } from "@/lib/ids";
+import {
+  containsForbiddenCartOwnership,
+  hasForbiddenOwnershipKey,
+} from "@/lib/ownership-keys";
 import { isProductAvailable } from "@/services/catalogue";
-import type { Product } from "@/types/catalogue";
-import type { AddToBagInput, AddToBagResult } from "@/types/pdp";
+import type { Product, ProductVariant } from "@/types/catalogue";
+import type { AddToBagInput, AddToBagResult, PublicAddToBagResult } from "@/types/pdp";
 
 export const ADD_TO_BAG_QUANTITY_MAX = 10;
-
-const OWNERSHIP_KEYS = new Set([
-  "sessionid",
-  "session_id",
-  "cartid",
-  "cart_id",
-  "userid",
-  "user_id",
-  "owner",
-]);
 
 /**
  * Client may send product selection only. Ownership keys are rejected so a
@@ -22,26 +17,32 @@ export function parseAddToBagInput(raw: unknown): AddToBagInput | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return null;
   }
-  const record = raw as Record<string, unknown>;
-  for (const key of Object.keys(record)) {
-    if (OWNERSHIP_KEYS.has(key.toLowerCase())) {
-      return null;
-    }
+  if (hasForbiddenOwnershipKey(raw)) {
+    return null;
   }
+  const record = raw as Record<string, unknown>;
   const slug = typeof record.slug === "string" ? record.slug.trim() : "";
   const colourId = typeof record.colourId === "string" ? record.colourId.trim() : "";
   const quantity = typeof record.quantity === "number" ? record.quantity : Number.NaN;
   if (!slug || !colourId || !Number.isFinite(quantity)) {
     return null;
   }
-  return { slug, colourId, quantity };
+  const size =
+    typeof record.size === "string" && record.size.trim() ? record.size.trim() : undefined;
+  return size ? { slug, colourId, quantity, size } : { slug, colourId, quantity };
 }
 
-export function toPublicAddToBagResult(result: AddToBagResult): AddToBagResult {
+export function toPublicAddToBagResult(result: AddToBagResult): PublicAddToBagResult {
   if (result.status === "unavailable") {
     return { status: "unavailable", availability: result.availability };
   }
-  return { status: result.status };
+  if (result.status === "added") {
+    if (containsForbiddenCartOwnership(result.cart)) {
+      return { status: "error" };
+    }
+    return { status: "added", cart: result.cart };
+  }
+  return { status: "error" };
 }
 
 export function evaluateAddToBag(
@@ -67,10 +68,41 @@ export function evaluateAddToBag(
     return { status: "unavailable", availability: "out_of_stock" };
   }
 
-  const variant = product.variants?.find((item) => item.colourId === colour.id);
+  const variant = resolveSelectedVariant(product, input.colourId, input.size);
+  if (product.variants && product.variants.length > 0 && !variant) {
+    return { status: "error" };
+  }
   if (variant && variant.availability !== "in_stock") {
     return { status: "unavailable", availability: variant.availability };
   }
 
-  return { status: "deferred" };
+  return { status: "ready" };
+}
+
+export function resolveSelectedVariant(
+  product: Product,
+  colourId: string,
+  size?: string,
+): ProductVariant | undefined {
+  const variants = product.variants ?? [];
+  if (variants.length === 0) {
+    return undefined;
+  }
+  const byColour = variants.filter((item) => item.colourId === colourId);
+  if (size) {
+    return byColour.find((item) => item.size === size) ?? byColour[0];
+  }
+  return byColour[0];
+}
+
+export function resolveCartVariantId(
+  product: Product,
+  colourId: string,
+  size?: string,
+): string {
+  const variant = resolveSelectedVariant(product, colourId, size);
+  if (variant?.id) {
+    return variant.id;
+  }
+  return demoVariantId(product.id, colourId, size);
 }
