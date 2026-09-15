@@ -1,7 +1,7 @@
 # SHADESUK Phase 3 — Repository Audit
 
 **Phase:** 3.1 — Repository audit  
-**Status:** Complete (audit only; no wiring)  
+**Status:** Complete (audit only; no wiring). Security appendix added 2026-09-15.  
 **Audited commit:** `a79678e` on `main`  
 **Default branch:** `main`  
 **Repository:** https://github.com/Shadesuk/Shadesuk-live  
@@ -9,6 +9,8 @@
 **Scope:** Inspect existing stack, classify every required surface, inventory specs, and list mocked / hard-coded / missing areas. No backend wiring or feature implementation.
 
 This audit is the Section 5 deliverable of the Phase 3 master implementation handoff. It does not reinterpret locked product, UI, or UX decisions. Genuine technical conflicts are reported as conflicts, not resolved.
+
+Companion: [`docs/PHASE3_ENV_CONFIG_AUDIT.md`](./PHASE3_ENV_CONFIG_AUDIT.md) (Phase 3.2). Security findings that block later wiring are in **§12 Security appendix**.
 
 ---
 
@@ -387,16 +389,11 @@ Ordered by how badly they stop the locked 3.x sequence.
 
 ## 10. Recommended next slice
 
-**Do 3.2 Environment / configuration audit next. Do not start 3.3 until 3.2 records decisions.**
+**3.2 Environment / configuration audit is the companion document:** [`docs/PHASE3_ENV_CONFIG_AUDIT.md`](./PHASE3_ENV_CONFIG_AUDIT.md).
 
-Rationale:
+Do not start 3.3 until Syed locks the provider/schema decisions listed there. 3.3 is the first **code-shaping** slice; 3.2 is the gate that stops that slice from encoding the wrong provider and the wrong database.
 
-- The handoff order is explicit: 3.1 → **3.2** → 3.3.
-- 3.3 data contracts cannot be written honestly while Stripe vs Razorpay, Resend, Google OAuth, and address-provider keys are undefined, and while it is unclear whether PR #10 is the canonical schema.
-- 3.2 should produce: env inventory (present vs required vs forbidden on `NEXT_PUBLIC_`), provider decisions (or a documented conflict still open), confirmation of which Supabase project/keys the storefront uses, and whether the CLI should be linked before migrations are treated as source of truth.
-- 3.3 should immediately follow: map `Product` / `ProductVariant` / collections / cart / order types onto the chosen schema **without** changing approved UI, and without inventing catalogue facts.
-
-3.3 is the first **code-shaping** slice; 3.2 is the gate that stops that slice from encoding the wrong provider and the wrong database.
+Security constraints that 3.3+ must obey are in **§12**. They are documentation of current `main`, not a licence to start wiring.
 
 ---
 
@@ -407,6 +404,157 @@ Rationale:
 - [x] Mocked / hard-coded / missing / broken called out
 - [x] Relevant `.md` spec inventory
 - [x] Architecture conflicts reported, not silently resolved
+- [x] Security appendix (handoff §63 / §64) against current `main`
 - [x] No backend wiring or feature implementation in this slice
 - [x] Approved frontend preserved
 - [x] No invented catalogue facts
+
+---
+
+## 12. Security appendix (handoff §63 / §64)
+
+**Against:** current `main` (`a79678e`) plus the unmerged schema in [PR #10](https://github.com/Shadesuk/Shadesuk-live/pull/10) where noted.  
+**Not against:** a production-wired storefront. Most §63 rows are **N/A** because the feature does not exist yet; that is still a finding for later slices.
+
+Vocabulary for this appendix:
+
+| Result | Meaning |
+| --- | --- |
+| **PASS** | Required control exists on `main` for the surface that exists today. |
+| **FAIL** | Required control is missing or wrong on a surface that already exists. |
+| **N/A** | Surface is not implemented; the control cannot pass or fail yet. Treat as a **hard requirement** before that surface ships. |
+| **HIGH (cutover)** | Acceptable on demo fixtures; must be fixed before live catalogue/payment data. |
+
+### 12.1 Handoff §63 checklist (current `main`)
+
+| Control | Result | Evidence |
+| --- | --- | --- |
+| Secrets are server-side | **PASS** (current surface) | `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` are non-`NEXT_PUBLIC_`. `admin.ts` is `server-only`. `.gitignore` ignores `.env*` except `.env.example`. |
+| No secret keys in frontend bundle | **PASS** (current surface) | Secret is never read from a Client Component. Publishable/anon keys are public by design. **Not proven by a production bundle scan in this docs slice.** |
+| Payment secrets protected | **N/A** | No Stripe/Razorpay SDK, no payment env names in `.env.example` or app code. When a provider is locked, secret and webhook keys must stay server-only. |
+| Webhooks verified | **N/A** | No webhook Route Handler. PR #10 has `payment_webhook_events`; verification is not implemented. See §12.7. |
+| Authentication sessions secure | **N/A** | No Auth UI, no `middleware.ts`, no cookie session gate. Server client can attach cookies when auth exists. See §12.5. |
+| Authorisation checked server-side | **N/A** | No customer/admin application endpoints. PR #10 RLS is authenticated-or-admin; storefront does not query it. |
+| Customer data scoped correctly | **N/A** | No customer records (`auth.users` = 0). Required before account/orders. |
+| Guest tracking protected | **N/A** | No `/track-order` or `/order/[…]`. Required before that route ships. See §12.3. |
+| Admin endpoints protected | **N/A** | No admin UI or admin API. `admin_users` + `private.is_admin()` exist only in PR #10 schema. |
+| Input validation present | **PARTIAL / N/A** | Catalogue query parsing exists for demo PLP/search. No payment/order/auth input validation. |
+| Output sanitised where necessary | **PASS** (current surface) | Health responses omit keys and upstream bodies. No user-generated HTML rendering. |
+| Rate limiting where appropriate | **FAIL** (health) / **N/A** (auth, tracking, payment) | Unauthenticated `GET /api/health/supabase` has no rate limit. Auth, guest tracking, and webhooks will need limits when those routes exist. |
+| Sensitive errors not exposed | **PASS** (production health) / **PARTIAL** (development health) | Production health returns `{ ok, checkedAt }` only. Development returns probe statuses and **variable names** (not values). Catalogue `error.tsx` is generic. |
+| Logs do not contain unnecessary sensitive data | **PASS** (current surface) | Production health logs issues/warnings/probes, not keys. No payment/PII logging yet. |
+
+### 12.2 Hard rule — admin client / service-role
+
+**Rule (locked for all later slices):**
+
+> No unauthenticated Route Handler may return data sourced via `createSupabaseAdminClient` / service-role.
+
+On current `main`:
+
+- `createSupabaseAdminClient()` is defined and unused by any Route Handler.
+- The only Route Handler is `GET /api/health/supabase`.
+- Health **does** call `getSupabaseSecretKey()` from `health.ts` to probe `/rest/v1/` with the secret as `apikey`. That is a **connectivity probe**, not a schema read, and the response never includes key material or PostgREST bodies.
+- Health is still **unauthenticated**. It must not grow into “run an admin query and return rows.”
+
+**Allowed later:** webhook handlers and trusted server jobs may use the admin client after verifying the caller (webhook signature, cron secret, or equivalent). They must not become public GETs.
+
+**Not allowed later:** guest cart, guest tracking, or catalogue APIs that bypass RLS by using service-role and then returning that data to anyone who hits the URL.
+
+PR #10 guest carts already require server mediation (RLS is authenticated-only). That mediation must not be an unauthenticated admin-client leak.
+
+### 12.3 Guest order tracking (handoff §64)
+
+**Required before `/track-order` or order URLs ship:**
+
+```text
+TRACK ORDER
+→ Order reference (non-guessable)
++ Required verification (e.g. email)
+→ Server-side lookup
+→ Minimal order response
+```
+
+**Forbidden:**
+
+```text
+/order/12345
+```
+
+revealing an order because the id/reference is guessable.
+
+On current `main`: **N/A** — `routes.trackOrder` is `/track-order`; footer links to it; **no page**. No `/order/[secure-reference]`. PR #10 `orders.order_reference` is unique text with no format constraint in SQL. 3.3 must specify a non-guessable reference scheme and a verification field; 3.13 must enforce it server-side with rate limiting.
+
+Do not use sequential integers, SKUs, or payment provider ids as the public lookup key.
+
+### 12.4 Health oracle — `GET /api/health/supabase`
+
+Unauthenticated by design (PR #9).
+
+| Environment | Body | Status |
+| --- | --- | --- |
+| Production (`NODE_ENV=production`) | `{ ok, checkedAt }` | 200 / 503 |
+| Development | Full report: `configured`, `issues`, `warnings`, `probes` (variable **names**, never values) | 200 / 503 |
+
+**Why it is still an oracle:** anyone can learn whether this deployment’s Supabase URL/keys currently authenticate, and can probe that over time (outage, key rotation, misconfig). Production redaction is **PASS** for secret leakage. Absence of auth and rate limiting is **FAIL** against a hardened production bar.
+
+Do not add schema, table lists, or admin-query results to this endpoint. Optional later hardening (not this docs slice): network restriction, shared-secret header, or removing the public route from production.
+
+### 12.5 Middleware / session gate
+
+There is **no** `src/middleware.ts`.
+
+`createSupabaseServerClient()` comments that session refresh must happen in a Route Handler, Server Action, or middleware. None of those auth refresh paths exist.
+
+Before `/account` or any authenticated API ships:
+
+1. Add middleware (or equivalent) that refreshes the Supabase session on matching routes.
+2. Gate `/account/**` on a real session; unauthenticated users see the approved sign-in UI, not another customer’s data.
+3. Do not rely on client-only redirects as authorisation.
+4. Guest checkout must keep working without a session.
+
+Current header Account control 404s. That is a missing page, not a session leak.
+
+### 12.6 Client-bundle catalogue — **High at live-catalogue cutover**
+
+Demo search/PLP load the in-memory catalogue into Client Components:
+
+| Client module | Imports |
+| --- | --- |
+| `ProductCard` | `@/services/catalogue` (same module as `getProducts()` → `demoCatalogue`) |
+| `SearchForm` | `@/services/search` → `getProducts()` |
+| `ShopMenu` / `MobileNavDrawer` | `getMenuBrandLinks()` from catalogue |
+| `SearchOverlay` / `SearchLanding` | search discovery helpers |
+
+**Today:** fixtures are six demo frames, labelled `isDemo`. Acceptable for the approved frontend.
+
+**At live-catalogue cutover (before 3.4 ships real rows):** **HIGH**. Handoff §39: do not load the entire product catalogue into the browser.
+
+**Required before live data:**
+
+- Server search (RSC / Route Handler), with debounce and cancellation already specified.
+- ProductCard must receive product **props** from the server; it must not import the catalogue module that reads all products.
+- Brand/menu links from a small server-provided list, not `getProducts()`.
+
+Do not “fix” this by adding a second product-card system.
+
+### 12.7 Payment webhook trust
+
+Handoff §19 / §22 / §108: the frontend must not declare an order paid because the customer returned from a payment page. Paid state comes from **verified provider webhook or equivalent server confirmation**.
+
+On current `main`: **N/A** — no payment code.
+
+When 3.9 exists:
+
+- Verify signatures with a **server-only** webhook secret.
+- Persist provider event ids in `payment_webhook_events` (PR #10) and process idempotently.
+- Map provider events onto `payments.status`; never trust `?success=true` query params.
+- Do not put webhook secrets on `NEXT_PUBLIC_`.
+- Provider choice (Stripe vs Razorpay) is **not** locked here. See the 3.2 env audit.
+
+### 12.8 Security implications for 3.2 / 3.3
+
+- Env inventory and provider lock-ins: [`docs/PHASE3_ENV_CONFIG_AUDIT.md`](./PHASE3_ENV_CONFIG_AUDIT.md).
+- 3.3 data contracts must include non-guessable `order_reference`, guest-tracking verification, and “paid only after verified webhook.”
+- Do not open anon RLS writes on `carts` to make guests work.
+- Do not invent a second payment provider “just in case.”
