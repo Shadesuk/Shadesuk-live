@@ -2,7 +2,7 @@ import { cache } from "react";
 import "server-only";
 
 import type { MappedStorefrontProduct } from "@/contracts";
-import { evaluateAddToBag } from "@/lib/add-to-bag";
+import { evaluateAddToBag, parseAddToBagInput } from "@/lib/add-to-bag";
 import { getBrandName, getProductBySlug, getProducts } from "@/services/catalogue";
 import {
   fetchLiveProductBySlug,
@@ -94,8 +94,12 @@ export async function getStorefrontProductsByIds(
 }
 
 export async function prepareAddToBag(input: AddToBagInput): Promise<AddToBagResult> {
-  const record = await getStorefrontProductBySlug(input.slug);
-  return evaluateAddToBag(record?.product, input);
+  const parsed = parseAddToBagInput(input);
+  if (!parsed) {
+    return { status: "error" };
+  }
+  const record = await getStorefrontProductBySlug(parsed.slug);
+  return evaluateAddToBag(record?.product, parsed);
 }
 
 async function getRelatedProducts(

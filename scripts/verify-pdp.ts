@@ -1,7 +1,17 @@
 import { PRODUCT_DISCLOSURE_COPY } from "../src/components/pdp/ProductDisclosure";
 import { FACE_GUIDE } from "../src/components/pdp/face-guide";
-import { evaluateAddToBag } from "../src/lib/add-to-bag";
+import {
+  evaluateAddToBag,
+  parseAddToBagInput,
+  toPublicAddToBagResult,
+} from "../src/lib/add-to-bag";
+import { guestCartCookieSecure } from "../src/lib/guest-cart-cookie-secure";
 import { productPath } from "../src/lib/navigation";
+import {
+  CART_MEDIATION_RULES,
+  guestCartCookieSetOptions,
+  createGuestCartSessionId,
+} from "../src/contracts";
 import {
   getBrandName,
   getProductBySlug,
@@ -87,6 +97,50 @@ const badQty = evaluateAddToBag(frame01, {
 });
 if (badQty.status !== "error") {
   throw new Error("Invalid quantity must error, not succeed.");
+}
+
+if (
+  parseAddToBagInput({
+    slug: "frame-01",
+    colourId: "colour-black",
+    quantity: 1,
+    sessionId: "should-not-be-accepted",
+  })
+) {
+  throw new Error("Add-to-bag must reject a client-supplied session id.");
+}
+
+const publicResult = toPublicAddToBagResult(added);
+if ("sessionId" in publicResult || "session_id" in publicResult) {
+  throw new Error("Add-to-bag JSON must not serialize a guest session id.");
+}
+
+if (!CART_MEDIATION_RULES.clientMustNotSendSessionId) {
+  throw new Error("Guest cart ownership must stay server-side.");
+}
+
+if (
+  !guestCartCookieSecure({
+    nodeEnv: "production",
+    siteUrl: "https://shadesuk.example",
+  })
+) {
+  throw new Error("Production https cookies must be Secure.");
+}
+if (
+  guestCartCookieSecure({
+    nodeEnv: "production",
+    siteUrl: "http://localhost:3000",
+  })
+) {
+  throw new Error("Localhost http may omit Secure so the cookie can persist.");
+}
+
+const cookie = guestCartCookieSetOptions(createGuestCartSessionId(), {
+  secure: true,
+});
+if (!cookie.httpOnly || cookie.secure !== true) {
+  throw new Error("Guest cart cookie must be httpOnly and Secure in production.");
 }
 
 console.log("PDP OK: demo slugs resolve, disclosure locked, add-to-bag deferred");
