@@ -41,30 +41,37 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
 
   useEffect(() => {
     const node = ctaRef.current;
-    if (!node || typeof IntersectionObserver === "undefined") {
+    if (!node) {
       return;
     }
+    const cta = node;
 
     const desktopQuery = window.matchMedia("(min-width: 1200px)");
-    let ctaVisible = true;
 
-    function syncSticky() {
-      setSticky(!desktopQuery.matches && !ctaVisible);
+    function ctaInView() {
+      const rect = cta.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
     }
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        ctaVisible = entry.isIntersecting;
-        syncSticky();
-      },
-      { threshold: 0 },
-    );
+    function syncSticky() {
+      setSticky(!desktopQuery.matches && !ctaInView());
+    }
 
+    const observer =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(syncSticky, { threshold: 0 });
+
+    observer?.observe(cta);
     desktopQuery.addEventListener("change", syncSticky);
-    observer.observe(node);
+    window.addEventListener("scroll", syncSticky, { passive: true });
+    window.addEventListener("resize", syncSticky);
+    syncSticky();
     return () => {
+      observer?.disconnect();
       desktopQuery.removeEventListener("change", syncSticky);
-      observer.disconnect();
+      window.removeEventListener("scroll", syncSticky);
+      window.removeEventListener("resize", syncSticky);
     };
   }, []);
   const colour = colours.find((item) => item.id === colourId);
