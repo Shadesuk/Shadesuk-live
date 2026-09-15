@@ -9,7 +9,7 @@ import {
   removeGuestCartItem,
   updateGuestCartQuantity,
 } from "@/services/cart";
-import type { CartMutationResult, PublicCart } from "@/types/cart";
+import { EMPTY_PUBLIC_CART, type CartMutationResult, type PublicCart } from "@/types/cart";
 import type { AddToBagInput, PublicAddToBagResult } from "@/types/pdp";
 
 export async function addToBagAction(input: AddToBagInput): Promise<PublicAddToBagResult> {
@@ -65,5 +65,8 @@ export async function removeCartItemAction(input: {
 }
 
 export async function loadCart(): Promise<PublicCart> {
+  if (!(await cartActionOriginAllowed())) {
+    return EMPTY_PUBLIC_CART;
+  }
   return getPublicCart();
 }

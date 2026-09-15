@@ -4,13 +4,14 @@ import { BrandMark } from "./BrandMark";
 import { NavLink } from "./NavLink";
 import styles from "./SiteFooter.module.css";
 
-export function SiteFooter() {
+export function SiteFooter({ reduced = false }: { reduced?: boolean }) {
   const year = new Date().getFullYear();
 
   return (
-    <footer className={styles.footer}>
+    <footer className={styles.footer} data-reduced={reduced || undefined}>
       <ContentWidth>
-        <div className={styles.grid}>
+        {reduced ? null : (
+          <div className={styles.grid}>
           <div className={styles.brand}>
             <BrandMark />
             <p className={`text-small ${styles.note}`}>
@@ -64,6 +65,7 @@ export function SiteFooter() {
             </p>
           </div>
         </div>
+        )}
 
         <div className={styles.bottom}>
           <p className={`text-small ${styles.legal}`}>

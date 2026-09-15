@@ -1,8 +1,10 @@
 "use client";
 
 import { type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { BagDrawer } from "@/components/cart/BagDrawer";
 import { CartProvider } from "@/components/cart/CartProvider";
+import { routes } from "@/lib/navigation";
 import type { PublicCart } from "@/types/cart";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
@@ -17,15 +19,17 @@ export function SiteChrome({
   initialCart: PublicCart;
 }) {
   const { pageLocked, value } = useChromeLocks();
+  const pathname = usePathname();
+  const checkout = pathname === routes.checkout || pathname.startsWith(`${routes.checkout}/`);
 
   return (
     <ChromeProvider value={value}>
       <CartProvider initialCart={initialCart}>
         <div className={styles.shell}>
           <div className={styles.lock} inert={pageLocked || undefined}>
-            <SiteHeader />
+            <SiteHeader reduced={checkout} />
             <div className={styles.page}>{children}</div>
-            <SiteFooter />
+            <SiteFooter reduced={checkout} />
           </div>
         </div>
         <BagDrawer />

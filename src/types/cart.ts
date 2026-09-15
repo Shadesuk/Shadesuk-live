@@ -1,5 +1,13 @@
 import type { CartRevalidationIssue } from "@/contracts";
 
+export const EMPTY_PUBLIC_CART: PublicCart = {
+  items: [],
+  itemCount: 0,
+  subtotal: 0,
+  currency: "GBP",
+  issues: [],
+};
+
 export type PublicCartImage = {
   alt: string;
   width: number;

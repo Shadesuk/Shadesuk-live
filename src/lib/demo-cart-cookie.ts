@@ -1,5 +1,10 @@
-import { createHmac } from "node:crypto";
 import { ADD_TO_BAG_QUANTITY_MAX } from "@/lib/add-to-bag";
+import {
+  decodeGuestCookieValue,
+  encodeGuestCookieValue,
+  guestCookieSignatureMatches,
+  signGuestCookiePayload,
+} from "@/lib/guest-cookie-hmac";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 
 export const DEMO_CART_LINES_COOKIE = "shadesuk_guest_cart_lines";
@@ -15,38 +20,30 @@ export type DemoCartLine = {
   size?: string;
 };
 
-export function encodeDemoCartCookie(sessionId: string, items: DemoCartLine[]): string {
+export function encodeDemoCartCookie(
+  sessionId: string,
+  items: DemoCartLine[],
+  secret?: string,
+): string {
   const body = JSON.stringify({ items: items.map(sanitizeLine) });
-  const hmac = sign(sessionId, body);
-  return `v1.${Buffer.from(body, "utf8").toString("base64url")}.${hmac}`;
+  const hmac = signGuestCookiePayload(sessionId, body, secret);
+  return encodeGuestCookieValue(body, hmac);
 }
 
 export function decodeDemoCartCookie(
   sessionId: string,
   value: string | undefined | null,
+  secret?: string,
 ): DemoCartLine[] {
-  if (!value) {
+  const decoded = decodeGuestCookieValue(value);
+  if (!decoded) {
     return [];
   }
-  const parts = value.split(".");
-  if (parts.length !== 3 || parts[0] !== "v1") {
-    return [];
-  }
-  const [, encoded, hmac] = parts;
-  if (!encoded || !hmac) {
-    return [];
-  }
-  let body: string;
-  try {
-    body = Buffer.from(encoded, "base64url").toString("utf8");
-  } catch {
-    return [];
-  }
-  if (!safeEqual(hmac, sign(sessionId, body))) {
+  if (!guestCookieSignatureMatches({ sessionId, body: decoded.body, hmac: decoded.hmac, secret })) {
     return [];
   }
   try {
-    const parsed: unknown = JSON.parse(body);
+    const parsed: unknown = JSON.parse(decoded.body);
     return parseDemoItems(parsed);
   } catch {
     return [];
@@ -122,21 +119,6 @@ function sanitizeLine(line: DemoCartLine): DemoCartLine {
     next.size = line.size;
   }
   return next;
-}
-
-function sign(sessionId: string, body: string): string {
-  return createHmac("sha256", sessionId).update(body).digest("hex");
-}
-
-function safeEqual(left: string, right: string): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-  let mismatch = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return mismatch === 0;
 }
 
 function asNonEmpty(value: unknown): string | null {

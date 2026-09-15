@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   CART_MEDIATION_RULES,
   createGuestCartSessionId,
@@ -12,6 +14,12 @@ import {
 import { isAllowedCartActionOrigin } from "../src/lib/cart-origin";
 import { cartIssueMessage, EMPTY_BAG_CTA, EMPTY_BAG_TITLE } from "../src/lib/cart-copy";
 import { decodeDemoCartCookie, encodeDemoCartCookie } from "../src/lib/demo-cart-cookie";
+import {
+  GUEST_COOKIE_HMAC_VERSION,
+  resolveGuestCookieSecret,
+  signGuestCookiePayload,
+} from "../src/lib/guest-cookie-hmac";
+import { isLiveVariantEligibleForCart } from "../src/lib/live-cart-eligibility";
 import { guestCartCookieSecure } from "../src/lib/guest-cart-cookie-secure";
 import { demoVariantId, isDemoVariantId, isUuid } from "../src/lib/ids";
 import { routes } from "../src/lib/navigation";
@@ -148,26 +156,61 @@ if (
 }
 
 const sessionId = createGuestCartSessionId();
-const encoded = encodeDemoCartCookie(sessionId, [
-  {
-    id: "11111111-1111-1111-1111-111111111111",
-    variantId,
-    productId: frame01.id,
-    slug: frame01.slug,
-    colourId: "colour-black",
-    quantity: 2,
-    unitPriceMinor: 4900,
-  },
-]);
-if (encoded.includes(sessionId) || encoded.includes("sessionId")) {
+const cookieSecret = "verify-cart-cookie-secret";
+const encoded = encodeDemoCartCookie(
+  sessionId,
+  [
+    {
+      id: "11111111-1111-1111-1111-111111111111",
+      variantId,
+      productId: frame01.id,
+      slug: frame01.slug,
+      colourId: "colour-black",
+      quantity: 2,
+      unitPriceMinor: 4900,
+    },
+  ],
+  cookieSecret,
+);
+if (encoded.includes(sessionId) || encoded.includes("sessionId") || !encoded.startsWith(`${GUEST_COOKIE_HMAC_VERSION}.`)) {
   throw new Error("Demo cart cookie must not embed the session id.");
 }
-const decoded = decodeDemoCartCookie(sessionId, encoded);
+const decoded = decodeDemoCartCookie(sessionId, encoded, cookieSecret);
 if (decoded.length !== 1 || decoded[0]?.quantity !== 2) {
   throw new Error("Demo cart cookie must round-trip lines.");
 }
-if (decodeDemoCartCookie("ff".repeat(32), encoded).length !== 0) {
+if (decodeDemoCartCookie("ff".repeat(32), encoded, cookieSecret).length !== 0) {
   throw new Error("Demo cart cookie must reject a mismatched session signature.");
+}
+if (decodeDemoCartCookie(sessionId, encoded, "other-server-secret").length !== 0) {
+  throw new Error("Demo cart cookie must reject a mismatched server secret.");
+}
+if (signGuestCookiePayload(sessionId, "{\"items\":[]}", cookieSecret) === signGuestCookiePayload(sessionId, "{\"items\":[]}")) {
+  throw new Error("Cookie HMAC must not be keyed only by sessionId.");
+}
+if (resolveGuestCookieSecret({ guestCookieSecret: "a", supabaseSecret: "b" }) !== "a") {
+  throw new Error("GUEST_COOKIE_SECRET must win over the Supabase secret.");
+}
+if (resolveGuestCookieSecret({ supabaseSecret: "b" }) !== "b") {
+  throw new Error("Cookie HMAC may fall back to SUPABASE_SECRET_KEY.");
+}
+if (
+  isLiveVariantEligibleForCart({ productStatus: "draft", variantStatus: "available" }) ||
+  isLiveVariantEligibleForCart({ productStatus: "published", variantStatus: "draft" }) ||
+  !isLiveVariantEligibleForCart({ productStatus: "published", variantStatus: "available" })
+) {
+  throw new Error("Live cart fetches must require published products and available variants.");
+}
+
+const cartActionSource = readFileSync(resolve("src/app/cart/actions.ts"), "utf8");
+if (!cartActionSource.includes("loadCart") || !cartActionSource.includes("cartActionOriginAllowed")) {
+  throw new Error("Cart loaders must keep CSRF/origin checks.");
+}
+if (!readFileSync(resolve("src/services/cart-live.ts"), "utf8").includes('eq("status", "published")')) {
+  throw new Error("Live cart variant fetch must assert published products.");
+}
+if (!readFileSync(resolve("src/services/cart-live.ts"), "utf8").includes('eq("status", "available")')) {
+  throw new Error("Live cart variant fetch must assert available variants.");
 }
 
 const publicCart = {
