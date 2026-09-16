@@ -46,6 +46,12 @@ export function isLegalOrderStatusTransition(
   return FORWARD[from]?.includes(to) ?? false;
 }
 
+/** Current status plus legal next statuses. Same value is always allowed. */
+export function legalOrderStatusTargets(from: OrderStatus): OrderStatus[] {
+  const next = FORWARD[from] ?? [];
+  return [from, ...next.filter((status) => status !== from)];
+}
+
 export function customerOrderStatusLabel(status: OrderStatus): CustomerOrderStatusLabel {
   return CUSTOMER_ORDER_STATUS_LABELS[status];
 }

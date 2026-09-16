@@ -194,9 +194,23 @@ if (!header.includes("action") || !header.includes("title")) {
   throw new Error("AdminPageHeader must support title and an optional action.");
 }
 
+const ordersPage = read("src/app/admin/orders/page.tsx");
+if (ordersPage.includes("AdminPlaceholderPage")) {
+  throw new Error("Orders list must be implemented, not a placeholder.");
+}
+if (!ordersPage.includes("getAdminGate") || !ordersPage.includes("AdminOrdersPage")) {
+  throw new Error("Orders list must use the Admin gate and AdminOrdersPage.");
+}
+
+const orderDetailPage = read("src/app/admin/orders/[id]/page.tsx");
+if (orderDetailPage.includes("AdminPlaceholderPage")) {
+  throw new Error("Order detail must be implemented, not a placeholder.");
+}
+if (!orderDetailPage.includes("getAdminGate") || !orderDetailPage.includes("AdminOrderDetailSection")) {
+  throw new Error("Order detail must use the Admin gate and AdminOrderDetailSection.");
+}
+
 for (const file of [
-  "src/app/admin/orders/page.tsx",
-  "src/app/admin/orders/[id]/page.tsx",
   "src/app/admin/products/page.tsx",
   "src/app/admin/products/new/page.tsx",
   "src/app/admin/products/[id]/page.tsx",
