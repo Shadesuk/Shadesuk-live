@@ -300,7 +300,9 @@ async function mapPublishedRows(
 
   const variantsByProduct = groupBy(variants, (variant) => variant.product_id);
   const imagesByProduct = groupBy(images, (image) => image.product_id);
-  const bestSellerIds = new Set(merchandising.bestSellerIds);
+  const bestSellerIds = new Set(
+    merchandising.bestSellersEnabled ? merchandising.bestSellerIds : [],
+  );
 
   return rows
     .map((product) => {

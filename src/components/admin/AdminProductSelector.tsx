@@ -33,6 +33,7 @@ export function AdminProductSelector({
   const titleId = useId();
   const descriptionId = useId();
   const [q, setQ] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
   const [products, setProducts] = useState<AdminMerchandisingProductRef[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
 
@@ -60,7 +61,7 @@ export function AdminProductSelector({
       active = false;
       window.clearTimeout(handle);
     };
-  }, [open, q, excludeIds]);
+  }, [open, q, excludeIds, retryKey]);
 
   return (
     <Modal open={open} onClose={onClose} titleId={titleId} descriptionId={descriptionId}>
@@ -85,7 +86,7 @@ export function AdminProductSelector({
       {status === "error" ? (
         <div role="alert">
           <p className="text-small">{ADMIN_MERCHANDISING_ERROR}</p>
-          <Button type="button" variant="secondary" onClick={() => setQ((current) => `${current}`.trim())}>
+          <Button type="button" variant="secondary" onClick={() => setRetryKey((current) => current + 1)}>
             {ADMIN_MERCHANDISING_RETRY}
           </Button>
         </div>

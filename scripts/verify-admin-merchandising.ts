@@ -154,6 +154,9 @@ const selector = read("src/components/admin/AdminProductSelector.tsx");
 if (!selector.includes("searchMerchandisingProductsAction")) {
   throw new Error("Product selector must search on the server.");
 }
+if (!selector.includes("retryKey")) {
+  throw new Error("Product selector retry must re-run search after a failure.");
+}
 
 const home = read("src/app/(storefront)/page.tsx");
 if (!home.includes("loadStorefrontMerchandisingConfig") || !home.includes("getAutomaticNewArrivals")) {
@@ -164,8 +167,11 @@ if (!home.includes("getFlagshipProduct")) {
 }
 
 const live = read("src/services/live-catalogue.ts");
-if (!live.includes("bestSellerIds") || !live.includes("published_at")) {
+if (!live.includes("bestSellerIds") || !live.includes("published_at") || !live.includes("bestSellersEnabled")) {
   throw new Error("Live catalogue must map published_at and Superadmin best sellers.");
+}
+if (!live.includes("bestSellersEnabled ? merchandising.bestSellerIds")) {
+  throw new Error("Disabled Best Sellers must not appear on the storefront.");
 }
 
 const mapper = read("src/contracts/catalogue/map-product.ts");
