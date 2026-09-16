@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -28,7 +29,7 @@ type AdminUserRow = {
   is_active: boolean;
 };
 
-export async function getAdminGate(): Promise<AdminGate> {
+export const getAdminGate = cache(async function getAdminGate(): Promise<AdminGate> {
   const user = await getOptionalAuthUser();
   if (!user) {
     return { status: "unauthenticated" };
@@ -38,7 +39,7 @@ export async function getAdminGate(): Promise<AdminGate> {
     return { status: "forbidden", email: user.email?.trim() || undefined };
   }
   return { status: "ok", actor };
-}
+});
 
 export async function getOptionalAdminActor(): Promise<AdminActor | null> {
   const gate = await getAdminGate();

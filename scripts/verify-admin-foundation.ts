@@ -15,6 +15,11 @@ import {
   toAdminV1Role,
 } from "../src/contracts/admin/roles";
 import { isAdminAppPath, resolveSafeAdminNextPath, resolveSafeNextPath } from "../src/lib/account-validate";
+import {
+  ADMIN_NAV_PRIMARY,
+  adminNavForRole,
+  isAdminNavItemActive,
+} from "../src/lib/admin-nav";
 import { routes } from "../src/lib/navigation";
 
 const root = resolve(process.cwd());
@@ -25,6 +30,15 @@ function read(path: string): string {
 
 if (routes.admin !== "/admin" || routes.adminSettings !== "/admin/settings") {
   throw new Error("Admin routes must stay /admin and /admin/settings.");
+}
+if (
+  routes.adminOrders !== "/admin/orders" ||
+  routes.adminProducts !== "/admin/products" ||
+  routes.adminCollections !== "/admin/collections" ||
+  routes.adminCustomers !== "/admin/customers" ||
+  routes.adminAnalytics !== "/admin/analytics"
+) {
+  throw new Error("Admin module routes must be wired under /admin.");
 }
 if (routes.account !== "/account") {
   throw new Error("Customer account must remain /account.");
@@ -72,6 +86,25 @@ if (!isAdminAppPath("/admin") || resolveSafeAdminNextPath("/account") !== "/admi
   throw new Error("Admin next paths must stay inside /admin.");
 }
 
+if (adminNavForRole("admin").settings !== null) {
+  throw new Error("Settings must not appear in Admin navigation.");
+}
+if (!adminNavForRole("superadmin").settings) {
+  throw new Error("Settings must be visible in Superadmin navigation.");
+}
+if (!isAdminNavItemActive("/admin/products/abc", ADMIN_NAV_PRIMARY[2])) {
+  throw new Error("Nested product routes must keep Products active.");
+}
+if (isAdminNavItemActive("/admin/orders/abc", ADMIN_NAV_PRIMARY[1]) === false) {
+  throw new Error("Nested order routes must keep Orders active.");
+}
+if (isAdminNavItemActive("/admin/orders", { href: routes.admin, exact: true, label: "Home" })) {
+  throw new Error("Home must be exact /admin only.");
+}
+if (!isAdminNavItemActive("/admin", { href: routes.admin, exact: true, label: "Home" })) {
+  throw new Error("Home must be active on /admin.");
+}
+
 const rootLayout = read("src/app/layout.tsx");
 if (rootLayout.includes("SiteChrome")) {
   throw new Error("Root layout must not include SiteChrome.");
@@ -81,8 +114,11 @@ if (!storefrontLayout.includes("SiteChrome")) {
   throw new Error("Storefront layout must own SiteChrome.");
 }
 const adminLayout = read("src/app/admin/layout.tsx");
-if (adminLayout.includes("SiteChrome") || adminLayout.includes("AdminShell")) {
-  throw new Error("Admin layout must not include SiteChrome or AdminShell.");
+if (adminLayout.includes("SiteChrome")) {
+  throw new Error("Admin layout must not include SiteChrome.");
+}
+if (!adminLayout.includes("AdminShell") || !adminLayout.includes("AdminAuthFrame")) {
+  throw new Error("Admin layout must switch AuthFrame and AdminShell from the gate.");
 }
 const adminNotFound = read("src/app/admin/not-found.tsx");
 if (adminNotFound.includes("SiteChrome") || adminNotFound.includes("routes.shop")) {
@@ -97,8 +133,11 @@ if (!adminLayout.includes("privatePathMetadata")) {
 }
 
 const adminPage = read("src/app/admin/page.tsx");
-if (adminPage.includes("AdminShell") || adminPage.includes("MetricCard")) {
-  throw new Error("Admin home must not implement AdminShell or dashboard widgets.");
+if (adminPage.includes("MetricCard") || adminPage.includes("AdminFoundation")) {
+  throw new Error("Admin home must not implement dashboard widgets.");
+}
+if (!adminPage.includes("AdminPageHeader") || !adminPage.includes("ADMIN_HOME_BODY")) {
+  throw new Error("Admin home must use the page header foundation.");
 }
 
 const settingsPage = read("src/app/admin/settings/page.tsx");
@@ -121,6 +160,47 @@ if (adminActions.includes("createSupabaseAdminClient")) {
 }
 if (!adminActions.includes("signOut()") || !adminActions.includes("ADMIN_FORBIDDEN")) {
   throw new Error("Non-staff sign-in must sign out and deny Admin.");
+}
+
+const shell = read("src/components/admin/AdminShell.tsx");
+if (!shell.includes("AdminSidebar") || !shell.includes("AdminTopbar") || !shell.includes("AdminMobileDrawer")) {
+  throw new Error("AdminShell must compose sidebar, topbar, and mobile drawer.");
+}
+if (shell.includes("SiteChrome") || shell.includes("SiteHeader")) {
+  throw new Error("AdminShell must not import storefront chrome.");
+}
+
+const drawer = read("src/components/admin/AdminMobileDrawer.tsx");
+if (!drawer.includes("Drawer") || !drawer.includes("ADMIN_CLOSE_MENU")) {
+  throw new Error("Mobile Admin navigation must use the accessible Drawer.");
+}
+
+const header = read("src/components/admin/AdminPageHeader.tsx");
+if (!header.includes("action") || !header.includes("title")) {
+  throw new Error("AdminPageHeader must support title and an optional action.");
+}
+
+for (const file of [
+  "src/app/admin/orders/page.tsx",
+  "src/app/admin/orders/[id]/page.tsx",
+  "src/app/admin/products/page.tsx",
+  "src/app/admin/products/new/page.tsx",
+  "src/app/admin/products/[id]/page.tsx",
+  "src/app/admin/collections/page.tsx",
+  "src/app/admin/collections/[id]/page.tsx",
+  "src/app/admin/customers/page.tsx",
+  "src/app/admin/customers/[id]/page.tsx",
+  "src/app/admin/analytics/page.tsx",
+]) {
+  const source = read(file);
+  if (!source.includes("AdminPlaceholderPage") || source.includes("MetricCard")) {
+    throw new Error(`${file} must be a shell placeholder, not a module.`);
+  }
+}
+
+const productsPage = read("src/app/admin/products/page.tsx");
+if (productsPage.includes("Add product") || productsPage.includes("ADD PRODUCT")) {
+  throw new Error("Products placeholder must not ship the Add Product action yet.");
 }
 
 const proxy = read("src/proxy.ts");
