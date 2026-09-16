@@ -12,7 +12,10 @@ import {
   adminProductListQueryString,
   adminProductSlugFromName,
   formatGbpMajorInput,
+  groupVariantsByColour,
   isProductSlug,
+  nextUniqueProductSlug,
+  parseAdminFit,
   parseAdminProductListQuery,
   parseAdminProductSaveInput,
   parseGbpMajorInput,
@@ -96,8 +99,17 @@ if (sanitizeAdminProductSearch('sku","()\\%_*') !== "sku") {
 if (!isProductSlug("frame-01") || isProductSlug("Frame 01") || isProductSlug("-frame-")) {
   throw new Error("Product slugs must be lowercase URL-safe hyphenated tokens.");
 }
-if (adminProductSlugFromName("Frame 01") !== "frame-01") {
+if (adminProductSlugFromName("Cartier CT0287") !== "cartier-ct0287") {
   throw new Error("Slug-from-name must follow the existing taxonomy slugifier.");
+}
+if (nextUniqueProductSlug("frame-01", new Set(["frame-01"])) !== "frame-01-2") {
+  throw new Error("Slug collisions must suffix rather than reuse an existing slug.");
+}
+if (parseAdminFit("medium") !== "Medium" || parseAdminFit("unknown") !== "") {
+  throw new Error("Fit must be optional Small/Medium/Large, never invented.");
+}
+if (groupVariantsByColour([{ colourName: "Black" }, { colourName: "Black" }, { colourName: "Tortoise" }]).length !== 2) {
+  throw new Error("Colour grouping must keep sizes under their colour.");
 }
 
 const price = parseGbpMajorInput("99.99");
@@ -233,9 +245,52 @@ if (publishEmpty.ok || publishEmpty.errors?.variants == null) {
   throw new Error("Publishing must require at least one complete available variant.");
 }
 
-const badSlug = parseAdminProductSaveInput(saveForm({ intent: "save", name: "Frame", slug: "Frame 01" }));
-if (badSlug.ok || badSlug.errors?.slug == null) {
-  throw new Error("Unsafe slugs must be rejected.");
+const ignoredSlug = parseAdminProductSaveInput(saveForm({ intent: "save", name: "Cartier CT0287", slug: "manual-slug" }));
+if (!ignoredSlug.ok || ignoredSlug.value.slug !== "cartier-ct0287") {
+  throw new Error("Submitted slugs must be ignored; slugs are generated from the product name.");
+}
+
+const nameless = parseAdminProductSaveInput(saveForm({ intent: "save", name: "!!!" }));
+if (nameless.ok || nameless.errors?.name == null) {
+  throw new Error("Names that cannot generate a URL must be rejected.");
+}
+
+const noStatus = parseAdminProductSaveInput(
+  saveForm({
+    intent: "save",
+    name: "Frame 01",
+    variantCount: "1",
+    variant_0_colourName: "Black",
+    variant_0_sizeName: "52 mm",
+    variant_0_sku: "FRAME-01-BLACK-52",
+    variant_0_price: "49",
+    variant_0_stock: "0",
+  }),
+);
+if (!noStatus.ok || noStatus.value.variants[0]?.status !== "available") {
+  throw new Error("Variant availability must be derived, not required from the merchant.");
+}
+
+const withMeasurements = parseAdminProductSaveInput(
+  saveForm({
+    intent: "save",
+    name: "Frame 01",
+    lensWidthMm: "52",
+    bridgeWidthMm: "18",
+    templeLengthMm: "145",
+    variantCount: "1",
+    variant_0_colourName: "Black",
+    variant_0_sku: "FRAME-01-BLACK",
+    variant_0_price: "49",
+    variant_0_stock: "2",
+  }),
+);
+if (
+  !withMeasurements.ok ||
+  withMeasurements.value.variants[0]?.lensWidthMm !== 52 ||
+  withMeasurements.value.fit !== ""
+) {
+  throw new Error("Frame measurements must apply to variants and fit must stay optional.");
 }
 
 const archiveWithoutFields = parseAdminProductSaveInput(
@@ -279,10 +334,10 @@ if (PRODUCT_IMAGES_BUCKET !== "product-images") {
 if (
   ADMIN_PRODUCTS_EMPTY_TITLE !== "No products yet" ||
   ADMIN_PRODUCTS_EMPTY_FILTER_TITLE !== "No products found" ||
-  ADMIN_PRODUCT_VARIANTS_EMPTY_TITLE !== "No variants" ||
+  ADMIN_PRODUCT_VARIANTS_EMPTY_TITLE !== "No sizes" ||
   ADMIN_PRODUCT_IMAGES_EMPTY_TITLE !== "No product images" ||
   ADMIN_PRODUCT_NOT_FOUND_TITLE !== "Product not found" ||
-  ADMIN_PRODUCT_SAVE_FAILED_TITLE !== "Couldn’t save product" ||
+  ADMIN_PRODUCT_SAVE_FAILED_TITLE !== "Couldn’t save changes" ||
   ADMIN_PRODUCT_UPLOAD_FAILED !== "Image upload failed"
 ) {
   throw new Error("Products empty/error copy must stay operational and honest.");
@@ -301,8 +356,11 @@ if (!service.includes(".range(") || !service.includes("ADMIN_PRODUCTS_PAGE_SIZE"
 if (!service.includes("canArchiveProduct") || !service.includes("canDeleteProduct")) {
   throw new Error("Archive and delete must use the PR #26 role helpers.");
 }
-if (!service.includes("order_items") || !service.includes("cart_items")) {
-  throw new Error("Permanent delete must refuse products referenced by orders or carts.");
+if (!service.includes("allocateUniqueProductSlug") || !service.includes("published_at")) {
+  throw new Error("Product save must generate unique slugs and keep published_at.");
+}
+if (/slug:\s*input\.payload\.slug/.test(service)) {
+  throw new Error("Existing product slugs must not be overwritten from the form.");
 }
 if (service.includes(".channel(") || service.includes("realtime")) {
   throw new Error("Admin Products must not open realtime subscriptions.");
@@ -345,6 +403,27 @@ if (!editor.includes("canArchiveProduct") || !editor.includes("canDeleteProduct"
 }
 if (!editor.includes("ADMIN_PRODUCT_UNSAVED") || !editor.includes("beforeunload")) {
   throw new Error("Editor must warn before discarding unsaved changes.");
+}
+if (!editor.includes("ADMIN_PRODUCT_LEAVE") || !editor.includes("ADMIN_PRODUCT_KEEP_EDITING")) {
+  throw new Error("Unsaved changes must offer leave or keep editing.");
+}
+if (!editor.includes("ADMIN_PRODUCT_COLOUR_ADD") || !editor.includes("ADMIN_PRODUCT_SIZE_ADD")) {
+  throw new Error("Product editor must use a colour-first size workflow.");
+}
+if (!editor.includes("ADMIN_PRODUCT_SAVING") || !editor.includes("ADMIN_PRODUCT_SAVED_JUST_NOW")) {
+  throw new Error("Save lifecycle must show saving and saved states.");
+}
+if (!editor.includes("ADMIN_PRODUCT_MEASUREMENTS") || !editor.includes("ADMIN_FIT_VALUES")) {
+  throw new Error("Fit must expose optional classification and numerical measurements.");
+}
+if (editor.includes("name=\"slug\"") || editor.includes("ADMIN_PRODUCT_GENERATE") || editor.includes("variantCombinations")) {
+  throw new Error("Slug must not be editable and the variant matrix generator must be removed.");
+}
+if (editor.includes("ADMIN_PRODUCT_VARIANT_STATUS") || editor.includes("VARIANT_STATUSES")) {
+  throw new Error("Manual variant availability controls must not be shown.");
+}
+if (!editor.includes("ADMIN_PRODUCT_PLACEMENT")) {
+  throw new Error("Product editor must show storefront placement.");
 }
 
 const images = read("src/components/admin/AdminProductImages.tsx");

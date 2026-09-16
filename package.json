@@ -22,7 +22,8 @@
     "verify:discovery": "npm run verify:run -- scripts/verify-discovery.ts",
     "verify:admin-orders": "npm run verify:run -- scripts/verify-admin-orders.ts",
     "verify:admin-products": "npm run verify:run -- scripts/verify-admin-products.ts",
-    "verify:admin": "npm run verify:run -- scripts/verify-admin-foundation.ts && npm run verify:run -- scripts/verify-admin-dashboard.ts && npm run verify:admin-orders && npm run verify:admin-products",
+    "verify:admin-merchandising": "npm run verify:run -- scripts/verify-admin-merchandising.ts",
+    "verify:admin": "npm run verify:run -- scripts/verify-admin-foundation.ts && npm run verify:run -- scripts/verify-admin-dashboard.ts && npm run verify:admin-orders && npm run verify:admin-products && npm run verify:admin-merchandising",
     "verify:completion": "npm run verify:run -- scripts/verify-storefront-completion.ts"
   },
   "dependencies": {

@@ -1,0 +1,52 @@
+.rail {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.controls {
+  display: none;
+  justify-content: flex-end;
+  gap: var(--space-12);
+}
+
+.track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(70%, 16rem);
+  gap: var(--space-16);
+  margin: 0;
+  padding: 0 0 var(--space-8);
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.item {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .controls {
+    display: flex;
+  }
+
+  .track {
+    grid-auto-columns: minmax(38%, 18rem);
+    gap: var(--space-24);
+  }
+}
+
+@media (min-width: 1200px) {
+  .track {
+    grid-auto-columns: minmax(22%, 20rem);
+    gap: var(--space-32);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    scroll-behavior: auto;
+  }
+}

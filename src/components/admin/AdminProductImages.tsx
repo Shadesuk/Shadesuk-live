@@ -36,18 +36,25 @@ export function AdminProductImages({
   productId,
   images,
   variants,
+  colourName,
+  heading,
 }: {
   productId: string | null;
   images: AdminProductImageView[];
   variants: AdminProductVariantView[];
+  colourName?: string;
+  heading?: string;
 }) {
   const [state, action, pending] = useActionState(uploadAdminProductImageAction, idle);
+  const colourVariantId = variants[0]?.id ?? "";
+  const title = heading ?? ADMIN_PRODUCT_IMAGES;
+  const headingId = colourName ? `product-images-${colourName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : "product-images-heading";
   return (
-    <section className={styles.section} aria-labelledby="product-images-heading">
-      <h2 id="product-images-heading" className={styles.sectionTitle}>
-        {ADMIN_PRODUCT_IMAGES}
+    <section className={styles.section} aria-labelledby={headingId}>
+      <h2 id={headingId} className={styles.sectionTitle}>
+        {title}
       </h2>
-      {!productId ? (
+      {!productId || (colourName && !colourVariantId) ? (
         <p className={`text-small ${styles.quietBody}`}>{ADMIN_PRODUCT_IMAGES_SAVE_FIRST}</p>
       ) : (
         <>
@@ -58,12 +65,14 @@ export function AdminProductImages({
             </div>
           ) : (
             <>
-              <input
-                type="hidden"
-                name="imageOrder"
-                form="admin-product-form"
-                value={images.map((image) => image.id).join(",")}
-              />
+              {colourName ? null : (
+                <input
+                  type="hidden"
+                  name="imageOrder"
+                  form="admin-product-form"
+                  value={images.map((image) => image.id).join(",")}
+                />
+              )}
               <ul className={styles.images}>
                 {images.map((image, index) => (
                   <li key={image.id} className={styles.imageCard}>
@@ -89,20 +98,26 @@ export function AdminProductImages({
                       form="admin-product-form"
                       autoComplete="off"
                     />
-                    <FieldSelect
-                      id={`image-variant-${image.id}`}
-                      name={`imageVariant:${image.id}`}
-                      label={ADMIN_PRODUCT_IMAGE_VARIANT}
-                      defaultValue={image.variantId ?? ""}
-                      form="admin-product-form"
-                    >
-                      <option value="">{ADMIN_PRODUCT_IMAGE_NONE}</option>
-                      {variants.map((variant) => (
-                        <option key={variant.id} value={variant.id}>
-                          {[variant.colourName, variant.sizeName].filter(Boolean).join(" · ")}
-                        </option>
-                      ))}
-                    </FieldSelect>
+                    {colourName ? (
+                      colourVariantId ? (
+                        <input type="hidden" name={`imageVariant:${image.id}`} form="admin-product-form" value={colourVariantId} />
+                      ) : null
+                    ) : (
+                      <FieldSelect
+                        id={`image-variant-${image.id}`}
+                        name={`imageVariant:${image.id}`}
+                        label={ADMIN_PRODUCT_IMAGE_VARIANT}
+                        defaultValue={image.variantId ?? ""}
+                        form="admin-product-form"
+                      >
+                        <option value="">{ADMIN_PRODUCT_IMAGE_NONE}</option>
+                        {variants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {[variant.colourName, variant.sizeName].filter(Boolean).join(" · ")}
+                          </option>
+                        ))}
+                      </FieldSelect>
+                    )}
                     <div className={styles.imageActions}>
                       {index > 0 ? (
                         <form action={moveAdminProductImageAction}>
@@ -147,19 +162,23 @@ export function AdminProductImages({
               label={ADMIN_PRODUCT_IMAGE_FILE}
             />
             <Field id="product-image-alt" name="altText" label={ADMIN_PRODUCT_IMAGE_ALT} autoComplete="off" />
-            <FieldSelect
-              id="product-image-variant"
-              name="variantId"
-              label={ADMIN_PRODUCT_IMAGE_VARIANT}
-              defaultValue=""
-            >
-              <option value="">{ADMIN_PRODUCT_IMAGE_NONE}</option>
-              {variants.map((variant) => (
-                <option key={variant.id} value={variant.id}>
-                  {[variant.colourName, variant.sizeName].filter(Boolean).join(" · ")}
-                </option>
-              ))}
-            </FieldSelect>
+            {colourName ? (
+              colourVariantId ? <input type="hidden" name="variantId" value={colourVariantId} /> : null
+            ) : (
+              <FieldSelect
+                id="product-image-variant"
+                name="variantId"
+                label={ADMIN_PRODUCT_IMAGE_VARIANT}
+                defaultValue=""
+              >
+                <option value="">{ADMIN_PRODUCT_IMAGE_NONE}</option>
+                {variants.map((variant) => (
+                  <option key={variant.id} value={variant.id}>
+                    {[variant.colourName, variant.sizeName].filter(Boolean).join(" · ")}
+                  </option>
+                ))}
+              </FieldSelect>
+            )}
             {state.status === "invalid" || state.status === "error" ? (
               <p className={`text-small ${styles.banner}`} role="alert">
                 {ADMIN_PRODUCT_UPLOAD_FAILED}. {state.errors?.images || state.message}

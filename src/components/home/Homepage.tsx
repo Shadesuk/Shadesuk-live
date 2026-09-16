@@ -48,7 +48,7 @@ export function Homepage({
             id="featured-heading"
             title="The shades people are wearing"
             products={featured}
-            mobileCount={2}
+            layout="rail"
             imagePriorityCount={2}
             action={
               <ButtonLink href={routes.shop} variant="tertiary">
@@ -72,7 +72,6 @@ export function Homepage({
                 </ButtonLink>
               }
             />
-            {storyProduct ? <ProductStory product={storyProduct} /> : null}
             <ShapeDiscovery shapes={shapes} />
             <ProductSection
               id="new-arrivals-heading"
@@ -88,6 +87,7 @@ export function Homepage({
           </>
         )}
         <TrustSection />
+        {catalogueUnavailable || !storyProduct ? null : <ProductStory product={storyProduct} />}
         <FinalCta />
       </main>
     </PageContainer>

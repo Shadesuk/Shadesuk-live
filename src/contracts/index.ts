@@ -6,6 +6,7 @@ export {
   LEGACY_NON_V1_ADMIN_ROLES,
   adminRoleLabel,
   canAccessAdmin,
+  canAccessMerchandising,
   canAccessSettings,
   canArchiveProduct,
   canAssignAdminRole,
@@ -92,6 +93,7 @@ export {
   adminCatalogueStatusLabel,
   adminProductListQueryString,
   adminProductSlugFromName,
+  nextUniqueProductSlug,
   availabilityFromVariants,
   formatGbpMajorInput,
   isProductSlug,
@@ -124,7 +126,7 @@ export { mapProductAggregateToStorefront } from "./catalogue/map-product";
 export type { MapProductOptions, MappedStorefrontProduct, PdpCatalogueFields } from "./catalogue/map-product";
 export { deriveBrandSource, deriveBrandsFromProducts } from "./catalogue/brand";
 export { deriveColours, selectableColourCount } from "./catalogue/colour";
-export { merchandisingFromCollectionSlugs, MERCHANDISING_COLLECTION_SLUGS } from "./catalogue/merchandising";
+export { merchandisingFromCollectionSlugs, merchandisingFlagsFromState, isNewArrivalFromPublishedAt, newArrivalDaysRemaining, MERCHANDISING_COLLECTION_SLUGS, NEW_ARRIVAL_WINDOW_MS, HOMEPAGE_MERCHANDISING_ID } from "./catalogue/merchandising";
 export { parseGenderTokens, parseShapeTokens } from "./catalogue/taxonomy";
 export { productAvailabilityFromVariants } from "./catalogue/availability";
 export { toCatalogueImageDto, toStorefrontImages } from "./catalogue/image";

@@ -256,7 +256,13 @@ export function applyFilters(
 export function applySort(products: Product[], sort: SortId): Product[] {
   const next = [...products];
   if (sort === "newest") {
-    return next.sort((a, b) => Number(b.isNewArrival) - Number(a.isNewArrival));
+    return next.sort((a, b) => {
+      const published = Date.parse(b.publishedAt ?? "") - Date.parse(a.publishedAt ?? "");
+      if (Number.isFinite(published) && published !== 0) {
+        return published;
+      }
+      return Number(b.isNewArrival) - Number(a.isNewArrival);
+    });
   }
   if (sort === "best-selling") {
     return next.sort((a, b) => Number(b.isBestSeller) - Number(a.isBestSeller));

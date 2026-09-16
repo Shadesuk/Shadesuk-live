@@ -17,6 +17,9 @@ export const ADMIN_PRODUCT_TEXT_MAX = 120;
 export const ADMIN_PRODUCT_LONG_TEXT_MAX = 4000;
 export const ADMIN_PRODUCT_SKU_MAX = 64;
 export const ADMIN_DEFAULT_DISCLOSURE = "High-quality 1:1 Superclone";
+export const ADMIN_FIT_VALUES = ["Small", "Medium", "Large"] as const;
+export type AdminFitValue = (typeof ADMIN_FIT_VALUES)[number];
+export const ADMIN_FIT_UNSPECIFIED = "";
 
 export const ADMIN_PRODUCT_LIST_STATUSES = ["all", ...CATALOGUE_STATUSES] as const;
 export type AdminProductListStatus = (typeof ADMIN_PRODUCT_LIST_STATUSES)[number];
@@ -114,6 +117,17 @@ export type AdminProductVariantView = {
   templeLengthMm: number | null;
 };
 
+export type AdminProductPlacementView = {
+  status: CatalogueStatus;
+  collectionNames: string[];
+  featured: boolean;
+  bestSeller: boolean;
+  flagship: boolean;
+  newArrival: boolean;
+  newArrivalDaysRemaining: number | null;
+  publishedAt: string | null;
+};
+
 export type AdminProductDetailView = {
   id: string;
   slug: string;
@@ -125,13 +139,18 @@ export type AdminProductDetailView = {
   genders: Gender[];
   shapes: Shape[];
   fit: string;
+  lensWidthMm: number | null;
+  bridgeWidthMm: number | null;
+  templeLengthMm: number | null;
   disclosure: string;
   status: CatalogueStatus;
+  publishedAt: string | null;
   updatedAt: string;
   variants: AdminProductVariantView[];
   images: AdminProductImageView[];
   collectionIds: string[];
   collections: AdminProductCollectionOption[];
+  placement: AdminProductPlacementView;
 };
 
 export type AdminProductVariantInput = {
@@ -160,6 +179,9 @@ export type AdminProductSaveInput = {
   genders: Gender[];
   shapes: Shape[];
   fit: string;
+  lensWidthMm: number | null;
+  bridgeWidthMm: number | null;
+  templeLengthMm: number | null;
   disclosure: string;
   variants: AdminProductVariantInput[];
   collectionIds: string[];
@@ -178,6 +200,7 @@ export type AdminProductField =
   | "gender"
   | "shape"
   | "fit"
+  | "measurements"
   | "disclosure"
   | "variants"
   | "price"
@@ -265,6 +288,61 @@ export function adminProductSlugFromName(name: string): string {
 
 export function isProductSlug(value: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+}
+
+export function nextUniqueProductSlug(
+  base: string,
+  taken: ReadonlySet<string>,
+): string | null {
+  if (!isProductSlug(base)) {
+    return null;
+  }
+  if (!taken.has(base)) {
+    return base;
+  }
+  for (let index = 2; index <= 99; index += 1) {
+    const candidate = `${base}-${index}`;
+    if (isProductSlug(candidate) && !taken.has(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+export function parseAdminFit(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const match = ADMIN_FIT_VALUES.find(
+    (option) => option.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return match ?? "";
+}
+
+export function groupVariantsByColour<T extends { colourName: string }>(
+  variants: T[],
+): Array<{ colourName: string; variants: T[] }> {
+  const groups: Array<{ colourName: string; variants: T[] }> = [];
+  const indexByKey = new Map<string, number>();
+  for (const variant of variants) {
+    const colourName = variant.colourName.trim();
+    if (!colourName) {
+      continue;
+    }
+    const key = colourName.toLowerCase();
+    const existing = indexByKey.get(key);
+    if (existing != null) {
+      groups[existing]?.variants.push(variant);
+      continue;
+    }
+    indexByKey.set(key, groups.length);
+    groups.push({ colourName, variants: [variant] });
+  }
+  return groups;
 }
 
 export function suggestedVariantSku(
@@ -386,13 +464,15 @@ export function parseAdminProductSaveInput(form: FormData): {
     };
   }
   const name = readOptionalText(form.get("name"), ADMIN_PRODUCT_TEXT_MAX);
-  const slugRaw = readOptionalText(form.get("slug"), ADMIN_PRODUCT_TEXT_MAX).toLowerCase();
-  const slug = slugRaw || adminProductSlugFromName(name);
+  const slug = adminProductSlugFromName(name);
   const brand = readOptionalText(form.get("brand"), ADMIN_PRODUCT_TEXT_MAX);
   const description = readOptionalText(form.get("description"), ADMIN_PRODUCT_LONG_TEXT_MAX);
   const materials = readOptionalText(form.get("materials"), ADMIN_PRODUCT_LONG_TEXT_MAX);
   const whatsIncluded = readOptionalText(form.get("whatsIncluded"), ADMIN_PRODUCT_LONG_TEXT_MAX);
-  const fit = readOptionalText(form.get("fit"), ADMIN_PRODUCT_TEXT_MAX);
+  const fit = parseAdminFit(form.get("fit"));
+  const lensWidthMm = parseOptionalMm(form.get("lensWidthMm"));
+  const bridgeWidthMm = parseOptionalMm(form.get("bridgeWidthMm"));
+  const templeLengthMm = parseOptionalMm(form.get("templeLengthMm"));
   const disclosure =
     readOptionalText(form.get("disclosure"), ADMIN_PRODUCT_TEXT_MAX) || ADMIN_DEFAULT_DISCLOSURE;
   const genders = parseProductGenders(form.getAll("gender"));
@@ -403,22 +483,33 @@ export function parseAdminProductSaveInput(form: FormData): {
     errors.name = "Enter a product name.";
   }
   if (!slug || !isProductSlug(slug)) {
-    errors.slug = "Enter a lowercase URL-safe slug.";
+    errors.name = errors.name || "Enter a product name so a URL can be generated.";
   }
   if (!disclosure) {
     errors.disclosure = "Enter a disclosure.";
   }
+  if (form.get("lensWidthMm") && lensWidthMm == null) {
+    errors.measurements = "Enter frame measurements as whole millimetres, or leave them blank.";
+  }
+  if (form.get("bridgeWidthMm") && bridgeWidthMm == null) {
+    errors.measurements = "Enter frame measurements as whole millimetres, or leave them blank.";
+  }
+  if (form.get("templeLengthMm") && templeLengthMm == null) {
+    errors.measurements = "Enter frame measurements as whole millimetres, or leave them blank.";
+  }
 
-  const variants = parseVariantInputs(form, errors);
+  const variants = parseVariantInputs(form, errors, {
+    lensWidthMm,
+    bridgeWidthMm,
+    templeLengthMm,
+  });
   if (intent === "publish" && variants.length === 0) {
-    errors.variants = "Add at least one variant before publishing.";
+    errors.variants = "Add at least one colour with a size before publishing.";
   }
   if (intent === "publish") {
-    const publishable = variants.some(
-      (variant) => variant.status === "available" && variant.sku && variant.colourName,
-    );
+    const publishable = variants.some((variant) => variant.sku && variant.colourName);
     if (!publishable) {
-      errors.variants = "Publish needs at least one available variant with a colour and SKU.";
+      errors.variants = "Publish needs at least one colour with a SKU.";
     }
   }
 
@@ -441,6 +532,9 @@ export function parseAdminProductSaveInput(form: FormData): {
       genders,
       shapes,
       fit,
+      lensWidthMm,
+      bridgeWidthMm,
+      templeLengthMm,
       disclosure,
       variants,
       collectionIds: form
@@ -501,6 +595,9 @@ function emptyProductSave(id: string): AdminProductSaveInput {
     genders: [],
     shapes: [],
     fit: "",
+    lensWidthMm: null,
+    bridgeWidthMm: null,
+    templeLengthMm: null,
     disclosure: ADMIN_DEFAULT_DISCLOSURE,
     variants: [],
     collectionIds: [],
@@ -525,6 +622,11 @@ function parseIntent(value: unknown): AdminProductIntent {
 function parseVariantInputs(
   form: FormData,
   errors: Partial<Record<AdminProductField, string>>,
+  measurements: {
+    lensWidthMm: number | null;
+    bridgeWidthMm: number | null;
+    templeLengthMm: number | null;
+  },
 ): AdminProductVariantInput[] {
   const count = Number.parseInt(String(form.get("variantCount") ?? "0"), 10);
   const total = Number.isInteger(count) && count > 0 ? Math.min(count, 80) : 0;
@@ -540,18 +642,18 @@ function parseVariantInputs(
     const stockRaw = Number.parseInt(String(form.get(`${prefix}stock`) ?? "0"), 10);
     const price = parseGbpMajorInput(form.get(`${prefix}price`));
     const compare = parseOptionalGbpMajorInput(form.get(`${prefix}compareAt`));
-    const lens = parseOptionalMm(form.get(`${prefix}lens`));
-    const bridge = parseOptionalMm(form.get(`${prefix}bridge`));
-    const temple = parseOptionalMm(form.get(`${prefix}temple`));
+    const lens = parseOptionalMm(form.get(`${prefix}lens`)) ?? measurements.lensWidthMm;
+    const bridge = parseOptionalMm(form.get(`${prefix}bridge`)) ?? measurements.bridgeWidthMm;
+    const temple = parseOptionalMm(form.get(`${prefix}temple`)) ?? measurements.templeLengthMm;
     if (!colourName && !sku && !price.ok) {
       continue;
     }
     if (!colourName) {
-      errors.variants = "Each variant needs a colour.";
+      errors.variants = "Each colour needs a name.";
       continue;
     }
     if (!sku) {
-      errors.sku = "Each variant needs a SKU.";
+      errors.sku = "Each size needs a SKU.";
       continue;
     }
     if (!price.ok) {
@@ -566,16 +668,10 @@ function parseVariantInputs(
       errors.sale = "Sale price must not exceed the regular price.";
       continue;
     }
-    if (!isVariantStatus(statusRaw)) {
-      errors.variants = "Choose a valid variant status.";
-      continue;
-    }
+    const status = isVariantStatus(statusRaw) ? statusRaw : "available";
     if (!Number.isInteger(stockRaw) || stockRaw < 0) {
       errors.variants = "Stock must be a whole number of 0 or more.";
       continue;
-    }
-    if (statusRaw === "available" && stockRaw === 0) {
-      // Allowed: available + 0 stock is out_of_stock, not purchasable.
     }
     const key = `${colourName.toLowerCase()}::${(sizeName ?? "").toLowerCase()}`;
     if (seen.has(key)) {
@@ -597,7 +693,7 @@ function parseVariantInputs(
       priceMinor: price.minor,
       compareAtMinor: compare.minor,
       stockQuantity: stockRaw,
-      status: statusRaw,
+      status,
       lensWidthMm: lens,
       bridgeWidthMm: bridge,
       templeLengthMm: temple,

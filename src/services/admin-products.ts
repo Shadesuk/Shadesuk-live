@@ -4,17 +4,23 @@ import {
   ADMIN_PRODUCTS_PAGE_SIZE,
   availabilityFromVariants,
   encodeTaxonomy,
+  nextUniqueProductSlug,
+  parseAdminFit,
   parseProductGenders,
   parseProductShapes,
+  adminProductSlugFromName,
+  isProductSlug,
   type AdminProductCollectionOption,
   type AdminProductDetailView,
   type AdminProductImageView,
   type AdminProductListItem,
   type AdminProductListQuery,
+  type AdminProductPlacementView,
   type AdminProductSaveInput,
   type AdminProductVariantInput,
   type AdminProductVariantView,
 } from "@/contracts/admin/products";
+import { newArrivalDaysRemaining, isNewArrivalFromPublishedAt } from "@/contracts/catalogue/merchandising";
 import { pickCardPriceVariant } from "@/contracts/catalogue/map-product";
 import { cataloguePublicImageUrl } from "@/contracts/catalogue/image";
 import {
@@ -34,7 +40,7 @@ import { PRODUCT_IMAGES_BUCKET } from "@/contracts/catalogue/image";
 const PRODUCT_LIST_COLUMNS =
   "id, slug, name, brand, status, updated_at, created_at";
 const PRODUCT_DETAIL_COLUMNS =
-  "id, slug, name, brand, description, materials, whats_included, shape, gender, fit, disclosure, status, created_at, updated_at";
+  "id, slug, name, brand, description, materials, whats_included, shape, gender, fit, disclosure, status, published_at, created_at, updated_at";
 const VARIANT_COLUMNS =
   "id, product_id, sku, colour_name, size_name, price_minor, compare_at_price_minor, currency, lens_width_mm, bridge_width_mm, temple_length_mm, stock_quantity, status, created_at, updated_at";
 const IMAGE_COLUMNS =
@@ -262,6 +268,17 @@ export async function loadAdminProductDetail(
     if (typeof product.name !== "string" || typeof product.slug !== "string") {
       return { status: "error" };
     }
+    const measurements = sharedVariantMeasurements(variantViews);
+    const publishedAt =
+      typeof product.published_at === "string" ? product.published_at : null;
+    const placement = await loadProductPlacement({
+      productId: id,
+      status: product.status as CatalogueStatus,
+      publishedAt,
+      collectionNames: collectionOptions
+        .filter((collection) => collectionIds.includes(collection.id))
+        .map((collection) => collection.name),
+    });
     return {
       status: "ok",
       data: {
@@ -274,14 +291,19 @@ export async function loadAdminProductDetail(
         whatsIncluded: typeof product.whats_included === "string" ? product.whats_included : "",
         genders: parseProductGenders(typeof product.gender === "string" ? product.gender : ""),
         shapes: parseProductShapes(typeof product.shape === "string" ? product.shape : ""),
-        fit: typeof product.fit === "string" ? product.fit : "",
+        fit: parseAdminFit(typeof product.fit === "string" ? product.fit : ""),
+        lensWidthMm: measurements.lensWidthMm,
+        bridgeWidthMm: measurements.bridgeWidthMm,
+        templeLengthMm: measurements.templeLengthMm,
         disclosure: typeof product.disclosure === "string" ? product.disclosure : "",
         status: product.status as CatalogueStatus,
+        publishedAt,
         updatedAt: typeof product.updated_at === "string" ? product.updated_at : "",
         variants: variantViews,
         images: imageViews,
         collectionIds,
         collections: collectionOptions,
+        placement,
       },
     };
   } catch {
@@ -309,7 +331,6 @@ export async function saveAdminProduct(input: {
     const nextStatus = nextCatalogueStatus(input.intent);
     const productFields = {
       name: input.payload.name,
-      slug: input.payload.slug,
       brand: input.payload.brand || null,
       description: input.payload.description || null,
       materials: input.payload.materials || null,
@@ -322,10 +343,20 @@ export async function saveAdminProduct(input: {
     };
 
     if (!input.payload.id) {
+      const slug = await allocateUniqueProductSlug(input.payload.name);
+      if (!slug) {
+        return {
+          status: "invalid",
+          errors: {
+            name: "Couldn't generate a unique product URL from this name. Change the name and try again.",
+          },
+        };
+      }
       const created = await supabase
         .from("products")
         .insert({
           ...productFields,
+          slug,
           status: nextStatus === "published" ? "published" : "draft",
         })
         .select("id")
@@ -350,7 +381,7 @@ export async function saveAdminProduct(input: {
     }
     const current = await supabase
       .from("products")
-      .select("id, status, updated_at, slug")
+      .select("id, status, updated_at, slug, published_at")
       .eq("id", input.payload.id)
       .maybeSingle();
     if (current.error) {
@@ -875,6 +906,91 @@ function nextCatalogueStatus(
   return null;
 }
 
+async function allocateUniqueProductSlug(name: string): Promise<string | null> {
+  const base = adminProductSlugFromName(name);
+  if (!base || !isProductSlug(base)) {
+    return null;
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("slug")
+    .or(`slug.eq."${base}",slug.like."${base}-%"`)
+    .limit(200);
+  if (error) {
+    return null;
+  }
+  const taken = new Set(
+    (Array.isArray(data) ? data : [])
+      .map((row) => (row && typeof row.slug === "string" ? row.slug : ""))
+      .filter(Boolean),
+  );
+  return nextUniqueProductSlug(base, taken);
+}
+
+async function loadProductPlacement(input: {
+  productId: string;
+  status: CatalogueStatus;
+  publishedAt: string | null;
+  collectionNames: string[];
+}): Promise<AdminProductPlacementView> {
+  const supabase = await createSupabaseServerClient();
+  const [featured, bestSeller, config] = await Promise.all([
+    supabase
+      .from("homepage_featured_products")
+      .select("product_id")
+      .eq("product_id", input.productId)
+      .maybeSingle(),
+    supabase
+      .from("homepage_best_seller_products")
+      .select("product_id")
+      .eq("product_id", input.productId)
+      .maybeSingle(),
+    supabase
+      .from("homepage_merchandising")
+      .select("flagship_product_id")
+      .eq("id", "homepage")
+      .maybeSingle(),
+  ]);
+  const flagshipId =
+    config.data && typeof config.data.flagship_product_id === "string"
+      ? config.data.flagship_product_id
+      : null;
+  return {
+    status: input.status,
+    collectionNames: input.collectionNames,
+    featured: Boolean(featured.data),
+    bestSeller: Boolean(bestSeller.data),
+    flagship: flagshipId === input.productId,
+    newArrival:
+      input.status === "published" && isNewArrivalFromPublishedAt(input.publishedAt),
+    newArrivalDaysRemaining:
+      input.status === "published" ? newArrivalDaysRemaining(input.publishedAt) : null,
+    publishedAt: input.publishedAt,
+  };
+}
+
+function sharedVariantMeasurements(variants: AdminProductVariantView[]): {
+  lensWidthMm: number | null;
+  bridgeWidthMm: number | null;
+  templeLengthMm: number | null;
+} {
+  const source = variants.find(
+    (variant) =>
+      variant.lensWidthMm != null ||
+      variant.bridgeWidthMm != null ||
+      variant.templeLengthMm != null,
+  );
+  if (!source) {
+    return { lensWidthMm: null, bridgeWidthMm: null, templeLengthMm: null };
+  }
+  return {
+    lensWidthMm: source.lensWidthMm,
+    bridgeWidthMm: source.bridgeWidthMm,
+    templeLengthMm: source.templeLengthMm,
+  };
+}
+
 function uniqueOrError(
   error: { code?: string; message?: string } | null,
   field: "slug" | "sku",
@@ -884,7 +1000,10 @@ function uniqueOrError(
     return {
       status: "invalid",
       errors: {
-        [field]: field === "slug" ? "That slug is already used by another product." : "That SKU is already in use.",
+        [field]:
+          field === "slug"
+            ? "Couldn't generate a unique product URL from this name. Change the name and try again."
+            : "That SKU is already in use.",
       },
     };
   }
