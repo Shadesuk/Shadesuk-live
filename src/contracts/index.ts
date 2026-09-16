@@ -19,6 +19,39 @@ export {
 } from "./admin/roles";
 export type { AdminV1Role, DatabaseAdminRole, LegacyNonV1AdminRole } from "./admin/roles";
 
+export {
+  ADMIN_DASHBOARD_TIME_ZONE,
+  ADMIN_ORDER_STATUS_LABELS,
+  ADMIN_PAYMENT_STATUS_LABELS,
+  DASHBOARD_PERIODS,
+  DASHBOARD_PERIOD_LABELS,
+  DEFAULT_DASHBOARD_PERIOD,
+  QUALIFYING_REVENUE_PAYMENT_STATUS,
+  RECENT_ORDERS_LIMIT,
+  adminOrderStatusLabel,
+  adminPaymentStatusLabel,
+  averageOrderValueMinor,
+  buildDashboardKpis,
+  countQualifyingOrders,
+  dashboardPeriodRange,
+  groupSalesByDay,
+  hasSalesActivity,
+  isDashboardPeriod,
+  isOrderStatus,
+  isPaymentStatus,
+  isQualifyingRevenuePayment,
+  isShipmentStatus,
+  parseDashboardPeriod,
+  sumRevenueMinor,
+} from "./admin/dashboard";
+export type {
+  DashboardDateRange,
+  DashboardDayPoint,
+  DashboardKpis,
+  DashboardOrderMetricRow,
+  DashboardPeriod,
+} from "./admin/dashboard";
+
 export type {
   CatalogueStatus,
   CollectionRow,
