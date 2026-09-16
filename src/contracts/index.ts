@@ -1,5 +1,24 @@
 export { majorToMinorGbp, minorToMajorGbp, moneyMinor, STORE_CURRENCY } from "./money";
 
+export {
+  ADMIN_V1_ROLES,
+  AUTHENTICATED_ROLE_ASSIGNMENT_ALLOWED,
+  LEGACY_NON_V1_ADMIN_ROLES,
+  adminRoleLabel,
+  canAccessAdmin,
+  canAccessSettings,
+  canArchiveProduct,
+  canAssignAdminRole,
+  canDeleteProduct,
+  canPublishProduct,
+  canUnpublishProduct,
+  isAdminV1Role,
+  isStaffAdmin,
+  isSuperadmin,
+  toAdminV1Role,
+} from "./admin/roles";
+export type { AdminV1Role, DatabaseAdminRole, LegacyNonV1AdminRole } from "./admin/roles";
+
 export type {
   CatalogueStatus,
   CollectionRow,

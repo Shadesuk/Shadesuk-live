@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { requestPasswordResetAction } from "@/app/account/actions";
+import { requestPasswordResetAction } from "@/app/(storefront)/account/actions";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Field } from "@/components/ui/Field";

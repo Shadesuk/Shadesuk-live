@@ -246,7 +246,7 @@ if (
   throw new Error("Live cart fetches must require published products and available variants.");
 }
 
-const cartActionSource = readFileSync(resolve("src/app/cart/actions.ts"), "utf8");
+const cartActionSource = readFileSync(resolve("src/app/(storefront)/cart/actions.ts"), "utf8");
 if (!cartActionSource.includes("loadCart") || !cartActionSource.includes("cartActionOriginAllowed")) {
   throw new Error("Cart loaders must keep CSRF/origin checks.");
 }

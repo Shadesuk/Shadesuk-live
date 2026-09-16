@@ -48,7 +48,7 @@ for (const [name, actual, expected] of expectedRoutes) {
   if (actual !== expected) {
     throw new Error(`${name} route must stay ${expected}.`);
   }
-  const page = resolve(root, `src/app/(info)${expected}/page.tsx`);
+  const page = resolve(root, `src/app/(storefront)/(info)${expected}/page.tsx`);
   if (!existsSync(page)) {
     throw new Error(`Missing page for ${expected}.`);
   }
@@ -173,7 +173,7 @@ if (!sitemapSource.includes("INFO_PAGES")) {
   throw new Error("XML sitemap must include the legal/help pages.");
 }
 
-const checkoutPage = readFileSync(resolve(root, "src/app/checkout/page.tsx"), "utf8");
+const checkoutPage = readFileSync(resolve(root, "src/app/(storefront)/checkout/page.tsx"), "utf8");
 if (!checkoutPage.includes("CheckoutPage")) {
   throw new Error("Checkout payment stub route must remain in place.");
 }

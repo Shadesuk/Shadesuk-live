@@ -18,6 +18,7 @@ import {
 } from "../src/lib/account-copy";
 import {
   isSafeNextPath,
+  resolveSafeAdminNextPath,
   resolveSafeNextPath,
   validateRegisterInput,
   validateSignInInput,
@@ -117,6 +118,12 @@ if (
 if (!isSafeNextPath("/checkout") || resolveSafeNextPath("https://evil.example") !== "/account") {
   throw new Error("Safe next-path fallback failed.");
 }
+if (resolveSafeNextPath("/admin") !== "/account" || resolveSafeNextPath("/admin/settings") !== "/account") {
+  throw new Error("Customer auth next paths must not enter /admin.");
+}
+if (resolveSafeAdminNextPath("/account") !== "/admin" || resolveSafeAdminNextPath("/admin/settings") !== "/admin/settings") {
+  throw new Error("Admin next paths must stay inside /admin.");
+}
 
 if (
   CART_MERGE_POLICY.soldOut !== "drop_with_notice" ||
@@ -129,7 +136,7 @@ if (!hasForbiddenOwnershipKey({ email: "a@b.com", sessionId: "nope" })) {
 }
 
 const root = resolve(process.cwd());
-const accountActions = readFileSync(resolve(root, "src/app/account/actions.ts"), "utf8");
+const accountActions = readFileSync(resolve(root, "src/app/(storefront)/account/actions.ts"), "utf8");
 if (
   accountActions.includes("sessionId") ||
   accountActions.includes("session_id") ||
@@ -168,12 +175,12 @@ if (refresh.includes("getSession()") || !refresh.includes("getClaims")) {
   throw new Error("Session refresh must validate with getClaims, not getSession.");
 }
 
-const accountPage = readFileSync(resolve(root, "src/app/account/page.tsx"), "utf8");
+const accountPage = readFileSync(resolve(root, "src/app/(storefront)/account/page.tsx"), "utf8");
 if (!accountPage.includes("getOptionalAccountUser") || !accountPage.includes("SignInForm")) {
   throw new Error("Unauthenticated /account must render the sign-in UI.");
 }
 
-const ordersPage = readFileSync(resolve(root, "src/app/account/orders/page.tsx"), "utf8");
+const ordersPage = readFileSync(resolve(root, "src/app/(storefront)/account/orders/page.tsx"), "utf8");
 if (!ordersPage.includes("requireAccountUser")) {
   throw new Error("Account orders must be gated on a real server session.");
 }

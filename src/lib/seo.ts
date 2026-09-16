@@ -12,6 +12,7 @@ const ROBOTS_PRIVATE = [
   "/checkout",
   "/cart",
   "/track-order",
+  "/admin",
   "/api/",
   "/auth/",
 ] as const;

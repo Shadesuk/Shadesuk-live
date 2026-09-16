@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { savePersonalDetailsAction } from "@/app/account/actions";
+import { savePersonalDetailsAction } from "@/app/(storefront)/account/actions";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import {

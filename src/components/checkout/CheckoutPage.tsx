@@ -8,7 +8,7 @@ import {
   saveCheckoutContactAction,
   searchCheckoutAddressAction,
   setCheckoutStepAction,
-} from "@/app/checkout/actions";
+} from "@/app/(storefront)/checkout/actions";
 import { CheckoutAddress } from "@/components/checkout/CheckoutAddress";
 import { CheckoutContact } from "@/components/checkout/CheckoutContact";
 import { CheckoutExpired } from "@/components/checkout/CheckoutExpired";

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { signInWithGoogleAction } from "@/app/account/actions";
+import { signInWithGoogleAction } from "@/app/(storefront)/account/actions";
 import { CONTINUE_WITH_GOOGLE, GOOGLE_FAILED } from "@/lib/account-copy";
 
 type GoogleAuthButtonProps = {

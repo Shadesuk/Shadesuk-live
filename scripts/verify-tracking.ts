@@ -375,7 +375,7 @@ if (existsSync(resolve(root, "src/app/order"))) {
   throw new Error("Forbidden: /order/[id] routes must not exist for guest tracking.");
 }
 
-const page = readFileSync(resolve(root, "src/app/track-order/page.tsx"), "utf8");
+const page = readFileSync(resolve(root, "src/app/(storefront)/track-order/page.tsx"), "utf8");
 if (!page.includes("TrackOrderForm") || !page.includes("privatePathMetadata")) {
   throw new Error("/track-order must render the form and stay noindex.");
 }
@@ -383,7 +383,7 @@ if (page.includes("searchParams")) {
   throw new Error("Track-order must not look up orders from GET query params.");
 }
 
-const actions = readFileSync(resolve(root, "src/app/track-order/actions.ts"), "utf8");
+const actions = readFileSync(resolve(root, "src/app/(storefront)/track-order/actions.ts"), "utf8");
 if (!actions.includes("cartActionOriginAllowed")) {
   throw new Error("Tracking mutations must check CSRF/origin.");
 }

@@ -12,7 +12,7 @@ import {
   getCartAction,
   removeCartItemAction,
   updateCartQuantityAction,
-} from "@/app/cart/actions";
+} from "@/app/(storefront)/cart/actions";
 import { EMPTY_PUBLIC_CART, type PublicCart } from "@/types/cart";
 import { track } from "@/lib/analytics";
 
