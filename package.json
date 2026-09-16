@@ -20,7 +20,8 @@
     "verify:catalogue": "npm run verify:run -- scripts/verify-catalogue.ts",
     "verify:collections": "npm run verify:run -- scripts/verify-collections.ts",
     "verify:discovery": "npm run verify:run -- scripts/verify-discovery.ts",
-    "verify:admin": "npm run verify:run -- scripts/verify-admin-foundation.ts && npm run verify:run -- scripts/verify-admin-dashboard.ts",
+    "verify:admin-orders": "npm run verify:run -- scripts/verify-admin-orders.ts",
+    "verify:admin": "npm run verify:run -- scripts/verify-admin-foundation.ts && npm run verify:run -- scripts/verify-admin-dashboard.ts && npm run verify:admin-orders",
     "verify:completion": "npm run verify:run -- scripts/verify-storefront-completion.ts"
   },
   "dependencies": {
