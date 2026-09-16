@@ -13,10 +13,12 @@ export function AdminForbidden({
   actor,
   email,
   message = ADMIN_FORBIDDEN,
+  embedded = false,
 }: {
   actor?: AdminActor;
   email?: string;
   message?: string;
+  embedded?: boolean;
 }) {
   const identity = actor?.email || email;
   return (
@@ -38,7 +40,7 @@ export function AdminForbidden({
             Back
           </ButtonLink>
         ) : null}
-        <AdminSignOutButton />
+        {embedded ? null : <AdminSignOutButton />}
       </div>
     </div>
   );

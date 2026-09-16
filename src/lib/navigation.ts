@@ -29,8 +29,30 @@ export const routes = {
   privacy: "/privacy-policy",
   cookies: "/cookie-policy",
   admin: "/admin",
+  adminOrders: "/admin/orders",
+  adminProducts: "/admin/products",
+  adminProductsNew: "/admin/products/new",
+  adminCollections: "/admin/collections",
+  adminCustomers: "/admin/customers",
+  adminAnalytics: "/admin/analytics",
   adminSettings: "/admin/settings",
 } as const;
+
+export function adminOrderPath(id: string): string {
+  return `/admin/orders/${id}`;
+}
+
+export function adminProductPath(id: string): string {
+  return `/admin/products/${id}`;
+}
+
+export function adminCollectionPath(id: string): string {
+  return `/admin/collections/${id}`;
+}
+
+export function adminCustomerPath(id: string): string {
+  return `/admin/customers/${id}`;
+}
 
 export const primaryNav = [
   { href: routes.shop, label: "Shop", menu: "shop" as const },
