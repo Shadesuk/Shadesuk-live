@@ -85,6 +85,30 @@ export type {
   AdminShipmentView,
 } from "./admin/orders";
 
+export {
+  ADMIN_PRODUCTS_PAGE_SIZE,
+  ADMIN_PRODUCT_SEARCH_MAX,
+  ADMIN_CATALOGUE_STATUS_LABELS,
+  adminCatalogueStatusLabel,
+  adminProductListQueryString,
+  adminProductSlugFromName,
+  availabilityFromVariants,
+  formatGbpMajorInput,
+  isProductSlug,
+  parseAdminProductListQuery,
+  parseAdminProductSaveInput,
+  parseGbpMajorInput,
+  sanitizeAdminProductSearch,
+  suggestedVariantSku,
+  variantCombinations,
+} from "./admin/products";
+export type {
+  AdminProductDetailView,
+  AdminProductListItem,
+  AdminProductListQuery,
+  AdminProductSaveInput,
+} from "./admin/products";
+
 export type {
   CatalogueStatus,
   CollectionRow,

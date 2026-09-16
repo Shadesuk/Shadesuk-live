@@ -21,7 +21,8 @@
     "verify:collections": "npm run verify:run -- scripts/verify-collections.ts",
     "verify:discovery": "npm run verify:run -- scripts/verify-discovery.ts",
     "verify:admin-orders": "npm run verify:run -- scripts/verify-admin-orders.ts",
-    "verify:admin": "npm run verify:run -- scripts/verify-admin-foundation.ts && npm run verify:run -- scripts/verify-admin-dashboard.ts && npm run verify:admin-orders",
+    "verify:admin-products": "npm run verify:run -- scripts/verify-admin-products.ts",
+    "verify:admin": "npm run verify:run -- scripts/verify-admin-foundation.ts && npm run verify:run -- scripts/verify-admin-dashboard.ts && npm run verify:admin-orders && npm run verify:admin-products",
     "verify:completion": "npm run verify:run -- scripts/verify-storefront-completion.ts"
   },
   "dependencies": {
@@ -30,7 +31,8 @@
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@types/node": "^20",

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { cx } from "@/lib/cx";
 import styles from "./Button.module.css";
 
@@ -8,7 +8,7 @@ type ButtonLinkProps = {
   children: ReactNode;
   variant?: "primary" | "secondary" | "tertiary";
   className?: string;
-  onClick?: () => void;
+  onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
 };
 
 export function ButtonLink({

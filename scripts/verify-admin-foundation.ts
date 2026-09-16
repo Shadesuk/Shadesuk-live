@@ -211,9 +211,6 @@ if (!orderDetailPage.includes("getAdminGate") || !orderDetailPage.includes("Admi
 }
 
 for (const file of [
-  "src/app/admin/products/page.tsx",
-  "src/app/admin/products/new/page.tsx",
-  "src/app/admin/products/[id]/page.tsx",
   "src/app/admin/collections/page.tsx",
   "src/app/admin/collections/[id]/page.tsx",
   "src/app/admin/customers/page.tsx",
@@ -227,8 +224,27 @@ for (const file of [
 }
 
 const productsPage = read("src/app/admin/products/page.tsx");
-if (productsPage.includes("Add product") || productsPage.includes("ADD PRODUCT")) {
-  throw new Error("Products placeholder must not ship the Add Product action yet.");
+if (productsPage.includes("AdminPlaceholderPage")) {
+  throw new Error("Products list must be implemented, not a placeholder.");
+}
+if (!productsPage.includes("getAdminGate") || !productsPage.includes("AdminProductsPage")) {
+  throw new Error("Products list must use the Admin gate and AdminProductsPage.");
+}
+
+const productsNewPage = read("src/app/admin/products/new/page.tsx");
+if (productsNewPage.includes("AdminPlaceholderPage")) {
+  throw new Error("New product must be implemented, not a placeholder.");
+}
+if (!productsNewPage.includes("getAdminGate") || !productsNewPage.includes("AdminNewProductSection")) {
+  throw new Error("New product must use the Admin gate and AdminNewProductSection.");
+}
+
+const productDetailPage = read("src/app/admin/products/[id]/page.tsx");
+if (productDetailPage.includes("AdminPlaceholderPage")) {
+  throw new Error("Product editor must be implemented, not a placeholder.");
+}
+if (!productDetailPage.includes("getAdminGate") || !productDetailPage.includes("AdminProductDetailSection")) {
+  throw new Error("Product editor must use the Admin gate and AdminProductDetailSection.");
 }
 
 const proxy = read("src/proxy.ts");

@@ -1,20 +1,27 @@
 import type { Metadata } from "next";
-import { AdminPlaceholderPage } from "@/components/admin/AdminPlaceholderPage";
-import { ADMIN_MODULE_LATER } from "@/lib/admin-copy";
+import { AdminAuthScreen } from "@/components/admin/AdminAuthScreen";
+import { AdminProductsPage } from "@/components/admin/AdminProductsPage";
+import { parseAdminProductListQuery } from "@/contracts/admin/products";
+import { ADMIN_PRODUCTS_BODY, ADMIN_PRODUCTS_TITLE } from "@/lib/admin-copy";
+import { getAdminGate } from "@/lib/admin-session";
 import { routes } from "@/lib/navigation";
 import { privatePathMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = privatePathMetadata(
-  "Products",
-  ADMIN_MODULE_LATER,
+  ADMIN_PRODUCTS_TITLE,
+  ADMIN_PRODUCTS_BODY,
   routes.adminProducts,
 );
 
-export default function AdminProductsPage() {
-  return (
-    <AdminPlaceholderPage
-      title="Products"
-      description="Manage your product catalogue. This module ships in a later step."
-    />
-  );
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminProductsRoute({ searchParams }: PageProps) {
+  const gate = await getAdminGate();
+  if (gate.status !== "ok") {
+    return <AdminAuthScreen gate={gate} />;
+  }
+  const query = parseAdminProductListQuery(await searchParams);
+  return <AdminProductsPage query={query} />;
 }
