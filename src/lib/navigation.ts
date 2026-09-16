@@ -28,6 +28,8 @@ export const routes = {
   terms: "/terms",
   privacy: "/privacy-policy",
   cookies: "/cookie-policy",
+  admin: "/admin",
+  adminSettings: "/admin/settings",
 } as const;
 
 export const primaryNav = [

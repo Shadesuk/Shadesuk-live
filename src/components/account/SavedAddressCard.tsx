@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { removeAddressAction } from "@/app/account/actions";
+import { removeAddressAction } from "@/app/(storefront)/account/actions";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EDIT_ADDRESS, REMOVE_ADDRESS } from "@/lib/account-copy";

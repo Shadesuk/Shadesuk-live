@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   retrieveCheckoutAddressAction,
   searchCheckoutAddressAction,
-} from "@/app/checkout/actions";
-import { saveAddressAction } from "@/app/account/actions";
+} from "@/app/(storefront)/checkout/actions";
+import { saveAddressAction } from "@/app/(storefront)/account/actions";
 import { AddressForm, type AddressFormValue } from "@/components/address/AddressForm";
 import { AddressLookup } from "@/components/address/AddressLookup";
 import { Button } from "@/components/ui/Button";

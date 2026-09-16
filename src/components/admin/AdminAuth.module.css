@@ -1,0 +1,61 @@
+.shell {
+  min-height: 100vh;
+  background: var(--color-off-white);
+  color: var(--color-text);
+}
+
+.main {
+  width: min(32rem, calc(100% - 2 * var(--page-gutter)));
+  margin-inline: auto;
+  padding-block: var(--space-64) var(--space-80);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.kicker {
+  margin: 0;
+  font-size: var(--text-micro-size);
+  font-weight: var(--text-micro-weight);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+}
+
+.heading {
+  margin: 0;
+}
+
+.body {
+  margin: 0;
+}
+
+.meta {
+  display: grid;
+  gap: var(--space-8);
+  margin: 0;
+}
+
+.meta dt {
+  font-size: var(--text-micro-size);
+  font-weight: var(--text-micro-weight);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+}
+
+.meta dd {
+  margin: 0;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}

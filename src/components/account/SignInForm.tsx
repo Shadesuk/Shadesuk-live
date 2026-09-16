@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { signInAction } from "@/app/account/actions";
+import { signInAction } from "@/app/(storefront)/account/actions";
 import { GoogleAuthButton } from "@/components/account/GoogleAuthButton";
 import { PasswordField } from "@/components/account/PasswordField";
 import { Button } from "@/components/ui/Button";

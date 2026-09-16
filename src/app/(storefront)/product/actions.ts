@@ -1,6 +1,6 @@
 "use server";
 
-import { addToBagAction as addToBagFromCart } from "@/app/cart/actions";
+import { addToBagAction as addToBagFromCart } from "@/app/(storefront)/cart/actions";
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { getStorefrontProductsByIds } from "@/services/product";
 import type { MappedStorefrontProduct } from "@/contracts";

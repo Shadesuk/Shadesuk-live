@@ -99,9 +99,26 @@ export function isSafeNextPath(value: string | null | undefined): value is strin
   }
 }
 
+export function isAdminAppPath(value: string): boolean {
+  return value === "/admin" || value.startsWith("/admin/");
+}
+
 export function resolveSafeNextPath(
   value: string | null | undefined,
   fallback = "/account",
 ): string {
-  return isSafeNextPath(value) ? value : fallback;
+  if (!isSafeNextPath(value) || isAdminAppPath(value)) {
+    return fallback;
+  }
+  return value;
+}
+
+export function resolveSafeAdminNextPath(
+  value: string | null | undefined,
+  fallback = "/admin",
+): string {
+  if (!isSafeNextPath(value) || !isAdminAppPath(value)) {
+    return fallback;
+  }
+  return value;
 }

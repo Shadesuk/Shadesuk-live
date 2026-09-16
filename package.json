@@ -20,6 +20,7 @@
     "verify:catalogue": "npm run verify:run -- scripts/verify-catalogue.ts",
     "verify:collections": "npm run verify:run -- scripts/verify-collections.ts",
     "verify:discovery": "npm run verify:run -- scripts/verify-discovery.ts",
+    "verify:admin": "npm run verify:run -- scripts/verify-admin-foundation.ts",
     "verify:completion": "npm run verify:run -- scripts/verify-storefront-completion.ts"
   },
   "dependencies": {

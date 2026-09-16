@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { updatePasswordAction } from "@/app/account/actions";
+import { updatePasswordAction } from "@/app/(storefront)/account/actions";
 import { PasswordField } from "@/components/account/PasswordField";
 import { Button } from "@/components/ui/Button";
 import {

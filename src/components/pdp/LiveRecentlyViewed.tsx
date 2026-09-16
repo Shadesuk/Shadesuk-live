@@ -7,7 +7,7 @@ import {
   getRecentlyViewedServerSnapshot,
   subscribeRecentlyViewed,
 } from "@/lib/recently-viewed";
-import { loadProductsByIdsAction } from "@/app/product/actions";
+import { loadProductsByIdsAction } from "@/app/(storefront)/product/actions";
 import type { Product } from "@/types/catalogue";
 import styles from "@/components/discovery/RecentlyViewed.module.css";
 

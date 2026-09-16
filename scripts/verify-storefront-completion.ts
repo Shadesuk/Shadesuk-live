@@ -17,13 +17,21 @@ const layout = readFileSync(resolve(root, "src/app/layout.tsx"), "utf8");
 if (!layout.includes("NOINDEX_NOFOLLOW")) {
   throw new Error("Root layout must fail closed to noindex.");
 }
+if (layout.includes("SiteChrome")) {
+  throw new Error("Root layout must not wrap the app in storefront SiteChrome.");
+}
 
-const home = readFileSync(resolve(root, "src/app/page.tsx"), "utf8");
+const storefrontLayout = readFileSync(resolve(root, "src/app/(storefront)/layout.tsx"), "utf8");
+if (!storefrontLayout.includes("SiteChrome")) {
+  throw new Error("Storefront layout must own SiteChrome.");
+}
+
+const home = readFileSync(resolve(root, "src/app/(storefront)/page.tsx"), "utf8");
 if (!home.includes("INDEX_FOLLOW") && !home.includes("index: true")) {
   throw new Error("Homepage must opt in to indexation.");
 }
 
-const search = readFileSync(resolve(root, "src/app/(catalogue)/search/page.tsx"), "utf8");
+const search = readFileSync(resolve(root, "src/app/(storefront)/(catalogue)/search/page.tsx"), "utf8");
 if (!search.includes("privatePathMetadata")) {
   throw new Error("Search must stay noindex via privatePathMetadata.");
 }
@@ -33,7 +41,7 @@ if (!robots.includes("ROBOTS_DISALLOW")) {
   throw new Error("robots.txt must use ROBOTS_DISALLOW.");
 }
 const seoSource = readFileSync(resolve(root, "src/lib/seo.ts"), "utf8");
-for (const path of ["/search", "/account", "/checkout", "/cart", "/track-order", "/api/", "/auth/"]) {
+for (const path of ["/search", "/account", "/checkout", "/cart", "/track-order", "/admin", "/api/", "/auth/"]) {
   if (!seoSource.includes(`"${path}"`)) {
     throw new Error(`SEO robots disallow list must include ${path}.`);
   }
@@ -61,12 +69,12 @@ if (sitemap.includes("routes.search") || sitemap.includes("routes.cart")) {
   throw new Error("sitemap must not list search or cart.");
 }
 
-const shop = readFileSync(resolve(root, "src/app/(catalogue)/shop/page.tsx"), "utf8");
+const shop = readFileSync(resolve(root, "src/app/(storefront)/(catalogue)/shop/page.tsx"), "utf8");
 if (!shop.includes("cataloguePathMetadata")) {
   throw new Error("Shop PLP must canonicalise filtered URLs.");
 }
 
-const product = readFileSync(resolve(root, "src/app/product/[slug]/page.tsx"), "utf8");
+const product = readFileSync(resolve(root, "src/app/(storefront)/product/[slug]/page.tsx"), "utf8");
 if (!product.includes("productJsonLd") || !product.includes("JsonLd")) {
   throw new Error("PDP must emit Product JSON-LD.");
 }

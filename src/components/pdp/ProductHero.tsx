@@ -11,7 +11,7 @@ import {
   isProductAvailable,
 } from "@/lib/product-display";
 import { ADD_TO_BAG_QUANTITY_MAX, resolveSelectedVariant } from "@/lib/add-to-bag";
-import { addToBagAction } from "@/app/product/actions";
+import { addToBagAction } from "@/app/(storefront)/product/actions";
 import { useCart } from "@/components/cart/CartProvider";
 import { track } from "@/lib/analytics";
 import type { PublicAddToBagResult } from "@/types/pdp";

@@ -275,7 +275,7 @@ if (
   throw new Error("Production checkout cookies must be Secure.");
 }
 
-const pageSource = readFileSync(resolve("src/app/checkout/page.tsx"), "utf8");
+const pageSource = readFileSync(resolve("src/app/(storefront)/checkout/page.tsx"), "utf8");
 if (!pageSource.includes("redirect(routes.cart)") && !pageSource.includes('redirect("/cart")')) {
   throw new Error("Empty checkout carts must redirect to bag.");
 }
@@ -292,8 +292,8 @@ if (!reviewSource.includes("disabled") || !reviewSource.includes("CONTINUE_TO_PA
 }
 
 const checkoutFiles = [
-  "src/app/checkout/page.tsx",
-  "src/app/checkout/actions.ts",
+  "src/app/(storefront)/checkout/page.tsx",
+  "src/app/(storefront)/checkout/actions.ts",
   "src/components/checkout/CheckoutPage.tsx",
   "src/components/checkout/CheckoutReview.tsx",
   "src/lib/address-lookup.ts",
@@ -304,7 +304,7 @@ for (const file of checkoutFiles) {
     throw new Error(`${file} must not invent a payment vendor.`);
   }
 }
-if (!readFileSync(resolve("src/app/checkout/actions.ts"), "utf8").includes("cartActionOriginAllowed")) {
+if (!readFileSync(resolve("src/app/(storefront)/checkout/actions.ts"), "utf8").includes("cartActionOriginAllowed")) {
   throw new Error("Checkout Server Actions must keep CSRF/origin checks.");
 }
 
