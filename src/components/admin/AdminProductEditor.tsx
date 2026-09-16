@@ -136,7 +136,6 @@ export function AdminProductEditor({
   collections: AdminProductCollectionOption[];
   images: AdminProductImageView[];
 }) {
-  const [state, action, pending] = useActionState(saveAdminProductAction, idle);
   const [dirty, setDirty] = useState(false);
   const [slugTouched, setSlugTouched] = useState(Boolean(product?.slug));
   const [name, setName] = useState(product?.name ?? "");
@@ -147,6 +146,14 @@ export function AdminProductEditor({
   const [generateColours, setGenerateColours] = useState("");
   const [generateSizes, setGenerateSizes] = useState("");
   const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
+  const [state, action, pending] = useActionState(async (prev: AdminProductActionState, formData: FormData) => {
+    const result = await saveAdminProductAction(prev, formData);
+    if (result.status === "ok") {
+      setDirty(false);
+      setConfirm(null);
+    }
+    return result;
+  }, idle);
 
   useEffect(() => {
     const onLeave = (event: BeforeUnloadEvent) => {
@@ -159,13 +166,6 @@ export function AdminProductEditor({
     window.addEventListener("beforeunload", onLeave);
     return () => window.removeEventListener("beforeunload", onLeave);
   }, [dirty]);
-
-  useEffect(() => {
-    if (state.status === "ok") {
-      setDirty(false);
-      setConfirm(null);
-    }
-  }, [state.status]);
 
   const markDirty = () => setDirty(true);
   const title = product?.name || "New product";
