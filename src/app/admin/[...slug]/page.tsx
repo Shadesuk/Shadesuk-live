@@ -1,6 +1,6 @@
-import { notFound } from "next/navigation";
+import { AdminNotFound } from "@/components/admin/AdminNotFound";
 
-/** Unmatched /admin/* stays in the Admin layout (no storefront SiteChrome). */
+/** Unmatched /admin/* stays in the Admin layout, not the storefront chrome. */
 export default function AdminUnmatchedPage() {
-  notFound();
+  return <AdminNotFound />;
 }

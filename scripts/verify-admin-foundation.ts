@@ -89,8 +89,8 @@ if (adminNotFound.includes("SiteChrome") || adminNotFound.includes("routes.shop"
   throw new Error("Admin not-found must not inherit storefront chrome or Shop CTA.");
 }
 const adminCatchAll = read("src/app/admin/[...slug]/page.tsx");
-if (!adminCatchAll.includes("notFound()")) {
-  throw new Error("Unmatched /admin/* must stay inside the Admin layout.");
+if (!adminCatchAll.includes("AdminNotFound") || adminCatchAll.includes("from \"@/components/navigation/SiteChrome\"")) {
+  throw new Error("Unmatched /admin/* must render Admin not-found without SiteChrome.");
 }
 if (!adminLayout.includes("privatePathMetadata")) {
   throw new Error("Admin layout must stay noindex.");

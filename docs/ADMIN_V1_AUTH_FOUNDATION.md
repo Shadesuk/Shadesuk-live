@@ -114,7 +114,7 @@ Customer `next=` cannot point at `/admin`. Admin `next=` cannot point outside `/
 
 `src/app/(storefront)/layout.tsx` wraps customer routes in `SiteChrome`.
 
-`src/app/admin/` is outside that group, so Admin does not inherit header, footer, bag, search, or merchandising nav. Unmatched `/admin/*` uses `admin/[...slug]` + `admin/not-found.tsx` (no Shop CTA, no SiteChrome). Unmatched storefront URLs still use root `not-found.tsx` (no chrome). Known storefront routes keep SiteChrome via the group layout. AdminShell is **not** built in this step.
+`src/app/admin/` is outside that group, so Admin does not inherit header, footer, bag, search, or merchandising nav. Unmatched `/admin/*` renders the Admin not-found view via `admin/[...slug]` (no Shop CTA, no storefront chrome). Unmatched storefront URLs still use root `not-found.tsx` (no chrome). Known storefront routes keep SiteChrome via the group layout. AdminShell is **not** built in this step.
 
 ---
 
