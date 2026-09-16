@@ -293,7 +293,6 @@ if (!css.includes("min-height: var(--touch-min)")) {
 }
 
 for (const file of [
-  "src/app/admin/products/page.tsx",
   "src/app/admin/collections/page.tsx",
   "src/app/admin/customers/page.tsx",
   "src/app/admin/analytics/page.tsx",

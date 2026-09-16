@@ -22,7 +22,7 @@ const PRODUCT_COLUMNS =
 const VARIANT_COLUMNS =
   "id, product_id, sku, colour_name, size_name, price_minor, compare_at_price_minor, currency, lens_width_mm, bridge_width_mm, temple_length_mm, stock_quantity, status, created_at, updated_at";
 const IMAGE_COLUMNS =
-  "id, product_id, variant_id, storage_path, alt_text, sort_order, image_type, is_primary, created_at, updated_at";
+  "id, product_id, variant_id, storage_path, alt_text, sort_order, image_type, is_primary, width, height, created_at, updated_at";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -529,6 +529,8 @@ function parseImageRow(value: unknown): ProductImageRow | null {
     sort_order: sortOrder,
     image_type: imageType as ProductImageType,
     is_primary: typeof value.is_primary === "boolean" ? value.is_primary : false,
+    width: asInteger(value.width),
+    height: asInteger(value.height),
     created_at: createdAt,
     updated_at: updatedAt,
   };

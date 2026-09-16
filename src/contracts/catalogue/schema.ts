@@ -68,6 +68,8 @@ export type ProductImageRow = {
   sort_order: number;
   image_type: ProductImageType;
   is_primary: boolean;
+  width?: number | null;
+  height?: number | null;
   created_at: string;
   updated_at: string;
 };

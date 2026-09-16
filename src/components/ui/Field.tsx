@@ -1,4 +1,9 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 import { cx } from "@/lib/cx";
 import styles from "./Field.module.css";
 
@@ -82,6 +87,53 @@ export function FieldSelect({
       >
         {children}
       </select>
+      {error ? (
+        <p id={errorId} className={`text-small ${styles.error}`} role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+type FieldTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  label: string;
+  error?: string;
+  hint?: ReactNode;
+};
+
+export function FieldTextarea({
+  id,
+  label,
+  error,
+  hint,
+  className,
+  required,
+  ...props
+}: FieldTextareaProps) {
+  const errorId = error ? `${id}-error` : undefined;
+  const hintId = hint ? `${id}-hint` : undefined;
+  const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
+
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor={id}>
+        {label}
+        {required ? <span className="visually-hidden"> required</span> : null}
+      </label>
+      <textarea
+        id={id}
+        className={cx(styles.textarea, className)}
+        required={required}
+        {...props}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+      />
+      {hint ? (
+        <p id={hintId} className={`text-small ${styles.hint}`}>
+          {hint}
+        </p>
+      ) : null}
       {error ? (
         <p id={errorId} className={`text-small ${styles.error}`} role="alert">
           {error}

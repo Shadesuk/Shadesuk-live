@@ -24,6 +24,7 @@ function supabaseImagePattern(): NonNullable<NextConfig["images"]>["remotePatter
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: ["sharp"],
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: supabaseImagePattern(),
