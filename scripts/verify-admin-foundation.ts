@@ -133,11 +133,25 @@ if (!adminLayout.includes("privatePathMetadata")) {
 }
 
 const adminPage = read("src/app/admin/page.tsx");
-if (adminPage.includes("MetricCard") || adminPage.includes("AdminFoundation")) {
-  throw new Error("Admin home must not implement dashboard widgets.");
+if (!adminPage.includes("AdminDashboard") || !adminPage.includes("parseDashboardPeriod")) {
+  throw new Error("Admin home must render the dashboard for an authorised session.");
 }
-if (!adminPage.includes("AdminPageHeader") || !adminPage.includes("ADMIN_HOME_BODY")) {
-  throw new Error("Admin home must use the page header foundation.");
+if (adminPage.includes("createSupabaseAdminClient") || adminPage.includes("ADMIN_SIGNED_IN_AS")) {
+  throw new Error("Admin home must not use the service-role client or the auth-foundation meta list.");
+}
+
+const dashboard = read("src/components/admin/AdminDashboard.tsx");
+if (!dashboard.includes("AdminPageHeader") || !dashboard.includes("ADMIN_HOME_BODY")) {
+  throw new Error("Dashboard must keep AdminPageHeader.");
+}
+if (!dashboard.includes("AdminDashboardKpis") || !dashboard.includes("AdminSalesOverview")) {
+  throw new Error("Dashboard must include KPIs and sales overview.");
+}
+if (!dashboard.includes("AdminRecentOrders") || !dashboard.includes("AdminOperationalAlerts")) {
+  throw new Error("Dashboard must include recent orders and operational alerts.");
+}
+if (!dashboard.includes("Suspense") || !dashboard.includes("AdminKpiSkeleton")) {
+  throw new Error("Dashboard must stream section loading states.");
 }
 
 const settingsPage = read("src/app/admin/settings/page.tsx");
