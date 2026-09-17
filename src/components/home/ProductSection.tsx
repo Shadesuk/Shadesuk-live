@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { Section } from "@/components/layout/Section";
 import { ProductGrid } from "@/components/product/ProductGrid";
+import { ProductRail } from "./ProductRail";
 import type { Product } from "@/types/catalogue";
 import { cx } from "@/lib/cx";
 import styles from "./ProductSection.module.css";
@@ -13,6 +14,7 @@ type ProductSectionProps = {
   action?: ReactNode;
   mobileCount?: number;
   imagePriorityCount?: number;
+  layout?: "grid" | "rail";
 };
 
 export function ProductSection({
@@ -22,6 +24,7 @@ export function ProductSection({
   action,
   mobileCount,
   imagePriorityCount = 0,
+  layout = "grid",
 }: ProductSectionProps) {
   if (products.length === 0) {
     return null;
@@ -36,16 +39,13 @@ export function ProductSection({
           </h2>
           {action}
         </div>
-        <div
-          className={cx(
-            mobileCount === 2 && styles.mobileTwo,
-          )}
-        >
-          <ProductGrid
-            products={products}
-            imagePriorityCount={imagePriorityCount}
-          />
-        </div>
+        {layout === "rail" ? (
+          <ProductRail products={products} imagePriorityCount={imagePriorityCount} />
+        ) : (
+          <div className={cx(mobileCount === 2 && styles.mobileTwo)}>
+            <ProductGrid products={products} imagePriorityCount={imagePriorityCount} />
+          </div>
+        )}
       </ContentWidth>
     </Section>
   );

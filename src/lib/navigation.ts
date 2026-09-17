@@ -35,6 +35,7 @@ export const routes = {
   adminCollections: "/admin/collections",
   adminCustomers: "/admin/customers",
   adminAnalytics: "/admin/analytics",
+  adminMerchandising: "/admin/merchandising",
   adminSettings: "/admin/settings",
 } as const;
 

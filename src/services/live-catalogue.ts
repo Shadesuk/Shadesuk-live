@@ -15,10 +15,11 @@ import {
 import { deriveBrandSource, deriveBrandsFromProducts } from "@/contracts";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabasePublicClient } from "@/lib/supabase/public";
+import { loadStorefrontMerchandisingConfig } from "@/services/storefront-merchandising";
 import type { Brand } from "@/types/catalogue";
 
 const PRODUCT_COLUMNS =
-  "id, slug, name, brand, description, details, materials, whats_included, shape, gender, fit, disclosure, status, created_at, updated_at";
+  "id, slug, name, brand, description, details, materials, whats_included, shape, gender, fit, disclosure, status, published_at, created_at, updated_at";
 const VARIANT_COLUMNS =
   "id, product_id, sku, colour_name, size_name, price_minor, compare_at_price_minor, currency, lens_width_mm, bridge_width_mm, temple_length_mm, stock_quantity, status, created_at, updated_at";
 const IMAGE_COLUMNS =
@@ -291,14 +292,17 @@ async function mapPublishedRows(
   }
 
   const productIds = rows.map((row) => row.id);
-  const [variants, images, collectionSlugs] = await Promise.all([
+  const [variants, images, merchandising] = await Promise.all([
     fetchVariants(productIds),
     fetchImages(productIds),
-    fetchCollectionSlugs(productIds),
+    loadStorefrontMerchandisingConfig(),
   ]);
 
   const variantsByProduct = groupBy(variants, (variant) => variant.product_id);
   const imagesByProduct = groupBy(images, (image) => image.product_id);
+  const bestSellerIds = new Set(
+    merchandising.bestSellersEnabled ? merchandising.bestSellerIds : [],
+  );
 
   return rows
     .map((product) => {
@@ -306,9 +310,9 @@ async function mapPublishedRows(
         product,
         variants: variantsByProduct.get(product.id) ?? [],
         images: imagesByProduct.get(product.id) ?? [],
-        collectionSlugs: collectionSlugs.get(product.id) ?? [],
+        collectionSlugs: [],
       };
-      return mapProductAggregateToStorefront(aggregate, { projection });
+      return mapProductAggregateToStorefront(aggregate, { projection, bestSellerIds });
     })
     .filter((product): product is MappedStorefrontProduct => Boolean(product));
 }
@@ -341,70 +345,6 @@ async function fetchImages(productIds: string[]): Promise<ProductImageRow[]> {
   return data
     .map(parseImageRow)
     .filter((row): row is ProductImageRow => Boolean(row));
-}
-
-async function fetchCollectionSlugs(
-  productIds: string[],
-): Promise<Map<string, string[]>> {
-  const slugs = new Map<string, string[]>();
-  const supabase = createSupabasePublicClient();
-  const { data: links, error: linkError } = await supabase
-    .from("product_collections")
-    .select("product_id, collection_id")
-    .in("product_id", productIds);
-
-  if (linkError || !links || links.length === 0) {
-    return slugs;
-  }
-
-  const collectionIds = [
-    ...new Set(
-      links
-        .map((link) => (typeof link.collection_id === "string" ? link.collection_id : ""))
-        .filter(Boolean),
-    ),
-  ];
-  if (collectionIds.length === 0) {
-    return slugs;
-  }
-
-  const { data: collections, error: collectionError } = await supabase
-    .from("collections")
-    .select("id, slug, status")
-    .in("id", collectionIds)
-    .eq("status", "published");
-
-  if (collectionError || !collections) {
-    return slugs;
-  }
-
-  const slugById = new Map<string, string>();
-  for (const collection of collections) {
-    if (
-      typeof collection.id === "string" &&
-      typeof collection.slug === "string" &&
-      collection.slug.trim()
-    ) {
-      slugById.set(collection.id, collection.slug);
-    }
-  }
-
-  for (const link of links) {
-    if (typeof link.product_id !== "string" || typeof link.collection_id !== "string") {
-      continue;
-    }
-    const slug = slugById.get(link.collection_id);
-    if (!slug) {
-      continue;
-    }
-    const current = slugs.get(link.product_id) ?? [];
-    if (!current.includes(slug)) {
-      current.push(slug);
-    }
-    slugs.set(link.product_id, current);
-  }
-
-  return slugs;
 }
 
 function parseProductRow(value: unknown): ProductRow | null {
@@ -441,6 +381,7 @@ function parseProductRow(value: unknown): ProductRow | null {
     status: status as CatalogueStatus,
     created_at: createdAt,
     updated_at: updatedAt,
+    published_at: asNullableString(value.published_at),
   };
 }
 

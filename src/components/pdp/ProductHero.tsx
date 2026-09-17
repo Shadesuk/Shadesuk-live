@@ -75,6 +75,14 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
     };
   }, []);
   const colour = colours.find((item) => item.id === colourId);
+  const galleryImages = useMemo(() => {
+    const colourImages = product.images.filter((image) => image.colourId && image.colourId === colourId);
+    if (colourImages.length > 0) {
+      return colourImages;
+    }
+    const shared = product.images.filter((image) => !image.colourId);
+    return shared.length > 0 ? shared : product.images;
+  }, [product.images, colourId]);
   const colourCount = getColourCount(product);
   const available = isProductAvailable(product) && Boolean(colour?.available);
   const variant = resolveSelectedVariant(product, {
@@ -145,8 +153,8 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
     <>
       <div className={styles.hero}>
           <ProductGallery
-            key={product.slug}
-            images={product.images}
+            key={`${product.slug}-${colourId}`}
+            images={galleryImages}
             productName={product.name}
           />
         <div className={styles.info}>

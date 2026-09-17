@@ -38,6 +38,10 @@ export function canAccessSettings(role: AdminV1Role | null | undefined): boolean
   return isSuperadmin(role);
 }
 
+export function canAccessMerchandising(role: AdminV1Role | null | undefined): boolean {
+  return isSuperadmin(role);
+}
+
 export function canArchiveProduct(role: AdminV1Role | null | undefined): boolean {
   return isSuperadmin(role);
 }

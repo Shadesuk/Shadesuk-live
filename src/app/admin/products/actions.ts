@@ -176,6 +176,9 @@ function revalidateProduct(productId: string, slug?: string) {
   if (slug) {
     revalidatePath(productPath(slug));
     revalidatePath(routes.shop);
+    revalidatePath(routes.home);
+    revalidatePath(routes.newArrivals);
+    revalidatePath(routes.bestSellers);
   }
 }
 

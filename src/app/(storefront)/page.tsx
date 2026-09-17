@@ -11,6 +11,12 @@ import {
   getPopulatedShapesFrom,
   getStorefrontCatalogue,
 } from "@/services/storefront-catalogue";
+import {
+  getAutomaticNewArrivals,
+  getFlagshipProduct,
+  loadStorefrontMerchandisingConfig,
+  productsInOrder,
+} from "@/services/storefront-merchandising";
 
 export const metadata: Metadata = {
   ...storefrontMetadata({
@@ -32,12 +38,31 @@ export default async function HomePage() {
     assertDemoCatalogueIntegrity(catalogue.products);
   }
 
+  const live = catalogue.source === "live";
+  const merchandising = live ? await loadStorefrontMerchandisingConfig() : null;
+  const featured = merchandising?.featuredEnabled
+    ? productsInOrder(catalogue.products, merchandising.featuredIds)
+    : live
+      ? []
+      : getHomepageFeaturedFrom(catalogue.products, 4);
+  const bestSellers = merchandising?.bestSellersEnabled
+    ? productsInOrder(catalogue.products, merchandising.bestSellerIds)
+    : live
+      ? []
+      : getBestSellersFrom(catalogue.products);
+  const newArrivals = live
+    ? getAutomaticNewArrivals(catalogue.products, 4)
+    : getNewArrivalsFrom(catalogue.products).slice(0, 4);
+  const storyProduct = live
+    ? getFlagshipProduct(catalogue.products, merchandising?.flagshipId ?? null)
+    : getEditorialProductFrom(catalogue.products);
+
   return (
     <Homepage
-      featured={getHomepageFeaturedFrom(catalogue.products, 4)}
-      bestSellers={getBestSellersFrom(catalogue.products)}
-      newArrivals={getNewArrivalsFrom(catalogue.products).slice(0, 4)}
-      storyProduct={getEditorialProductFrom(catalogue.products)}
+      featured={featured}
+      bestSellers={bestSellers}
+      newArrivals={newArrivals}
+      storyProduct={storyProduct}
       shapes={getPopulatedShapesFrom(catalogue.products)}
       catalogueSource={catalogue.source}
       catalogueUnavailable={catalogue.unavailable}

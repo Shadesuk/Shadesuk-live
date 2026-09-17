@@ -47,7 +47,7 @@ export type AccountAddress = {
 export type AuthActionResult =
   | { status: "ok"; redirectTo?: string; message?: string }
   | { status: "invalid"; errors: AccountFieldErrors }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; debug?: string }
   | { status: "confirm_email" }
   | { status: "reset_sent" }
   | { status: "oauth"; url: string };

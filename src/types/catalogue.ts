@@ -76,6 +76,8 @@ export type ProductImage = {
   height: number;
   /** Omit until a legitimate asset exists. */
   src?: string;
+  variantId?: string;
+  colourId?: string;
 };
 
 export type ProductMeasurements = {
@@ -109,6 +111,7 @@ export type Product = {
   availability: Availability;
   isNewArrival: boolean;
   isBestSeller: boolean;
+  publishedAt?: string;
   images: ProductImage[];
   isDemo: boolean;
   compareAtPrice?: number;

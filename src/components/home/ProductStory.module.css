@@ -3,6 +3,18 @@
   gap: var(--space-32);
 }
 
+.media {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.image {
+  width: 100%;
+  height: auto;
+  background: var(--color-stone);
+}
+
 .copy {
   display: flex;
   flex-direction: column;
@@ -15,8 +27,9 @@
   margin: 0;
 }
 
-.copy a {
-  margin-top: var(--space-12);
+.copy h2 a {
+  color: inherit;
+  text-decoration: none;
 }
 
 @media (min-width: 768px) {

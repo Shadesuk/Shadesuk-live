@@ -76,7 +76,8 @@ if (!merch.isNewArrival || merch.isBestSeller) {
   throw new Error("Merchandising flags must follow collection slugs only.");
 }
 
-const now = "2026-09-15T00:00:00.000Z";
+const now = new Date().toISOString();
+const publishedAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 const productId = "11111111-1111-1111-1111-111111111111";
 const blackId = "22222222-2222-2222-2222-222222222222";
 const greenId = "33333333-3333-3333-3333-333333333333";
@@ -98,6 +99,7 @@ const aggregate: ProductAggregate = {
     status: "published",
     created_at: now,
     updated_at: now,
+    published_at: publishedAt,
   },
   variants: [
     {

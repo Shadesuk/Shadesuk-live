@@ -4,7 +4,7 @@ import { productAvailabilityFromVariants, variantAvailability } from "./availabi
 import { brandIdForProduct, deriveBrandSource } from "./brand";
 import { deriveColours } from "./colour";
 import { toStorefrontImages, type ImageDimensionSource } from "./image";
-import { merchandisingFromCollectionSlugs } from "./merchandising";
+import { merchandisingFlagsFromState } from "./merchandising";
 import type { ProductAggregate, ProductVariantRow } from "./schema";
 import { parseGenderTokens, parseShapeTokens, slugifyToken } from "./taxonomy";
 
@@ -14,6 +14,8 @@ export type MapProductOptions = {
   projection: StorefrontProjection;
   /** Required before Product.images.src/width/height can be filled. */
   imageDimensions?: ImageDimensionSource;
+  bestSellerIds?: ReadonlySet<string>;
+  nowMs?: number;
 };
 
 /**
@@ -35,7 +37,7 @@ export function mapProductAggregateToStorefront(
   aggregate: ProductAggregate,
   options: MapProductOptions,
 ): MappedStorefrontProduct | null {
-  const { product, variants, images, collectionSlugs } = aggregate;
+  const { product, variants, images } = aggregate;
   if (product.status !== "published") {
     return null;
   }
@@ -45,13 +47,21 @@ export function mapProductAggregateToStorefront(
     return null;
   }
 
-  const merchandising = merchandisingFromCollectionSlugs(collectionSlugs);
+  const merchandising = merchandisingFlagsFromState({
+    productId: product.id,
+    publishedAt: product.published_at,
+    bestSellerIds: options.bestSellerIds ?? new Set(),
+    nowMs: options.nowMs,
+  });
   const colours = deriveColours(variants, {
     selectableOnly: options.projection === "card",
   });
   const storefrontVariants = variants
     .filter((variant) => variant.status !== "draft" && variant.status !== "archived")
     .map(toStorefrontVariant);
+  const colourIdByVariantId = new Map(
+    variants.map((variant) => [variant.id, slugifyToken(variant.colour_name) ?? undefined]),
+  );
 
   const derivedBrand = deriveBrandSource(product.brand);
   const mapped: MappedStorefrontProduct = {
@@ -69,10 +79,25 @@ export function mapProductAggregateToStorefront(
     availability: productAvailabilityFromVariants(variants),
     isNewArrival: merchandising.isNewArrival,
     isBestSeller: merchandising.isBestSeller,
-    images: toStorefrontImages(images, options.imageDimensions),
+    images: toStorefrontImages(images, options.imageDimensions).map((image) => {
+      const row = images.find((item) => item.id === image.id);
+      if (!row?.variant_id) {
+        return image;
+      }
+      const colourId = colourIdByVariantId.get(row.variant_id);
+      return {
+        ...image,
+        variantId: row.variant_id,
+        ...(colourId ? { colourId } : {}),
+      };
+    }),
     isDemo: false,
     variants: storefrontVariants,
   };
+
+  if (product.published_at) {
+    mapped.publishedAt = product.published_at;
+  }
 
   const compareAt = cardVariant.compare_at_price_minor;
   if (compareAt != null) {

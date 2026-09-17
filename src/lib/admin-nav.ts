@@ -1,4 +1,4 @@
-import { canAccessSettings, type AdminV1Role } from "@/contracts/admin/roles";
+import { canAccessMerchandising, canAccessSettings, type AdminV1Role } from "@/contracts/admin/roles";
 import { routes } from "@/lib/navigation";
 
 export type AdminNavItem = {
@@ -21,6 +21,11 @@ export const ADMIN_NAV_SETTINGS: AdminNavItem = {
   label: "Settings",
 };
 
+export const ADMIN_NAV_MERCHANDISING: AdminNavItem = {
+  href: routes.adminMerchandising,
+  label: "Merchandising",
+};
+
 export function isAdminNavItemActive(pathname: string, item: AdminNavItem): boolean {
   if (item.exact) {
     return pathname === item.href;
@@ -30,10 +35,16 @@ export function isAdminNavItemActive(pathname: string, item: AdminNavItem): bool
 
 export function adminNavForRole(role: AdminV1Role): {
   primary: readonly AdminNavItem[];
+  restricted: readonly AdminNavItem[];
   settings: AdminNavItem | null;
+  merchandising: AdminNavItem | null;
 } {
+  const merchandising = canAccessMerchandising(role) ? ADMIN_NAV_MERCHANDISING : null;
+  const settings = canAccessSettings(role) ? ADMIN_NAV_SETTINGS : null;
   return {
     primary: ADMIN_NAV_PRIMARY,
-    settings: canAccessSettings(role) ? ADMIN_NAV_SETTINGS : null,
+    restricted: [merchandising, settings].filter((item): item is AdminNavItem => Boolean(item)),
+    settings,
+    merchandising,
   };
 }

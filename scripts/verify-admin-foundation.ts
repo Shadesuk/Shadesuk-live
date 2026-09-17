@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import {
   AUTHENTICATED_ROLE_ASSIGNMENT_ALLOWED,
   canAccessAdmin,
+  canAccessMerchandising,
   canAccessSettings,
   canArchiveProduct,
   canAssignAdminRole,
@@ -36,7 +37,8 @@ if (
   routes.adminProducts !== "/admin/products" ||
   routes.adminCollections !== "/admin/collections" ||
   routes.adminCustomers !== "/admin/customers" ||
-  routes.adminAnalytics !== "/admin/analytics"
+  routes.adminAnalytics !== "/admin/analytics" ||
+  routes.adminMerchandising !== "/admin/merchandising"
 ) {
   throw new Error("Admin module routes must be wired under /admin.");
 }
@@ -58,11 +60,11 @@ if (canAccessAdmin("admin") === false || canAccessAdmin("superadmin") === false)
   throw new Error("Admin and Superadmin must access Admin.");
 }
 
-if (canAccessSettings("admin") || canArchiveProduct("admin") || canDeleteProduct("admin")) {
-  throw new Error("Admin must not access Settings, archive, or delete.");
+if (canAccessSettings("admin") || canAccessMerchandising("admin") || canArchiveProduct("admin") || canDeleteProduct("admin")) {
+  throw new Error("Admin must not access Settings, Merchandising, archive, or delete.");
 }
-if (!canAccessSettings("superadmin") || !canArchiveProduct("superadmin") || !canDeleteProduct("superadmin")) {
-  throw new Error("Superadmin role must resolve to Settings/archive/delete.");
+if (!canAccessSettings("superadmin") || !canAccessMerchandising("superadmin") || !canArchiveProduct("superadmin") || !canDeleteProduct("superadmin")) {
+  throw new Error("Superadmin role must resolve to Settings/Merchandising/archive/delete.");
 }
 if (!canPublishProduct("admin") || !canUnpublishProduct("admin") || !isSuperadmin("superadmin")) {
   throw new Error("Admin must keep publish/unpublish; Superadmin flag must resolve.");
@@ -86,11 +88,11 @@ if (!isAdminAppPath("/admin") || resolveSafeAdminNextPath("/account") !== "/admi
   throw new Error("Admin next paths must stay inside /admin.");
 }
 
-if (adminNavForRole("admin").settings !== null) {
-  throw new Error("Settings must not appear in Admin navigation.");
+if (adminNavForRole("admin").settings !== null || adminNavForRole("admin").merchandising !== null) {
+  throw new Error("Settings and Merchandising must not appear in Admin navigation.");
 }
-if (!adminNavForRole("superadmin").settings) {
-  throw new Error("Settings must be visible in Superadmin navigation.");
+if (!adminNavForRole("superadmin").settings || !adminNavForRole("superadmin").merchandising) {
+  throw new Error("Settings and Merchandising must be visible in Superadmin navigation.");
 }
 if (!isAdminNavItemActive("/admin/products/abc", ADMIN_NAV_PRIMARY[2])) {
   throw new Error("Nested product routes must keep Products active.");
@@ -166,6 +168,9 @@ const adminActions = read("src/app/admin/actions.ts");
 if (!adminActions.includes("adminSignInAction") || !adminActions.includes("toAdminV1Role")) {
   throw new Error("Admin sign-in must resolve V1 roles server-side.");
 }
+if (!adminActions.includes("[admin-auth]") || !adminActions.includes("email_not_confirmed")) {
+  throw new Error("Admin sign-in must log a safe diagnostic category in development.");
+}
 if (/input\.role|role:\s*input/.test(adminActions)) {
   throw new Error("Admin sign-in must not take a role from the browser.");
 }
@@ -174,6 +179,11 @@ if (adminActions.includes("createSupabaseAdminClient")) {
 }
 if (!adminActions.includes("signOut()") || !adminActions.includes("ADMIN_FORBIDDEN")) {
   throw new Error("Non-staff sign-in must sign out and deny Admin.");
+}
+
+const authScreen = read("src/components/admin/AdminAuthScreen.tsx");
+if (!authScreen.includes("isSupabaseConfigured") || !authScreen.includes("ADMIN_UNAVAILABLE")) {
+  throw new Error("Admin sign-in must explain when Supabase is not configured.");
 }
 
 const shell = read("src/components/admin/AdminShell.tsx");

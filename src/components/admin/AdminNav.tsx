@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { AdminV1Role } from "@/contracts/admin/roles";
 import {
-  ADMIN_NAV_SETTINGS,
+  ADMIN_NAV_LABEL,
+} from "@/lib/admin-copy";
+import {
   adminNavForRole,
   isAdminNavItemActive,
   type AdminNavItem,
 } from "@/lib/admin-nav";
-import { ADMIN_NAV_LABEL } from "@/lib/admin-copy";
 import { cx } from "@/lib/cx";
 import styles from "./AdminShell.module.css";
 
@@ -21,7 +22,7 @@ export function AdminNav({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname() ?? "";
-  const { primary, settings } = adminNavForRole(role);
+  const { primary, restricted } = adminNavForRole(role);
 
   return (
     <nav className={styles.nav} aria-label={ADMIN_NAV_LABEL} data-admin-nav>
@@ -35,15 +36,18 @@ export function AdminNav({
           />
         ))}
       </ul>
-      {settings ? (
+      {restricted.length > 0 ? (
         <>
           <div className={styles.rule} role="separator" />
           <ul className={styles.list}>
-            <AdminNavLink
-              item={ADMIN_NAV_SETTINGS}
-              pathname={pathname}
-              onNavigate={onNavigate}
-            />
+            {restricted.map((item) => (
+              <AdminNavLink
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                onNavigate={onNavigate}
+              />
+            ))}
           </ul>
         </>
       ) : null}
