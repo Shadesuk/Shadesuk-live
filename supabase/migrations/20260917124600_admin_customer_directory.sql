@@ -93,7 +93,7 @@ where private.is_admin();
 comment on view public.admin_customer_directory is
   'Admin operational directory. Registered = profiles; guest = order-derived emails.';
 
-revoke all on table public.admin_customer_directory from public, anon;
+revoke all on table public.admin_customer_directory from public, anon, authenticated;
 grant select on table public.admin_customer_directory to authenticated;
 
 create index if not exists orders_guest_email_lower_idx
