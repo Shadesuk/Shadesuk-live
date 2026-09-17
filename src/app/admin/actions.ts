@@ -23,19 +23,27 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { AuthActionResult } from "@/types/account";
 
+function adminAuthError(category: string, message: string): AuthActionResult {
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(`[admin-auth] ${category}`);
+    return { status: "error", message, debug: category };
+  }
+  return { status: "error", message };
+}
+
 export async function adminSignInAction(input: {
   email: string;
   password: string;
   next?: string;
 }): Promise<AuthActionResult> {
   if (!(await cartActionOriginAllowed()) || hasForbiddenOwnershipKey(input)) {
-    return { status: "error", message: NETWORK_ERROR };
+    return adminAuthError("origin", NETWORK_ERROR);
   }
   if (!isSupabaseConfigured()) {
-    return { status: "error", message: ADMIN_UNAVAILABLE };
+    return adminAuthError("unconfigured", ADMIN_UNAVAILABLE);
   }
   if (typeof input.email !== "string" || typeof input.password !== "string") {
-    return { status: "error", message: NETWORK_ERROR };
+    return adminAuthError("invalid_input", NETWORK_ERROR);
   }
   const errors = validateSignInInput(input);
   if (hasAccountFieldErrors(errors)) {
@@ -43,7 +51,7 @@ export async function adminSignInAction(input: {
   }
   const email = normalizeAccountEmail(input.email);
   if (!(await allowAdminAuthAttempt(email))) {
-    return { status: "error", message: ADMIN_CREDENTIALS_INVALID };
+    return adminAuthError("rate_limited", ADMIN_CREDENTIALS_INVALID);
   }
 
   try {
@@ -53,7 +61,14 @@ export async function adminSignInAction(input: {
       password: input.password,
     });
     if (error || !data.user) {
-      return { status: "error", message: ADMIN_CREDENTIALS_INVALID };
+      const code = error?.code?.trim() || "unknown";
+      const category =
+        code === "email_not_confirmed"
+          ? "email_not_confirmed"
+          : code === "invalid_credentials" || code === "invalid_grant"
+            ? "invalid_credentials"
+            : `supabase:${code}`;
+      return adminAuthError(category, ADMIN_CREDENTIALS_INVALID);
     }
 
     const staff = await supabase
@@ -66,14 +81,18 @@ export async function adminSignInAction(input: {
       staff.data && typeof staff.data.role === "string" ? staff.data.role : null,
     );
     const active = Boolean(staff.data && staff.data.is_active);
-    if (staff.error || !role || !active) {
+    if (staff.error) {
       await supabase.auth.signOut();
-      return { status: "error", message: ADMIN_FORBIDDEN };
+      return adminAuthError("staff_lookup", ADMIN_FORBIDDEN);
+    }
+    if (!role || !active) {
+      await supabase.auth.signOut();
+      return adminAuthError("forbidden", ADMIN_FORBIDDEN);
     }
 
     return { status: "ok", redirectTo: resolveSafeAdminNextPath(input.next) };
   } catch {
-    return { status: "error", message: NETWORK_ERROR };
+    return adminAuthError("network", NETWORK_ERROR);
   }
 }
 

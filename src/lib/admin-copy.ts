@@ -4,7 +4,8 @@ export const ADMIN_SIGN_IN_ACTION = "Sign in";
 export const ADMIN_EMAIL_LABEL = "Email";
 export const ADMIN_PASSWORD_LABEL = "Password";
 export const ADMIN_UNAVAILABLE = "Admin sign-in is unavailable.";
-export const ADMIN_CREDENTIALS_INVALID = "Email or password is incorrect.";
+export const ADMIN_CREDENTIALS_INVALID =
+  "Unable to sign in. Please check your details and try again.";
 export const ADMIN_FORBIDDEN =
   "This account cannot access SHADESUK Admin.";
 export const ADMIN_SETTINGS_FORBIDDEN =

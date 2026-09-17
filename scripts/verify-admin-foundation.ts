@@ -168,6 +168,9 @@ const adminActions = read("src/app/admin/actions.ts");
 if (!adminActions.includes("adminSignInAction") || !adminActions.includes("toAdminV1Role")) {
   throw new Error("Admin sign-in must resolve V1 roles server-side.");
 }
+if (!adminActions.includes("[admin-auth]") || !adminActions.includes("email_not_confirmed")) {
+  throw new Error("Admin sign-in must log a safe diagnostic category in development.");
+}
 if (/input\.role|role:\s*input/.test(adminActions)) {
   throw new Error("Admin sign-in must not take a role from the browser.");
 }
@@ -176,6 +179,11 @@ if (adminActions.includes("createSupabaseAdminClient")) {
 }
 if (!adminActions.includes("signOut()") || !adminActions.includes("ADMIN_FORBIDDEN")) {
   throw new Error("Non-staff sign-in must sign out and deny Admin.");
+}
+
+const authScreen = read("src/components/admin/AdminAuthScreen.tsx");
+if (!authScreen.includes("isSupabaseConfigured") || !authScreen.includes("ADMIN_UNAVAILABLE")) {
+  throw new Error("Admin sign-in must explain when Supabase is not configured.");
 }
 
 const shell = read("src/components/admin/AdminShell.tsx");

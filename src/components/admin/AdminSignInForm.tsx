@@ -23,6 +23,7 @@ export function AdminSignInForm() {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<AccountFieldErrors>({});
   const [formError, setFormError] = useState("");
+  const [debug, setDebug] = useState("");
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -32,6 +33,7 @@ export function AdminSignInForm() {
     }
     setPending(true);
     setFormError("");
+    setDebug("");
     const result = await adminSignInAction({ email, password, next: "/admin" });
     if (result.status === "ok" && result.redirectTo) {
       router.replace(result.redirectTo);
@@ -47,6 +49,9 @@ export function AdminSignInForm() {
     setFormError(
       result.status === "error" ? result.message : ADMIN_CREDENTIALS_INVALID,
     );
+    if (result.status === "error" && result.debug && process.env.NODE_ENV !== "production") {
+      setDebug(result.debug);
+    }
     setPending(false);
   }
 
@@ -58,6 +63,11 @@ export function AdminSignInForm() {
         {formError ? (
           <p className="text-small" role="alert">
             {formError}
+          </p>
+        ) : null}
+        {debug ? (
+          <p className="text-small" data-admin-auth-debug>
+            {debug}
           </p>
         ) : null}
         <Field
