@@ -47,9 +47,13 @@ export async function CollectionsHub({
               </DiscoveryIndexSection>
             ) : null}
             {assignedItems.length > 0 ? (
-              <DiscoveryIndexSection headingId="assigned-heading" title="Collections">
-                <DiscoveryList items={assignedItems} labelledBy="assigned-heading" />
-              </DiscoveryIndexSection>
+              shapeItems.length > 0 ? (
+                <DiscoveryIndexSection headingId="assigned-heading" title="Selected">
+                  <DiscoveryList items={assignedItems} labelledBy="assigned-heading" />
+                </DiscoveryIndexSection>
+              ) : (
+                <DiscoveryList items={assignedItems} labelledBy="discovery-index-heading" />
+              )
             ) : null}
             {shapeItems.length === 0 && assignedItems.length === 0 ? (
               <EmptyState
