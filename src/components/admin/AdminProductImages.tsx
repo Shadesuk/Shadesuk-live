@@ -218,12 +218,11 @@ export function AdminProductImages({
           <div className={styles.formGrid}>
             <Field
               id={fileId}
-              name="image"
               type="file"
               accept="image/jpeg,image/png,image/webp"
               label={ADMIN_PRODUCT_IMAGE_FILE}
             />
-            <Field id={altId} name="altText" label={ADMIN_PRODUCT_IMAGE_ALT} autoComplete="off" />
+            <Field id={altId} label={ADMIN_PRODUCT_IMAGE_ALT} autoComplete="off" />
             {colourName ? null : (
               <FieldSelect
                 id={`${headingId}-variant`}
