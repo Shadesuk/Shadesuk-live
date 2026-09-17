@@ -1,15 +1,16 @@
 .hero {
-  padding-bottom: var(--space-16);
+  position: relative;
 }
 
 .stage {
   position: relative;
+  overflow: hidden;
 }
 
 .media {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 5;
   overflow: hidden;
   background: var(--color-stone);
 }
@@ -24,21 +25,29 @@
 }
 
 .copy {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-24);
-  padding-block: var(--space-24);
+  justify-content: flex-end;
+  gap: var(--space-12);
+  padding-block: var(--space-16) var(--space-24);
 }
 
 .eyebrow,
 .copy h1 {
   margin: 0;
+  color: var(--color-white);
 }
 
 .copy h1 {
   text-transform: uppercase;
-  max-width: min(12ch, 100%);
+  max-width: min(11ch, 100%);
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-line);
+  letter-spacing: var(--text-h1-tracking);
 }
 
 .actions {
@@ -54,10 +63,6 @@
 }
 
 @media (min-width: 768px) {
-  .hero {
-    padding-bottom: 0;
-  }
-
   .media {
     aspect-ratio: 1844 / 853;
   }
@@ -67,11 +72,21 @@
   }
 
   .copy {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
     justify-content: center;
+    gap: var(--space-24);
     padding-block: var(--space-32);
+  }
+
+  .eyebrow,
+  .copy h1 {
+    color: var(--color-text);
+  }
+
+  .copy h1 {
+    max-width: min(12ch, 100%);
+    font-size: var(--text-display-size);
+    line-height: var(--text-display-line);
+    letter-spacing: var(--text-display-tracking);
   }
 
   .actions {

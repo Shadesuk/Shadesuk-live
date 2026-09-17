@@ -22,7 +22,7 @@ export function HeroCampaign() {
             alt={HERO_IMAGE.alt}
             width={HERO_IMAGE.width}
             height={HERO_IMAGE.height}
-            sizes="(max-width: 767px) 180vw, 100vw"
+            sizes="(max-width: 767px) 220vw, 100vw"
             priority
             className={styles.image}
           />
