@@ -223,14 +223,35 @@ if (!orderDetailPage.includes("getAdminGate") || !orderDetailPage.includes("Admi
 for (const file of [
   "src/app/admin/collections/page.tsx",
   "src/app/admin/collections/[id]/page.tsx",
-  "src/app/admin/customers/page.tsx",
-  "src/app/admin/customers/[id]/page.tsx",
-  "src/app/admin/analytics/page.tsx",
 ]) {
   const source = read(file);
   if (!source.includes("AdminPlaceholderPage") || source.includes("MetricCard")) {
     throw new Error(`${file} must be a shell placeholder, not a module.`);
   }
+}
+
+const customersPage = read("src/app/admin/customers/page.tsx");
+if (customersPage.includes("AdminPlaceholderPage")) {
+  throw new Error("Customers list must be implemented, not a placeholder.");
+}
+if (!customersPage.includes("getAdminGate") || !customersPage.includes("AdminCustomersPage")) {
+  throw new Error("Customers list must use the Admin gate and AdminCustomersPage.");
+}
+
+const customerDetailPage = read("src/app/admin/customers/[id]/page.tsx");
+if (customerDetailPage.includes("AdminPlaceholderPage")) {
+  throw new Error("Customer detail must be implemented, not a placeholder.");
+}
+if (!customerDetailPage.includes("getAdminGate") || !customerDetailPage.includes("AdminCustomerDetailSection")) {
+  throw new Error("Customer detail must use the Admin gate and AdminCustomerDetailSection.");
+}
+
+const analyticsPage = read("src/app/admin/analytics/page.tsx");
+if (analyticsPage.includes("AdminPlaceholderPage")) {
+  throw new Error("Analytics must be implemented, not a placeholder.");
+}
+if (!analyticsPage.includes("getAdminGate") || !analyticsPage.includes("AdminAnalytics")) {
+  throw new Error("Analytics must use the Admin gate and AdminAnalytics.");
 }
 
 const productsPage = read("src/app/admin/products/page.tsx");

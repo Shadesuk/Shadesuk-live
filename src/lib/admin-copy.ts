@@ -279,3 +279,64 @@ export const ADMIN_MERCHANDISING_ERROR = "Something went wrong.";
 export const ADMIN_MERCHANDISING_SELECTED = "Selected";
 export const ADMIN_MERCHANDISING_YES = "Yes";
 export const ADMIN_MERCHANDISING_NO = "No";
+export const ADMIN_CUSTOMERS_TITLE = "Customers";
+export const ADMIN_CUSTOMERS_BODY =
+  "Registered accounts and guest checkout customers from order records.";
+export const ADMIN_CUSTOMERS_SEARCH_LABEL = "Search customers";
+export const ADMIN_CUSTOMERS_SEARCH_HINT = "Name, email, or order reference";
+export const ADMIN_CUSTOMERS_FILTER_TYPE = "Account type";
+export const ADMIN_CUSTOMERS_FILTER_ORDERS = "Orders";
+export const ADMIN_CUSTOMERS_FILTER_ALL = "All";
+export const ADMIN_CUSTOMERS_TYPE_REGISTERED = "Registered";
+export const ADMIN_CUSTOMERS_TYPE_GUEST = "Guest";
+export const ADMIN_CUSTOMERS_ORDERS_HAS = "Has orders";
+export const ADMIN_CUSTOMERS_ORDERS_NONE = "No orders";
+export const ADMIN_CUSTOMERS_APPLY = "Apply";
+export const ADMIN_CUSTOMERS_CLEAR = "Clear";
+export const ADMIN_CUSTOMERS_COL_CUSTOMER = "Customer";
+export const ADMIN_CUSTOMERS_COL_EMAIL = "Email";
+export const ADMIN_CUSTOMERS_COL_ORDERS = "Orders";
+export const ADMIN_CUSTOMERS_COL_SPENT = "Total spent";
+export const ADMIN_CUSTOMERS_COL_LAST_ORDER = "Last order";
+export const ADMIN_CUSTOMERS_COL_TYPE = "Account";
+export const ADMIN_CUSTOMERS_EMPTY_TITLE = "No customers yet";
+export const ADMIN_CUSTOMERS_EMPTY_BODY =
+  "Customers appear here after accounts are created or orders are placed.";
+export const ADMIN_CUSTOMERS_EMPTY_FILTER_TITLE = "No matching customers";
+export const ADMIN_CUSTOMERS_EMPTY_FILTER_BODY = "Try a different name, email, or filter.";
+export const ADMIN_CUSTOMERS_UNAVAILABLE_TITLE = "Customers unavailable";
+export const ADMIN_CUSTOMERS_UNAVAILABLE_BODY = "We couldn’t load customers.";
+export const ADMIN_CUSTOMERS_LOADING = "Loading customers";
+export const ADMIN_CUSTOMER_LOADING = "Loading customer";
+export const ADMIN_CUSTOMER_NOT_FOUND_TITLE = "Customer not found";
+export const ADMIN_CUSTOMER_NOT_FOUND_BODY =
+  "This customer may no longer exist or the reference may be invalid.";
+export const ADMIN_CUSTOMER_BACK = "Back to customers";
+export const ADMIN_CUSTOMER_GUEST_HINT =
+  "Derived from guest checkout orders. This is not a customer account.";
+export const ADMIN_CUSTOMER_ORDER_HISTORY = "Order history";
+export const ADMIN_CUSTOMER_ORDER_HISTORY_EMPTY_TITLE = "No orders yet";
+export const ADMIN_CUSTOMER_ORDER_HISTORY_EMPTY_BODY =
+  "Orders for this customer will appear here.";
+export const ADMIN_CUSTOMER_DETAILS = "Customer details";
+export const ADMIN_CUSTOMER_ADDRESSES = "Saved addresses";
+export const ADMIN_CUSTOMER_ADDRESSES_EMPTY_TITLE = "No saved addresses";
+export const ADMIN_CUSTOMER_ADDRESSES_EMPTY_BODY =
+  "Saved addresses appear when a registered customer stores one.";
+export const ADMIN_CUSTOMER_LAST_DELIVERY = "Last delivery address";
+export const ADMIN_CUSTOMER_DEFAULT_ADDRESS = "Default";
+export const ADMIN_CUSTOMER_ORDER_SUMMARY = "Items";
+export const ADMIN_CUSTOMER_VIEW_ORDER = "View order";
+export const ADMIN_ANALYTICS_TITLE = "Analytics";
+export const ADMIN_ANALYTICS_BODY =
+  "Captured revenue, orders, and customer totals for the selected period.";
+export const ADMIN_ANALYTICS_PERIOD_NAV = "Analytics period";
+export const ADMIN_ANALYTICS_UNAVAILABLE_TITLE = "Unable to load analytics";
+export const ADMIN_ANALYTICS_UNAVAILABLE_BODY = "Please try again.";
+export const ADMIN_ANALYTICS_CUSTOMERS_TITLE = "Customers";
+export const ADMIN_ANALYTICS_CUSTOMERS_HINT =
+  "Registered profiles and guest checkout emails. Totals are all-time.";
+export const ADMIN_ANALYTICS_KPI_REGISTERED = "Registered";
+export const ADMIN_ANALYTICS_KPI_WITH_ORDERS = "With orders";
+export const ADMIN_ANALYTICS_KPI_GUEST = "Guest";
+export const ADMIN_ANALYTICS_LOADING_CUSTOMERS = "Loading customer totals";

@@ -9,13 +9,21 @@ import { routes } from "@/lib/navigation";
 import { cx } from "@/lib/cx";
 import styles from "./AdminDashboard.module.css";
 
-export function AdminDashboardPeriodNav({ period }: { period: DashboardPeriod }) {
+export function AdminDashboardPeriodNav({
+  period,
+  basePath = routes.admin,
+  label = ADMIN_DASHBOARD_PERIOD_NAV,
+}: {
+  period: DashboardPeriod;
+  basePath?: string;
+  label?: string;
+}) {
   return (
-    <nav className={styles.headerAction} aria-label={ADMIN_DASHBOARD_PERIOD_NAV}>
+    <nav className={styles.headerAction} aria-label={label}>
       <ul className={styles.periods}>
         {DASHBOARD_PERIODS.map((value) => {
           const current = value === period;
-          const href = value === "7d" ? routes.admin : `${routes.admin}?period=${value}`;
+          const href = value === "7d" ? basePath : `${basePath}?period=${value}`;
           return (
             <li key={value}>
               <Link

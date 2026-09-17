@@ -13,10 +13,18 @@ import { loadDashboardPeriodSnapshot } from "@/services/admin-dashboard";
 import { AdminDashboardUnavailable } from "./AdminDashboardUnavailable";
 import styles from "./AdminDashboard.module.css";
 
-export async function AdminSalesOverview({ period }: { period: DashboardPeriod }) {
+export async function AdminSalesOverview({
+  period,
+  unavailableTitle,
+  unavailableBody,
+}: {
+  period: DashboardPeriod;
+  unavailableTitle?: string;
+  unavailableBody?: string;
+}) {
   const result = await loadDashboardPeriodSnapshot(period);
   if (result.status !== "ok") {
-    return <AdminDashboardUnavailable />;
+    return <AdminDashboardUnavailable title={unavailableTitle} body={unavailableBody} />;
   }
   const { series, hasSales } = result.data;
 

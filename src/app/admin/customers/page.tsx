@@ -1,17 +1,27 @@
 import type { Metadata } from "next";
-import { AdminPlaceholderPage } from "@/components/admin/AdminPlaceholderPage";
-import { ADMIN_MODULE_LATER } from "@/lib/admin-copy";
+import { AdminAuthScreen } from "@/components/admin/AdminAuthScreen";
+import { AdminCustomersPage } from "@/components/admin/AdminCustomersPage";
+import { parseAdminCustomerListQuery } from "@/contracts/admin/customers";
+import { ADMIN_CUSTOMERS_BODY, ADMIN_CUSTOMERS_TITLE } from "@/lib/admin-copy";
+import { getAdminGate } from "@/lib/admin-session";
 import { routes } from "@/lib/navigation";
 import { privatePathMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = privatePathMetadata(
-  "Customers",
-  ADMIN_MODULE_LATER,
+  ADMIN_CUSTOMERS_TITLE,
+  ADMIN_CUSTOMERS_BODY,
   routes.adminCustomers,
 );
 
-export default function AdminCustomersPage() {
-  return (
-    <AdminPlaceholderPage title="Customers" description={ADMIN_MODULE_LATER} />
-  );
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminCustomersRoute({ searchParams }: PageProps) {
+  const gate = await getAdminGate();
+  if (gate.status !== "ok") {
+    return <AdminAuthScreen gate={gate} />;
+  }
+  const query = parseAdminCustomerListQuery(await searchParams);
+  return <AdminCustomersPage query={query} />;
 }

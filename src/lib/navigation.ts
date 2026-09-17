@@ -52,7 +52,7 @@ export function adminCollectionPath(id: string): string {
 }
 
 export function adminCustomerPath(id: string): string {
-  return `/admin/customers/${id}`;
+  return `/admin/customers/${encodeURIComponent(id)}`;
 }
 
 export const primaryNav = [
