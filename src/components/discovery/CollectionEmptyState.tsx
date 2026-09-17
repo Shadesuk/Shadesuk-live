@@ -32,9 +32,16 @@ export function CollectionEmptyState({
         title="No shades available."
         description="Explore all shades."
         actions={
-          <ButtonLink href={routes.shop} variant="secondary">
-            View all shades
-          </ButtonLink>
+          <>
+            <ButtonLink href={routes.shop} variant="secondary">
+              View all shades
+            </ButtonLink>
+            {collection.kind === "assigned" ? (
+              <ButtonLink href={routes.collections} variant="tertiary">
+                View collections
+              </ButtonLink>
+            ) : null}
+          </>
         }
       />
     );

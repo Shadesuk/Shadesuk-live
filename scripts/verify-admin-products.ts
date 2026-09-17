@@ -512,7 +512,6 @@ if (!skeletons.includes("AdminProductsTableSkeleton") || !skeletons.includes("Ad
 }
 
 for (const file of [
-  "src/app/admin/collections/page.tsx",
   "src/app/admin/customers/page.tsx",
   "src/app/admin/analytics/page.tsx",
 ]) {

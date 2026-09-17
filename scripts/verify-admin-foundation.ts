@@ -5,9 +5,12 @@ import {
   canAccessAdmin,
   canAccessMerchandising,
   canAccessSettings,
+  canArchiveCollection,
   canArchiveProduct,
   canAssignAdminRole,
+  canDeleteCollection,
   canDeleteProduct,
+  canManageCollections,
   canPublishProduct,
   canUnpublishProduct,
   isAdminV1Role,
@@ -36,6 +39,7 @@ if (
   routes.adminOrders !== "/admin/orders" ||
   routes.adminProducts !== "/admin/products" ||
   routes.adminCollections !== "/admin/collections" ||
+  routes.adminCollectionsNew !== "/admin/collections/new" ||
   routes.adminCustomers !== "/admin/customers" ||
   routes.adminAnalytics !== "/admin/analytics" ||
   routes.adminMerchandising !== "/admin/merchandising"
@@ -60,11 +64,14 @@ if (canAccessAdmin("admin") === false || canAccessAdmin("superadmin") === false)
   throw new Error("Admin and Superadmin must access Admin.");
 }
 
-if (canAccessSettings("admin") || canAccessMerchandising("admin") || canArchiveProduct("admin") || canDeleteProduct("admin")) {
+if (canAccessSettings("admin") || canAccessMerchandising("admin") || canArchiveProduct("admin") || canDeleteProduct("admin") || canArchiveCollection("admin") || canDeleteCollection("admin")) {
   throw new Error("Admin must not access Settings, Merchandising, archive, or delete.");
 }
-if (!canAccessSettings("superadmin") || !canAccessMerchandising("superadmin") || !canArchiveProduct("superadmin") || !canDeleteProduct("superadmin")) {
+if (!canAccessSettings("superadmin") || !canAccessMerchandising("superadmin") || !canArchiveProduct("superadmin") || !canDeleteProduct("superadmin") || !canArchiveCollection("superadmin") || !canDeleteCollection("superadmin")) {
   throw new Error("Superadmin role must resolve to Settings/Merchandising/archive/delete.");
+}
+if (!canManageCollections("admin") || !canManageCollections("superadmin")) {
+  throw new Error("Admin and Superadmin must manage collections.");
 }
 if (!canPublishProduct("admin") || !canUnpublishProduct("admin") || !isSuperadmin("superadmin")) {
   throw new Error("Admin must keep publish/unpublish; Superadmin flag must resolve.");
@@ -221,8 +228,6 @@ if (!orderDetailPage.includes("getAdminGate") || !orderDetailPage.includes("Admi
 }
 
 for (const file of [
-  "src/app/admin/collections/page.tsx",
-  "src/app/admin/collections/[id]/page.tsx",
   "src/app/admin/customers/page.tsx",
   "src/app/admin/customers/[id]/page.tsx",
   "src/app/admin/analytics/page.tsx",
@@ -231,6 +236,30 @@ for (const file of [
   if (!source.includes("AdminPlaceholderPage") || source.includes("MetricCard")) {
     throw new Error(`${file} must be a shell placeholder, not a module.`);
   }
+}
+
+const collectionsPage = read("src/app/admin/collections/page.tsx");
+if (collectionsPage.includes("AdminPlaceholderPage")) {
+  throw new Error("Collections list must be implemented, not a placeholder.");
+}
+if (!collectionsPage.includes("getAdminGate") || !collectionsPage.includes("AdminCollectionsPage")) {
+  throw new Error("Collections list must use the Admin gate and AdminCollectionsPage.");
+}
+
+const collectionsNewPage = read("src/app/admin/collections/new/page.tsx");
+if (collectionsNewPage.includes("AdminPlaceholderPage")) {
+  throw new Error("New collection must be implemented, not a placeholder.");
+}
+if (!collectionsNewPage.includes("getAdminGate") || !collectionsNewPage.includes("AdminNewCollectionSection")) {
+  throw new Error("New collection must use the Admin gate and AdminNewCollectionSection.");
+}
+
+const collectionDetailPage = read("src/app/admin/collections/[id]/page.tsx");
+if (collectionDetailPage.includes("AdminPlaceholderPage")) {
+  throw new Error("Collection editor must be implemented, not a placeholder.");
+}
+if (!collectionDetailPage.includes("getAdminGate") || !collectionDetailPage.includes("AdminCollectionDetailSection")) {
+  throw new Error("Collection editor must use the Admin gate and AdminCollectionDetailSection.");
 }
 
 const productsPage = read("src/app/admin/products/page.tsx");

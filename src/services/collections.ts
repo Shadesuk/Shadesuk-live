@@ -197,6 +197,10 @@ export function getCollectionProducts(
       return Boolean(brand && product.brandId === brand.id);
     });
   }
+  if (collection.kind === "assigned") {
+    const ids = new Set(collection.productIds ?? []);
+    return products.filter((product) => ids.has(product.id));
+  }
   return products;
 }
 
