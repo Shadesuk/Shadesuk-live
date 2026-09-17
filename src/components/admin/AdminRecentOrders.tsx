@@ -23,10 +23,16 @@ import { loadDashboardRecentOrders } from "@/services/admin-dashboard";
 import { AdminDashboardUnavailable } from "./AdminDashboardUnavailable";
 import styles from "./AdminDashboard.module.css";
 
-export async function AdminRecentOrders() {
+export async function AdminRecentOrders({
+  unavailableTitle,
+  unavailableBody,
+}: {
+  unavailableTitle?: string;
+  unavailableBody?: string;
+} = {}) {
   const result = await loadDashboardRecentOrders();
   if (result.status !== "ok") {
-    return <AdminDashboardUnavailable />;
+    return <AdminDashboardUnavailable title={unavailableTitle} body={unavailableBody} />;
   }
   const orders = result.data;
 
