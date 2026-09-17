@@ -172,7 +172,7 @@ export const ADMIN_PRODUCT_PRICING = "Pricing";
 export const ADMIN_PRODUCT_ATTRIBUTES = "Catalogue attributes";
 export const ADMIN_PRODUCT_COLLECTIONS = "Collections";
 export const ADMIN_PRODUCT_COLLECTIONS_HINT =
-  "Optional membership in existing collections. Collection management ships later.";
+  "Optional membership in existing collections.";
 export const ADMIN_PRODUCT_IMAGES = "Images";
 export const ADMIN_PRODUCT_IMAGES_EMPTY_TITLE = "No product images";
 export const ADMIN_PRODUCT_IMAGES_EMPTY_BODY = "Upload product imagery to complete the catalogue entry.";
@@ -279,6 +279,86 @@ export const ADMIN_MERCHANDISING_ERROR = "Something went wrong.";
 export const ADMIN_MERCHANDISING_SELECTED = "Selected";
 export const ADMIN_MERCHANDISING_YES = "Yes";
 export const ADMIN_MERCHANDISING_NO = "No";
+export const ADMIN_COLLECTIONS_TITLE = "Collections";
+export const ADMIN_COLLECTIONS_BODY =
+  "Create discovery collections and assign published catalogue products.";
+export const ADMIN_COLLECTIONS_ADD = "Add collection";
+export const ADMIN_COLLECTIONS_SEARCH_LABEL = "Search collections";
+export const ADMIN_COLLECTIONS_SEARCH_HINT = "Name or slug";
+export const ADMIN_COLLECTIONS_FILTER_VISIBILITY = "Visibility";
+export const ADMIN_COLLECTIONS_FILTER_ALL = "All";
+export const ADMIN_COLLECTIONS_APPLY = "Apply";
+export const ADMIN_COLLECTIONS_CLEAR = "Clear";
+export const ADMIN_COLLECTIONS_EMPTY_TITLE = "No collections yet";
+export const ADMIN_COLLECTIONS_EMPTY_BODY =
+  "Create a collection when the catalogue supports a meaningful discovery group.";
+export const ADMIN_COLLECTIONS_EMPTY_FILTER_TITLE = "No collections found";
+export const ADMIN_COLLECTIONS_EMPTY_FILTER_BODY = "Try another search or visibility filter.";
+export const ADMIN_COLLECTIONS_UNAVAILABLE_TITLE = "Collections unavailable";
+export const ADMIN_COLLECTIONS_UNAVAILABLE_BODY = "We couldn’t load collections.";
+export const ADMIN_COLLECTIONS_LOADING = "Loading collections";
+export const ADMIN_COLLECTION_LOADING = "Loading collection";
+export const ADMIN_COLLECTION_NOT_FOUND_TITLE = "Collection not found";
+export const ADMIN_COLLECTION_NOT_FOUND_BODY =
+  "This collection may have been removed or is unavailable.";
+export const ADMIN_COLLECTION_BACK = "Back to collections";
+export const ADMIN_COLLECTION_NEW_TITLE = "New collection";
+export const ADMIN_COLLECTION_INFORMATION = "Collection";
+export const ADMIN_COLLECTION_NAME = "Name";
+export const ADMIN_COLLECTION_SLUG = "Generated slug";
+export const ADMIN_COLLECTION_SLUG_HINT =
+  "Created from the collection name. This public URL does not change after the collection is saved.";
+export const ADMIN_COLLECTION_DESCRIPTION = "Description";
+export const ADMIN_COLLECTION_DESCRIPTION_HINT = "Editorial and concise. Plain text only.";
+export const ADMIN_COLLECTION_VISIBILITY = "Visibility";
+export const ADMIN_COLLECTION_VISIBLE = "Visible";
+export const ADMIN_COLLECTION_HIDDEN = "Hidden";
+export const ADMIN_COLLECTION_ARCHIVED = "Archived";
+export const ADMIN_COLLECTION_IMAGE = "Image";
+export const ADMIN_COLLECTION_IMAGE_OPTIONAL = "Optional. Collections remain valid without an image.";
+export const ADMIN_COLLECTION_IMAGE_FILE = "Image file";
+export const ADMIN_COLLECTION_IMAGE_UPLOAD = "Upload image";
+export const ADMIN_COLLECTION_IMAGE_REMOVE = "Remove image";
+export const ADMIN_COLLECTION_IMAGES_SAVE_FIRST = "Save the collection before uploading an image.";
+export const ADMIN_COLLECTION_UPLOAD_FAILED = "Image upload failed";
+export const ADMIN_COLLECTION_PRODUCTS = "Products";
+export const ADMIN_COLLECTION_PRODUCTS_HINT =
+  "Assign catalogue products. Draft products can be assigned, but only published products appear on the storefront.";
+export const ADMIN_COLLECTION_PRODUCTS_EMPTY_TITLE = "No products assigned";
+export const ADMIN_COLLECTION_PRODUCTS_EMPTY_BODY = "Search the catalogue and add products to this collection.";
+export const ADMIN_COLLECTION_ADD_PRODUCT = "Add product";
+export const ADMIN_COLLECTION_REMOVE_PRODUCT = "Remove";
+export const ADMIN_COLLECTION_SEARCH_PRODUCTS = "Search products";
+export const ADMIN_COLLECTION_SEARCH_PRODUCTS_HINT = "Name, brand, or SKU";
+export const ADMIN_COLLECTION_SEARCH_EMPTY = "No matching products.";
+export const ADMIN_COLLECTION_SEARCH_ERROR = "Product search failed.";
+export const ADMIN_COLLECTION_COL_NAME = "Collection";
+export const ADMIN_COLLECTION_COL_SLUG = "Slug";
+export const ADMIN_COLLECTION_COL_VISIBILITY = "Visibility";
+export const ADMIN_COLLECTION_COL_PRODUCTS = "Products";
+export const ADMIN_COLLECTION_COL_UPDATED = "Updated";
+export const ADMIN_COLLECTION_COL_ACTIONS = "Actions";
+export const ADMIN_COLLECTION_EDIT = "Edit";
+export const ADMIN_COLLECTION_SAVE = "Save changes";
+export const ADMIN_COLLECTION_SAVING = "Saving";
+export const ADMIN_COLLECTION_SAVED_JUST_NOW = "Saved just now";
+export const ADMIN_COLLECTION_SAVE_FAILED_TITLE = "Couldn’t save changes";
+export const ADMIN_COLLECTION_SAVE_FAILED_BODY = "Your changes were not saved.";
+export const ADMIN_COLLECTION_STALE = "This collection was updated elsewhere. Refresh and try again.";
+export const ADMIN_COLLECTION_PREVIEW = "Preview on storefront";
+export const ADMIN_COLLECTION_ARCHIVE = "Archive";
+export const ADMIN_COLLECTION_ARCHIVE_CONFIRM =
+  "Archive this collection? It will leave public discovery. Assigned products are kept.";
+export const ADMIN_COLLECTION_DELETE = "Delete permanently";
+export const ADMIN_COLLECTION_DELETE_CONFIRM =
+  "Delete this collection permanently? Products are not deleted. Product assignments for this collection will be removed.";
+export const ADMIN_COLLECTION_DELETE_ACTION = "Delete collection";
+export const ADMIN_COLLECTION_CANCEL = "Cancel";
+export const ADMIN_COLLECTIONS_RETRY = "Try again";
+export const ADMIN_COLLECTION_PRODUCT_COL_PRODUCT = "Product";
+export const ADMIN_COLLECTION_PRODUCT_COL_BRAND = "Brand";
+export const ADMIN_COLLECTION_PRODUCT_COL_SKU = "SKU";
+export const ADMIN_COLLECTION_PRODUCT_COL_STATUS = "Status";
 export const ADMIN_CUSTOMERS_TITLE = "Customers";
 export const ADMIN_CUSTOMERS_BODY =
   "Registered accounts and guest checkout customers from order records.";
@@ -340,3 +420,4 @@ export const ADMIN_ANALYTICS_KPI_REGISTERED = "Registered";
 export const ADMIN_ANALYTICS_KPI_WITH_ORDERS = "With orders";
 export const ADMIN_ANALYTICS_KPI_GUEST = "Guest";
 export const ADMIN_ANALYTICS_LOADING_CUSTOMERS = "Loading customer totals";
+

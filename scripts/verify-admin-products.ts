@@ -511,10 +511,4 @@ if (!skeletons.includes("AdminProductsTableSkeleton") || !skeletons.includes("Ad
   throw new Error("Products must use section skeletons, not a page spinner.");
 }
 
-for (const file of ["src/app/admin/collections/page.tsx"]) {
-  if (!read(file).includes("AdminPlaceholderPage")) {
-    throw new Error(`${file} must remain a later-step placeholder.`);
-  }
-}
-
 console.log("verify-admin-products: ok");

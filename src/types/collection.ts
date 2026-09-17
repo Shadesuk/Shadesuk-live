@@ -46,7 +46,8 @@ export type CollectionKind =
   | "gender"
   | "merchandising"
   | "shape"
-  | "brand";
+  | "brand"
+  | "assigned";
 
 export type HiddenFilterKey = "gender" | "shape" | "brand";
 
@@ -61,6 +62,8 @@ export type CollectionDefinition = {
   shape?: Shape;
   merchandising?: "new-arrivals" | "best-sellers";
   brandId?: string;
+  /** Published catalogue product ids assigned via product_collections. */
+  productIds?: string[];
 };
 
 export type CollectionQuery = {

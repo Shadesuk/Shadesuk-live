@@ -33,6 +33,7 @@ export const routes = {
   adminProducts: "/admin/products",
   adminProductsNew: "/admin/products/new",
   adminCollections: "/admin/collections",
+  adminCollectionsNew: "/admin/collections/new",
   adminCustomers: "/admin/customers",
   adminAnalytics: "/admin/analytics",
   adminMerchandising: "/admin/merchandising",
@@ -49,6 +50,10 @@ export function adminProductPath(id: string): string {
 
 export function adminCollectionPath(id: string): string {
   return `/admin/collections/${id}`;
+}
+
+export function collectionPath(slug: string): string {
+  return `/collections/${slug}`;
 }
 
 export function adminCustomerPath(id: string): string {

@@ -50,6 +50,18 @@ export function canDeleteProduct(role: AdminV1Role | null | undefined): boolean 
   return isSuperadmin(role);
 }
 
+export function canManageCollections(role: AdminV1Role | null | undefined): boolean {
+  return isStaffAdmin(role);
+}
+
+export function canArchiveCollection(role: AdminV1Role | null | undefined): boolean {
+  return isSuperadmin(role);
+}
+
+export function canDeleteCollection(role: AdminV1Role | null | undefined): boolean {
+  return isSuperadmin(role);
+}
+
 export function canPublishProduct(role: AdminV1Role | null | undefined): boolean {
   return isStaffAdmin(role);
 }

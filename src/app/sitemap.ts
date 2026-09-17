@@ -4,11 +4,17 @@ import { brandPath, productPath, routes } from "@/lib/navigation";
 import { absoluteUrl } from "@/lib/seo";
 import { site } from "@/lib/site";
 import { getCollections } from "@/services/collections";
+import { listPublishedAssignedCollections } from "@/services/storefront-collections";
 import { getStorefrontCatalogue } from "@/services/storefront-catalogue";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date();
   const catalogue = await getStorefrontCatalogue();
+
+  const assignedCollections =
+    catalogue.source === "live"
+      ? await listPublishedAssignedCollections(catalogue.products)
+      : [];
 
   const staticRoutes: MetadataRoute.Sitemap = [
     {
@@ -40,6 +46,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "weekly" as const,
         priority: 0.7,
       })),
+    ...assignedCollections.map((collection) => ({
+      url: absoluteUrl(collection.href),
+      lastModified,
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    })),
     ...INFO_PAGES.map((page) => ({
       url: absoluteUrl(page.href),
       lastModified,

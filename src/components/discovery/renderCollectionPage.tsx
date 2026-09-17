@@ -7,6 +7,7 @@ import {
   parseCollectionQuery,
   queryCollectionFromSnapshot,
 } from "@/services/collections";
+import { loadPublishedAssignedCollection } from "@/services/storefront-collections";
 import { requireStorefrontCatalogue, type StorefrontCatalogue } from "@/services/storefront-catalogue";
 import type { CollectionDefinition } from "@/types/collection";
 
@@ -28,10 +29,14 @@ export async function renderCollectionBySlug(
   searchParams: SearchParams,
 ) {
   const collection = getCollectionBySlug(slug);
-  if (!collection) {
+  if (collection) {
+    return renderResolvedCollection(collection, searchParams);
+  }
+  const assigned = await loadPublishedAssignedCollection(slug);
+  if (!assigned) {
     notFound();
   }
-  return renderResolvedCollection(collection, searchParams);
+  return renderResolvedCollection(assigned, searchParams);
 }
 
 export async function renderBrandPage(

@@ -292,10 +292,7 @@ if (!css.includes("min-height: var(--touch-min)")) {
   throw new Error("Order rows must keep the 44px touch minimum.");
 }
 
-for (const file of [
-  "src/app/admin/collections/page.tsx",
-  "src/app/admin/settings/page.tsx",
-]) {
+for (const file of ["src/app/admin/settings/page.tsx"]) {
   const source = read(file);
   if (file !== "src/app/admin/settings/page.tsx" && !source.includes("AdminPlaceholderPage")) {
     throw new Error(`${file} must remain a later-step placeholder.`);
