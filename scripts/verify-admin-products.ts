@@ -430,8 +430,8 @@ const images = read("src/components/admin/AdminProductImages.tsx");
 if (!images.includes("ADMIN_PRODUCT_IMAGE_MOVE_UP") || !images.includes("ADMIN_PRODUCT_IMAGE_MOVE_DOWN")) {
   throw new Error("Image reorder must have an accessible alternative to drag-and-drop.");
 }
-if (images.includes("onDrag") || images.includes("dnd")) {
-  throw new Error("Drag-and-drop must not be the only image reorder interaction.");
+if (images.includes("<form")) {
+  throw new Error("Image upload/reorder must not nest forms inside the product editor.");
 }
 
 const imageLib = read("src/lib/admin-product-image.ts");
