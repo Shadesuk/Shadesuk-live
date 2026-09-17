@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { renderCollectionBySlug } from "@/components/discovery/renderCollectionPage";
 import { getCollectionBySlug } from "@/services/collections";
+import { loadPublishedAssignedCollection } from "@/services/storefront-collections";
 import { NOINDEX_NOFOLLOW, cataloguePathMetadata } from "@/lib/seo";
 import { SHAPES } from "@/types/catalogue";
 
@@ -15,7 +16,8 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const collection = getCollectionBySlug(slug);
+  const collection =
+    getCollectionBySlug(slug) ?? (await loadPublishedAssignedCollection(slug));
   if (!collection) {
     return { title: "Collection", robots: NOINDEX_NOFOLLOW };
   }
