@@ -7,6 +7,7 @@ import {
 } from "@/lib/account-copy";
 import { CHECKOUT_COUNTRY_GB } from "@/types/checkout";
 import type { AccountAddress, AccountAddressLabel, AccountProfile, AccountUser } from "@/types/account";
+import { getOptionalAccountUser } from "@/lib/account-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/ids";
 
@@ -15,34 +16,39 @@ const ADDRESS_COLUMNS =
   "id, user_id, label, first_name, last_name, address_line_1, address_line_2, city, county, postcode, country, is_default, created_at, updated_at";
 
 export async function loadAccountProfile(user: AccountUser): Promise<AccountProfile> {
+  const session = await getOptionalAccountUser();
+  const owner = session ?? user;
   const fallback: AccountProfile = {
-    id: user.id,
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName,
+    id: owner.id,
+    email: owner.email,
+    firstName: owner.firstName,
+    lastName: owner.lastName,
   };
+  if (!session) {
+    return fallback;
+  }
   try {
     const supabase = await createSupabaseServerClient();
     const existing = await supabase
       .from("profiles")
       .select(PROFILE_COLUMNS)
-      .eq("id", user.id)
+      .eq("id", session.id)
       .maybeSingle();
     if (existing.data) {
-      return parseProfile(existing.data, user);
+      return parseProfile(existing.data, owner);
     }
     const inserted = await supabase
       .from("profiles")
       .insert({
-        id: user.id,
-        email: user.email,
-        first_name: user.firstName || null,
-        last_name: user.lastName || null,
+        id: session.id,
+        email: session.email,
+        first_name: owner.firstName || null,
+        last_name: owner.lastName || null,
       })
       .select(PROFILE_COLUMNS)
       .maybeSingle();
     if (inserted.data) {
-      return parseProfile(inserted.data, user);
+      return parseProfile(inserted.data, owner);
     }
     return fallback;
   } catch {
@@ -55,6 +61,10 @@ export async function saveAccountProfile(input: {
   firstName: string;
   lastName: string;
 }): Promise<AccountProfile | null> {
+  const session = await getOptionalAccountUser();
+  if (!session) {
+    return null;
+  }
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   try {
@@ -63,8 +73,8 @@ export async function saveAccountProfile(input: {
       .from("profiles")
       .upsert(
         {
-          id: input.user.id,
-          email: input.user.email,
+          id: session.id,
+          email: session.email,
           first_name: firstName,
           last_name: lastName,
           updated_at: new Date().toISOString(),
@@ -74,26 +84,33 @@ export async function saveAccountProfile(input: {
       .select(PROFILE_COLUMNS)
       .maybeSingle();
     if (error) {
-      return {
-        id: input.user.id,
-        email: input.user.email,
-        firstName,
-        lastName,
-      };
+      return null;
     }
     await supabase.auth.updateUser({
       data: { first_name: firstName, last_name: lastName },
     });
     return data
-      ? parseProfile(data, { ...input.user, firstName, lastName })
-      : { id: input.user.id, email: input.user.email, firstName, lastName };
+      ? parseProfile(data, { ...session, firstName, lastName })
+      : { id: session.id, email: session.email, firstName, lastName };
   } catch {
     return null;
   }
 }
 
-export async function listAccountAddresses(userId: string): Promise<AccountAddress[]> {
+async function requireSessionUserId(userId: string): Promise<string | null> {
   if (!isUuid(userId)) {
+    return null;
+  }
+  const session = await getOptionalAccountUser();
+  if (!session || session.id !== userId) {
+    return null;
+  }
+  return session.id;
+}
+
+export async function listAccountAddresses(userId: string): Promise<AccountAddress[]> {
+  const ownerId = await requireSessionUserId(userId);
+  if (!ownerId) {
     return [];
   }
   try {
@@ -101,7 +118,7 @@ export async function listAccountAddresses(userId: string): Promise<AccountAddre
     const { data, error } = await supabase
       .from("addresses")
       .select(ADDRESS_COLUMNS)
-      .eq("user_id", userId)
+      .eq("user_id", ownerId)
       .order("created_at", { ascending: true });
     if (error || !data) {
       return [];
@@ -118,7 +135,8 @@ export async function getAccountAddress(
   userId: string,
   addressId: string,
 ): Promise<AccountAddress | null> {
-  if (!isUuid(userId) || !isUuid(addressId)) {
+  const ownerId = await requireSessionUserId(userId);
+  if (!ownerId || !isUuid(addressId)) {
     return null;
   }
   try {
@@ -126,7 +144,7 @@ export async function getAccountAddress(
     const { data, error } = await supabase
       .from("addresses")
       .select(ADDRESS_COLUMNS)
-      .eq("user_id", userId)
+      .eq("user_id", ownerId)
       .eq("id", addressId)
       .maybeSingle();
     if (error || !data) {
@@ -151,11 +169,12 @@ export async function saveAccountAddress(input: {
   postcode: string;
   country: string;
 }): Promise<AccountAddress | null> {
-  if (!isUuid(input.userId)) {
+  const ownerId = await requireSessionUserId(input.userId);
+  if (!ownerId) {
     return null;
   }
   const payload = {
-    user_id: input.userId,
+    user_id: ownerId,
     label: normalizeAddressLabel(input.label),
     first_name: input.firstName.trim(),
     last_name: input.lastName.trim(),
@@ -176,7 +195,7 @@ export async function saveAccountAddress(input: {
         .from("addresses")
         .update({ ...payload, updated_at: new Date().toISOString() })
         .eq("id", input.addressId)
-        .eq("user_id", input.userId)
+        .eq("user_id", ownerId)
         .select(ADDRESS_COLUMNS)
         .maybeSingle();
       if (error || !data) {
@@ -199,7 +218,8 @@ export async function saveAccountAddress(input: {
 }
 
 export async function removeAccountAddress(userId: string, addressId: string): Promise<boolean> {
-  if (!isUuid(userId) || !isUuid(addressId)) {
+  const ownerId = await requireSessionUserId(userId);
+  if (!ownerId || !isUuid(addressId)) {
     return false;
   }
   try {
@@ -208,7 +228,7 @@ export async function removeAccountAddress(userId: string, addressId: string): P
       .from("addresses")
       .delete({ count: "exact" })
       .eq("id", addressId)
-      .eq("user_id", userId);
+      .eq("user_id", ownerId);
     return !error && (count == null || count > 0);
   } catch {
     return false;

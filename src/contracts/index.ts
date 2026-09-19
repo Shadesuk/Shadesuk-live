@@ -71,6 +71,7 @@ export {
   adminOrderSearchReference,
   adminOrderStatusOptions,
   adminShipmentStatusLabel,
+  isUnchangedAdminFulfilment,
   parseAdminFulfilmentInput,
   parseAdminOrderListQuery,
   parseAdminOrderStatusInput,
@@ -87,6 +88,7 @@ export type {
   AdminOrderListPeriod,
   AdminOrderListQuery,
   AdminShipmentView,
+  AdminTrackingEventView,
 } from "./admin/orders";
 
 export {
@@ -175,11 +177,20 @@ export {
 export type { GuestTrackingRequest } from "./order/tracking";
 export {
   formatOrderHeading,
+  toCustomerOrderListItem,
+  toCustomerOrderView,
   toGuestDeliveryAddress,
   toGuestOrderTrackingView,
 } from "./order/dto";
-export type { GuestDeliveryAddressView, GuestOrderTrackingView } from "./order/dto";
+export type {
+  CustomerOrderListItem,
+  CustomerOrderView,
+  CustomerVisibleOrderEventView,
+  GuestDeliveryAddressView,
+  GuestOrderTrackingView,
+} from "./order/dto";
 export {
+  CUSTOMER_ORDER_STATUS_LABELS,
   CUSTOMER_TRACKING_STEPS,
   customerOrderStatusLabel,
   isLegalOrderStatusTransition,
@@ -189,6 +200,8 @@ export type { CustomerTrackingStep } from "./order/status";
 
 export {
   customerPaymentState,
+  customerPaymentStateLabel,
+  CUSTOMER_PAYMENT_STATE_LABELS,
   PAYMENT_PROVIDER_UNSET,
   PAYMENT_TRUST_RULES,
   paymentStub,

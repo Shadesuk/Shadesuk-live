@@ -44,10 +44,30 @@
 
 .account {
   display: none;
+  position: relative;
 }
 
 .shop {
   position: relative;
+}
+
+.accountMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+  min-width: 12rem;
+  padding: var(--space-16);
+  background: var(--color-off-white);
+  border: 1px solid var(--color-stone);
+}
+
+.accountSignOut {
+  margin-top: var(--space-8);
 }
 
 .header[data-reduced="true"] .bar {

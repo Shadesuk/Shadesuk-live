@@ -361,8 +361,33 @@ const timeline = buildTrackingTimeline({
 if (timeline[0]?.state !== "current" || timeline[0]?.dateLabel == null) {
   throw new Error("Placed orders must date ORDER PLACED from created_at.");
 }
-if (timeline.some((step, index) => index > 0 && step.dateLabel)) {
-  throw new Error("Timeline must not invent dates for unreached steps.");
+const exceptionTimeline = buildTrackingTimeline({
+  status: "exception",
+  placedAt: "2026-09-06T10:00:00.000Z",
+  shipment: null,
+});
+if (!exceptionTimeline.some((step) => step.state === "exception")) {
+  throw new Error("EXCEPTION orders must mark the current timeline step as exception.");
+}
+if (exceptionTimeline.find((step) => step.status === "delivered")?.state !== "upcoming") {
+  throw new Error("EXCEPTION must not mark later tracking steps completed.");
+}
+
+const unavailableTimeline = buildTrackingTimeline({
+  status: "tracking_unavailable",
+  placedAt: "2026-09-06T10:00:00.000Z",
+  shipment: {
+    status: "tracking_unavailable",
+    carrierName: null,
+    trackingNumber: null,
+    trackingUrl: null,
+    shippedAt: null,
+    deliveredAt: null,
+    events: [],
+  },
+});
+if (unavailableTimeline.find((step) => step.status === "delivered")?.state !== "upcoming") {
+  throw new Error("TRACKING NOT AVAILABLE must not complete later timeline steps.");
 }
 
 if (hasForbiddenOwnershipKey({ orderReference: reference, email: "a@b.com", sessionId: "nope" })) {
@@ -458,11 +483,28 @@ if (form.includes("CustomerOrderView") || form.includes("from \"@/contracts\"") 
 }
 
 const result = readFileSync(resolve(root, "src/components/tracking/TrackOrderResult.tsx"), "utf8");
-if (!result.includes("TRACKING_UNAVAILABLE_COPY") || !result.includes("TRACK_WITH_CARRIER")) {
-  throw new Error("Result view must handle unavailable tracking and pasted carrier URLs.");
+const orderDetail = readFileSync(resolve(root, "src/components/order/OrderDetail.tsx"), "utf8");
+if (!orderDetail.includes("TRACKING_UNAVAILABLE_COPY") || !orderDetail.includes("TRACK_WITH_CARRIER")) {
+  throw new Error("Order detail must handle unavailable tracking and pasted carrier URLs.");
+}
+if (!orderDetail.includes("safeHttpUrl") || orderDetail.includes("javascript:")) {
+  throw new Error("Carrier links must use the sanitised HTTPS tracking URL only.");
+}
+if (!orderDetail.includes("noopener noreferrer")) {
+  throw new Error("Carrier links that open a new tab must use safe rel attributes.");
+}
+if (orderDetail.includes("createSupabaseAdminClient") || result.includes("SUPABASE_SECRET_KEY")) {
+  throw new Error("Customer tracking UI must not receive the service-role client.");
 }
 if (result.includes("CustomerOrderView") || result.includes("carrier api") || result.includes("Royal Mail API")) {
   throw new Error("Guest result must stay on the manual-fulfilment view.");
+}
+if (!result.includes("OrderDetail") || !readFileSync(resolve(root, "src/components/account/AccountOrderSummary.tsx"), "utf8").includes("OrderDetail")) {
+  throw new Error("Account and guest tracking must share OrderDetail.");
+}
+const trackingCss = readFileSync(resolve(root, "src/components/tracking/Tracking.module.css"), "utf8");
+if (!trackingCss.includes("overflow-wrap: anywhere")) {
+  throw new Error("Order/tracking layout must wrap long tracking values on small screens.");
 }
 
 const docs = readFileSync(resolve(root, "docs/PHASE3_GUEST_TRACKING.md"), "utf8");

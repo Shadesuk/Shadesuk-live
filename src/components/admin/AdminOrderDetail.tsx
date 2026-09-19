@@ -36,6 +36,8 @@ import {
   ADMIN_ORDER_SUBTOTAL,
   ADMIN_ORDER_TOTAL,
   ADMIN_ORDER_TOTALS,
+  ADMIN_ORDER_TRACKING_EVENTS,
+  ADMIN_ORDER_TRACKING_EVENTS_EMPTY,
   ADMIN_ORDER_TRACKING_NUMBER,
   ADMIN_ORDER_TRACKING_URL,
 } from "@/lib/admin-copy";
@@ -265,6 +267,26 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
                 <p className={`text-small ${styles.quietBody}`}>{ADMIN_ORDER_NO_FULFILMENT_BODY}</p>
               </div>
             )}
+            {order.shipment ? (
+              <div>
+                <h3 className={styles.sectionTitle}>{ADMIN_ORDER_TRACKING_EVENTS}</h3>
+                {order.shipment.events.length === 0 ? (
+                  <p className={`text-small ${styles.quietBody}`}>{ADMIN_ORDER_TRACKING_EVENTS_EMPTY}</p>
+                ) : (
+                  <ol className={styles.timeline}>
+                    {order.shipment.events.map((event) => (
+                      <li key={event.id} className={styles.event}>
+                        <p className="text-small">{adminShipmentStatusLabel(event.status)}</p>
+                        {event.description ? <p className="text-small">{event.description}</p> : null}
+                        <time className="text-small" dateTime={event.occurredAt}>
+                          {formatAdminDateTime(event.occurredAt)}
+                        </time>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            ) : null}
             <AdminFulfilmentForm orderId={order.id} shipment={order.shipment} />
           </section>
         </div>

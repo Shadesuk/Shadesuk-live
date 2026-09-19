@@ -6,7 +6,7 @@ import {
 import type { CustomerShipmentView } from "@/contracts/fulfilment/shipment";
 import type { OrderStatus } from "@/contracts/order/schema";
 
-export type TimelineStepState = "done" | "current" | "upcoming";
+export type TimelineStepState = "done" | "current" | "upcoming" | "exception";
 
 export type TrackingTimelineStep = {
   status: CustomerTrackingStep;
@@ -25,14 +25,16 @@ export function buildTrackingTimeline(input: {
   const dates = datesFromShipment(input.shipment);
   dates.placed = dates.placed ?? formatTrackingDate(input.placedAt) ?? undefined;
 
+  const exception = isExceptionTracking(input.status, input.shipment);
+
   return CUSTOMER_TRACKING_STEPS.map((status, index) => {
     let state: TimelineStepState = "upcoming";
     if (currentIndex < 0) {
-      state = index === 0 ? "current" : "upcoming";
+      state = index === 0 ? (exception ? "exception" : "current") : "upcoming";
     } else if (index < currentIndex) {
       state = "done";
     } else if (index === currentIndex) {
-      state = "current";
+      state = exception ? "exception" : "current";
     }
     return {
       status,
@@ -42,6 +44,51 @@ export function buildTrackingTimeline(input: {
       description: descriptionForStep(status, input.shipment),
     };
   });
+}
+
+export function isExceptionTracking(
+  status: OrderStatus,
+  shipment: CustomerShipmentView | null,
+): boolean {
+  return status === "exception" || shipment?.status === "exception";
+}
+
+export function isTrackingUnavailable(
+  status: OrderStatus,
+  shipment: CustomerShipmentView | null,
+): boolean {
+  if (isExceptionTracking(status, shipment)) {
+    return false;
+  }
+  if (status === "tracking_unavailable" || shipment?.status === "tracking_unavailable") {
+    return true;
+  }
+  if (
+    status === "dispatched" ||
+    status === "in_transit" ||
+    status === "out_for_delivery" ||
+    status === "delivered"
+  ) {
+    return false;
+  }
+  const hasTracking = Boolean(shipment?.trackingNumber?.trim() || shipment?.trackingUrl);
+  if (hasTracking) {
+    return false;
+  }
+  return true;
+}
+
+export function timelineStateLabel(state: TimelineStepState): string {
+  if (state === "done") {
+    return "Completed";
+  }
+  if (state === "current") {
+    return "Current";
+  }
+  if (state === "exception") {
+    return "Exception";
+  }
+  return "Upcoming";
 }
 
 export function formatTrackingDate(iso: string | null | undefined): string | null {

@@ -117,6 +117,10 @@ export function brandPath(slug: string): string {
   return `/brands/${slug}`;
 }
 
+export function accountOrderPath(orderReference: string): string {
+  return `/account/orders/${encodeURIComponent(orderReference)}`;
+}
+
 export function isCurrentPath(pathname: string, href: string): boolean {
   if (href === routes.home) {
     return pathname === routes.home;

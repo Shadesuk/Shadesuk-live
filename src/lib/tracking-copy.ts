@@ -7,7 +7,12 @@ export const EMAIL_LABEL = "Email";
 export const TRACK_ORDER_ACTION = "Track order";
 export const TRACK_ANOTHER_ORDER = "Track another order";
 export const GENERIC_LOOKUP_ERROR = "We couldn't find an order with those details.";
+export const GUEST_ORDER_NOT_FOUND_TITLE = "We couldn't find that order";
+export const GUEST_ORDER_NOT_FOUND_BODY =
+  "Check your order reference and email and try again.";
 export const RATE_LIMITED = "Too many attempts. Try again later.";
+export const TRACKING_LOOKUP_PENDING = "Looking up your order";
+export const ORDER_REFERENCE_REQUIRED = "Enter an order reference.";
 
 export const DELIVERY_ADDRESS_LABEL = "Delivery address";
 export const EXPECTED_DELIVERY_LABEL = "Expected delivery";

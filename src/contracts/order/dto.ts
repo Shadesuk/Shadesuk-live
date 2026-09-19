@@ -1,7 +1,8 @@
 import { minorToMajorGbp, STORE_CURRENCY } from "../money";
-import type { PaymentProviderStub } from "../payment/stub";
+import type { CustomerPaymentState } from "../payment/stub";
+import { customerPaymentState } from "../payment/stub";
 import type { CustomerShipmentView } from "../fulfilment/shipment";
-import type { OrderItemRow, OrderRow, OrderStatus } from "./schema";
+import type { OrderEventRow, OrderItemRow, OrderRow, OrderStatus } from "./schema";
 import { customerOrderStatusLabel, type CustomerOrderStatusLabel } from "./status";
 
 export type OrderItemSnapshotView = {
@@ -19,6 +20,31 @@ export type OrderItemSnapshotView = {
   lineTotal: number;
 };
 
+export type CustomerVisibleOrderEventView = {
+  eventType: string;
+  oldStatus: OrderStatus | null;
+  newStatus: OrderStatus | null;
+  createdAt: string;
+};
+
+export type CustomerOrderListItem = {
+  orderReference: string;
+  placedAt: string;
+  status: OrderStatus;
+  statusLabel: CustomerOrderStatusLabel;
+  productName: string;
+  colourName: string;
+  variantName: string | null;
+  quantity: number;
+  total: number;
+  currency: typeof STORE_CURRENCY;
+};
+
+/**
+ * Authenticated account order payload. Payment provider ids, webhook
+ * payloads, shipment notes, and actor ids stay off this view.
+ * Tracking number presence does not imply DELIVERED.
+ */
 export type CustomerOrderView = {
   orderReference: string;
   status: OrderStatus;
@@ -34,9 +60,10 @@ export type CustomerOrderView = {
   subtotal: number;
   shipping: number;
   total: number;
-  deliveryAddress: Record<string, unknown>;
-  payment: PaymentProviderStub;
+  deliveryAddress: GuestDeliveryAddressView | null;
+  paymentState: CustomerPaymentState;
   shipment: CustomerShipmentView | null;
+  events: CustomerVisibleOrderEventView[];
 };
 
 /**
@@ -108,6 +135,67 @@ export function toGuestOrderTrackingView(input: {
     deliveryAddress: toGuestDeliveryAddress(input.order.delivery_address),
     shipment: input.shipment,
   };
+}
+
+export function toCustomerOrderView(input: {
+  order: OrderRow;
+  items: OrderItemRow[];
+  shipment: CustomerShipmentView | null;
+  events?: OrderEventRow[];
+}): CustomerOrderView {
+  return {
+    orderReference: input.order.order_reference,
+    status: input.order.status,
+    statusLabel: customerOrderStatusLabel(input.order.status),
+    placedAt: input.order.created_at,
+    customerFirstName: input.order.customer_first_name,
+    customerLastName: input.order.customer_last_name,
+    items: input.items.map(toOrderItemSnapshotView),
+    currency: STORE_CURRENCY,
+    subtotalMinor: input.order.subtotal_minor,
+    shippingMinor: input.order.shipping_minor,
+    totalMinor: input.order.total_minor,
+    subtotal: minorToMajorGbp(input.order.subtotal_minor),
+    shipping: minorToMajorGbp(input.order.shipping_minor),
+    total: minorToMajorGbp(input.order.total_minor),
+    deliveryAddress: toGuestDeliveryAddress(input.order.delivery_address),
+    paymentState: customerPaymentState(input.order.payment_status),
+    shipment: input.shipment,
+    events: toCustomerVisibleOrderEvents(input.events ?? []),
+  };
+}
+
+export function toCustomerOrderListItem(input: {
+  order: OrderRow;
+  items: OrderItemRow[];
+}): CustomerOrderListItem {
+  const first = input.items[0];
+  return {
+    orderReference: input.order.order_reference,
+    placedAt: input.order.created_at,
+    status: input.order.status,
+    statusLabel: customerOrderStatusLabel(input.order.status),
+    productName: first?.product_name ?? "",
+    colourName: first?.colour_name ?? "",
+    variantName: first?.variant_name ?? null,
+    quantity: first?.quantity ?? 0,
+    total: minorToMajorGbp(input.order.total_minor),
+    currency: STORE_CURRENCY,
+  };
+}
+
+function toCustomerVisibleOrderEvents(
+  events: OrderEventRow[],
+): CustomerVisibleOrderEventView[] {
+  return [...events]
+    .filter((event) => event.customer_visible)
+    .sort((left, right) => left.created_at.localeCompare(right.created_at))
+    .map((event) => ({
+      eventType: event.event_type,
+      oldStatus: event.old_status,
+      newStatus: event.new_status,
+      createdAt: event.created_at,
+    }));
 }
 
 export function toGuestDeliveryAddress(

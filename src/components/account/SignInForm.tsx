@@ -18,6 +18,7 @@ import {
   PASSWORD_LABEL,
   SIGN_IN_ACTION,
   SIGN_IN_HEADING,
+  TRACK_ORDER_LINK,
 } from "@/lib/account-copy";
 import { routes } from "@/lib/navigation";
 import type { AccountFieldErrors } from "@/types/account";
@@ -100,6 +101,9 @@ export function SignInForm({ next, notice }: SignInFormProps) {
         </ButtonLink>
         <p className={`text-micro ${styles.divider}`}>{AUTH_OR}</p>
         <GoogleAuthButton next={next} disabled={pending} onError={setFormError} />
+        <ButtonLink href={routes.trackOrder} variant="tertiary">
+          {TRACK_ORDER_LINK}
+        </ButtonLink>
         <p className="text-small">
           {NO_ACCOUNT_PROMPT}{" "}
           <ButtonLink

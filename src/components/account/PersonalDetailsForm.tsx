@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { savePersonalDetailsAction } from "@/app/(storefront)/account/actions";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import {
   EMAIL_LABEL,
+  EMAIL_READ_ONLY_HINT,
   FIRST_NAME_LABEL,
   LAST_NAME_LABEL,
   NETWORK_ERROR,
@@ -17,11 +19,26 @@ import type { AccountFieldErrors, AccountProfile } from "@/types/account";
 import styles from "./Account.module.css";
 
 export function PersonalDetailsForm({ profile }: { profile: AccountProfile }) {
+  const router = useRouter();
   const [firstName, setFirstName] = useState(profile.firstName);
   const [lastName, setLastName] = useState(profile.lastName);
   const [errors, setErrors] = useState<AccountFieldErrors>({});
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
+  const dirty =
+    firstName.trim() !== profile.firstName.trim() || lastName.trim() !== profile.lastName.trim();
+
+  useEffect(() => {
+    if (!dirty) {
+      return;
+    }
+    function warn(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,6 +61,7 @@ export function PersonalDetailsForm({ profile }: { profile: AccountProfile }) {
       setErrors({});
       setMessage(result.message ?? "");
       setPending(false);
+      router.refresh();
       return;
     }
     setErrors({});
@@ -89,6 +107,7 @@ export function PersonalDetailsForm({ profile }: { profile: AccountProfile }) {
         autoComplete="email"
         value={profile.email}
         disabled
+        hint={EMAIL_READ_ONLY_HINT}
       />
       <div className={styles.actions}>
         <Button type="submit" loading={pending}>
