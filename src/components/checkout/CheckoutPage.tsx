@@ -42,14 +42,15 @@ import styles from "./CheckoutPage.module.css";
 type CheckoutPageProps = {
   initialCart: PublicCart;
   initialDraft: PublicCheckoutDraft;
+  accountEmail?: string;
 };
 
-export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
+export function CheckoutPage({ initialCart, initialDraft, accountEmail = "" }: CheckoutPageProps) {
   const router = useRouter();
   const { cart, applyCart } = useCart();
   const view = cart.items.length > 0 ? cart : initialCart;
   const [draft, setDraft] = useState(initialDraft);
-  const [email, setEmail] = useState(initialDraft.email);
+  const [email, setEmail] = useState(initialDraft.email || accountEmail);
   const [address, setAddress] = useState<AddressFormValue>(toAddressValue(initialDraft));
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(
@@ -215,6 +216,7 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
               email={email}
               errors={errors}
               pending={pending}
+              signedIn={Boolean(accountEmail)}
               onEmailChange={setEmail}
               onSubmit={submitContact}
             />

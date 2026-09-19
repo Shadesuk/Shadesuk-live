@@ -54,7 +54,7 @@ export const COUNTRY_UNSUPPORTED = "Delivery is currently available in the Unite
 export const SHIPPING_HEADING = "Delivery";
 export const SHIPPING_MINIMUM = "Minimum 2-week delivery timeframe.";
 export const SHIPPING_BODY =
-  "International shipping. Delivery is expected to take a minimum of 2 weeks.";
+  "UK delivery. Delivery is expected to take a minimum of 2 weeks.";
 export const SHIPPING_CALCULATED_LATER = "Calculated later";
 export const SHIPPING_MANUAL_NOTE =
   "Orders are prepared for dispatch by hand. Carrier details appear once a shipment has been dispatched.";
@@ -62,9 +62,11 @@ export const SHIPPING_INFORMATION = "Shipping information";
 
 export const REVIEW_HEADING = "Your order";
 export const PAYMENT_HEADING = "Payment";
+export const PAYMENTS_ACCEPTED = "Payments accepted";
 export const PAYMENT_NEXT_TITLE = "Payment is next.";
-export const PAYMENT_NEXT_BODY =
-  "Card payment is not available on this screen yet. Nothing has been charged.";
+export const PAYMENT_NEXT_BODY = "Nothing has been charged yet.";
+export const PAYMENT_NOT_READY =
+  "Card payment is not available yet. Continue to payment stays unavailable until checkout can take payment.";
 export const CONTINUE_TO_PAYMENT = "Continue to payment";
 export const SECURE_CARD_PAYMENT = "Secure card payment";
 export const ALL_MAJOR_CARDS = "All major cards accepted";

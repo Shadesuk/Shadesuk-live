@@ -26,6 +26,7 @@ import {
   PAYMENT_NEXT_BODY,
   POSTCODE_INVALID,
   SECURE_CARD_PAYMENT,
+  SHIPPING_BODY,
   SHIPPING_CALCULATED_LATER,
   SHIPPING_MINIMUM,
 } from "../src/lib/checkout-copy";
@@ -64,6 +65,7 @@ import {
 } from "../src/types/checkout";
 import type { AddressLookupProvider } from "../src/types/integrations";
 import { mergeLookupPostalAddress } from "../src/lib/address-merge";
+import { enabledPaymentMethods, PAYMENT_METHODS } from "../src/lib/payment-methods";
 
 if (routes.checkout !== "/checkout") {
   throw new Error("Checkout route must stay /checkout.");
@@ -105,6 +107,9 @@ if (SHIPPING_CALCULATED_LATER !== "Calculated later") {
 }
 if (!SHIPPING_MINIMUM.toLowerCase().includes("2-week")) {
   throw new Error("Checkout must show the minimum 2-week delivery expectation.");
+}
+if (SHIPPING_BODY.toLowerCase().includes("international")) {
+  throw new Error("UK checkout must not describe delivery as international.");
 }
 if (SECURE_CARD_PAYMENT !== "Secure card payment" || ALL_MAJOR_CARDS !== "All major cards accepted") {
   throw new Error("Payment trust copy must stay locked.");
@@ -487,6 +492,41 @@ const reviewSource = readFileSync(
 );
 if (!reviewSource.includes("disabled") || !reviewSource.includes("CONTINUE_TO_PAYMENT")) {
   throw new Error("Continue to payment must stay disabled.");
+}
+if (!reviewSource.includes("held") || !reviewSource.includes("PAYMENT_NOT_READY")) {
+  throw new Error("Payment-not-ready must be an intentional held state.");
+}
+if (!reviewSource.includes("PaymentMethods")) {
+  throw new Error("Checkout must reuse the payment methods presentation.");
+}
+if (
+  reviewSource.toLowerCase().includes("apple pay") ||
+  reviewSource.toLowerCase().includes("google pay") ||
+  reviewSource.toLowerCase().includes("klarna")
+) {
+  throw new Error("Checkout must not present reserved payment methods as active.");
+}
+
+const enabledMethods = enabledPaymentMethods();
+if (enabledMethods.map((method) => method.id).join(",") !== "visa,mastercard,amex") {
+  throw new Error("Active payment presentation must be Visa, Mastercard, and American Express.");
+}
+for (const reserved of ["apple_pay", "google_pay", "klarna"] as const) {
+  const method = PAYMENT_METHODS.find((item) => item.id === reserved);
+  if (!method || method.enabled) {
+    throw new Error(`${reserved} must stay reserved until Razorpay enables it.`);
+  }
+}
+if (enabledMethods.some((method) => method.markSrc)) {
+  throw new Error("Do not invent unofficial payment brand artwork.");
+}
+
+const pdpHero = readFileSync(resolve("src/components/pdp/ProductHero.tsx"), "utf8");
+if (!pdpHero.includes("PaymentMethods")) {
+  throw new Error("PDP must reuse the payment methods presentation.");
+}
+if (pdpHero.includes("@razorpay") || pdpHero.toLowerCase().includes("checkout.js")) {
+  throw new Error("PDP must not load a payment SDK.");
 }
 
 const checkoutFiles = [

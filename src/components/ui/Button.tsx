@@ -8,6 +8,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
   variant?: ButtonVariant;
   loading?: boolean;
+  held?: boolean;
 };
 
 export function Button({
@@ -15,6 +16,7 @@ export function Button({
   className,
   variant = "primary",
   loading = false,
+  held = false,
   disabled,
   type = "button",
   ...props
@@ -23,7 +25,7 @@ export function Button({
 
   return (
     <button
-      className={cx(styles.button, styles[variant], className)}
+      className={cx(styles.button, styles[variant], held && styles.held, className)}
       type={type}
       disabled={isDisabled}
       aria-busy={loading || undefined}
