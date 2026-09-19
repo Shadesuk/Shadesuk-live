@@ -63,8 +63,8 @@ export function CheckoutSummary({ cart, collapsible = false }: CheckoutSummaryPr
           <p className="text-small">{SHIPPING_CALCULATED_LATER}</p>
         </div>
         <div className={styles.total}>
-          <p className="text-micro">{TOTAL_LABEL}</p>
-          <p className="text-small">{formatGbp(cart.subtotal)}</p>
+          <p className={`text-micro ${styles.totalLabel}`}>{TOTAL_LABEL}</p>
+          <p className={`text-h3 ${styles.totalValue}`}>{formatGbp(cart.subtotal)}</p>
         </div>
       </div>
     </>

@@ -2,15 +2,14 @@
 
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PaymentMethods } from "@/components/payment/PaymentMethods";
 import {
-  ALL_MAJOR_CARDS,
   BACK,
   CONTINUE_TO_PAYMENT,
   PAYMENT_HEADING,
   PAYMENT_NEXT_BODY,
-  PAYMENT_NEXT_TITLE,
+  PAYMENT_NOT_READY,
   REVIEW_HEADING,
-  SECURE_CARD_PAYMENT,
   SHIPPING_BODY,
   SHIPPING_HEADING,
   SHIPPING_MINIMUM,
@@ -74,18 +73,19 @@ export function CheckoutReview({ cart, draft, pending = false, onBack }: Checkou
         ))}
       </section>
 
-      <section className={styles.block} aria-labelledby="checkout-review-payment">
+      <section className={styles.payment} aria-labelledby="checkout-review-payment">
         <h3 id="checkout-review-payment" className="text-micro">
           {PAYMENT_HEADING}
         </h3>
-        <p className="text-small">{PAYMENT_NEXT_TITLE}</p>
+        <PaymentMethods />
         <p className="text-small">{PAYMENT_NEXT_BODY}</p>
-        <p className="text-micro">{SECURE_CARD_PAYMENT}</p>
-        <p className="text-small">{ALL_MAJOR_CARDS}</p>
+        <p id="checkout-payment-not-ready" className="text-small">
+          {PAYMENT_NOT_READY}
+        </p>
       </section>
 
       <div className={styles.actions}>
-        <Button type="button" disabled>
+        <Button type="button" disabled held aria-describedby="checkout-payment-not-ready">
           {CONTINUE_TO_PAYMENT}
         </Button>
         <Button type="button" variant="tertiary" onClick={onBack} disabled={pending}>

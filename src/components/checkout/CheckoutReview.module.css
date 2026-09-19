@@ -4,7 +4,8 @@
   gap: var(--space-32);
 }
 
-.block {
+.block,
+.payment {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -13,8 +14,17 @@
 
 .block h2,
 .block h3,
-.block p {
+.block p,
+.payment h3,
+.payment p {
   margin: 0;
+}
+
+.payment {
+  width: 100%;
+  min-width: 0;
+  padding-top: var(--space-16);
+  border-top: 1px solid var(--color-navy);
 }
 
 .items {
@@ -41,3 +51,4 @@
   align-items: stretch;
   gap: var(--space-8);
 }
+
