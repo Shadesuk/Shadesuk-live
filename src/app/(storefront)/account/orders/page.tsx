@@ -1,14 +1,23 @@
+import { redirect } from "next/navigation";
 import { AccountNavigation } from "@/components/account/AccountNavigation";
-import { OrdersPlaceholder } from "@/components/account/OrdersPlaceholder";
-import { routes } from "@/lib/navigation";
+import { AccountOrders } from "@/components/account/AccountOrders";
 import { requireAccountUser } from "@/lib/account-session";
+import { routes } from "@/lib/navigation";
+import { listOwnCustomerOrders } from "@/services/customer-orders";
 
 export default async function AccountOrdersPage() {
   await requireAccountUser();
+  const result = await listOwnCustomerOrders();
+  if (result.status === "unauthenticated") {
+    redirect(routes.account);
+  }
   return (
     <>
       <AccountNavigation pathname={routes.accountOrders} />
-      <OrdersPlaceholder />
+      <AccountOrders
+        orders={result.status === "ok" ? result.data : []}
+        error={result.status === "error"}
+      />
     </>
   );
 }

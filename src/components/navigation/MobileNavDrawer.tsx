@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { SignOutButton } from "@/components/account/SignOutButton";
 import { Drawer } from "@/components/ui/Drawer";
+import {
+  LOGIN_LABEL,
+  LOG_OUT_LABEL,
+  MY_ACCOUNT_LABEL,
+  ORDERS_LABEL,
+  TRACK_ORDER_LINK,
+} from "@/lib/account-copy";
 import { genderLinks, routes, shapeLinks } from "@/lib/navigation";
 import type { MenuBrandLink } from "@/lib/menu-brands";
 import { NavLink } from "./NavLink";
@@ -13,6 +21,7 @@ type MobileNavDrawerProps = {
   open: boolean;
   onClose: () => void;
   brandLinks?: MenuBrandLink[];
+  signedIn?: boolean;
 };
 
 function AdvanceButton({
@@ -45,6 +54,7 @@ export function MobileNavDrawer({
   open,
   onClose,
   brandLinks = [],
+  signedIn = false,
 }: MobileNavDrawerProps) {
   const [panel, setPanel] = useState<Panel>("root");
   const titleId = "mobile-nav-title";
@@ -119,9 +129,24 @@ export function MobileNavDrawer({
           </li>
           <li>
             <NavLink href={routes.account} className={styles.item} onClick={handleClose}>
-              Account
+              {signedIn ? MY_ACCOUNT_LABEL : LOGIN_LABEL}
             </NavLink>
           </li>
+          <li>
+            <NavLink href={routes.accountOrders} className={styles.item} onClick={handleClose}>
+              {ORDERS_LABEL}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink href={routes.trackOrder} className={styles.item} onClick={handleClose}>
+              {TRACK_ORDER_LINK}
+            </NavLink>
+          </li>
+          {signedIn ? (
+            <li className={styles.item}>
+              <SignOutButton label={LOG_OUT_LABEL} />
+            </li>
+          ) : null}
         </ul>
       ) : null}
 

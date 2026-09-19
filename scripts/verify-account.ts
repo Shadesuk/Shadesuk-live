@@ -184,10 +184,30 @@ const ordersPage = readFileSync(resolve(root, "src/app/(storefront)/account/orde
 if (!ordersPage.includes("requireAccountUser")) {
   throw new Error("Account orders must be gated on a real server session.");
 }
+if (!ordersPage.includes("listOwnCustomerOrders")) {
+  throw new Error("Account orders must load from the session-scoped customer order service.");
+}
+
+const googleButton = readFileSync(resolve(root, "src/components/account/GoogleAuthButton.tsx"), "utf8");
+if (!googleButton.includes("GoogleMark") || !googleButton.includes("signInWithGoogleAction")) {
+  throw new Error("Google sign-in must use the existing OAuth action and Google G mark.");
+}
+const googleMark = readFileSync(resolve(root, "src/components/account/GoogleMark.tsx"), "utf8");
+if (!googleMark.includes("#4285F4") || !googleMark.includes("#EA4335")) {
+  throw new Error("Google mark must use the official G colours.");
+}
 
 const header = readFileSync(resolve(root, "src/components/navigation/SiteHeader.tsx"), "utf8");
-if (!header.includes("routes.account")) {
-  throw new Error("Header Account link must point at the real account route.");
+if (!header.includes("AccountMenu")) {
+  throw new Error("Header Account control must use the account menu.");
+}
+const accountMenu = readFileSync(resolve(root, "src/components/navigation/AccountMenu.tsx"), "utf8");
+if (
+  !accountMenu.includes("routes.account") ||
+  !accountMenu.includes("routes.accountOrders") ||
+  !accountMenu.includes("routes.trackOrder")
+) {
+  throw new Error("Account menu must wire My account, Orders, and Track order.");
 }
 
 const checkoutContact = readFileSync(

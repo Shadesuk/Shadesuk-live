@@ -149,4 +149,17 @@ if (!checkoutContact.includes("CONTINUE_AS_GUEST")) {
   throw new Error("Guest checkout contact must keep Continue as guest.");
 }
 
+const ordersPage = read("src/app/(storefront)/account/orders/page.tsx");
+if (!ordersPage.includes("listOwnCustomerOrders") || ordersPage.includes("OrdersPlaceholder")) {
+  throw new Error("Account orders must use listOwnCustomerOrders, not a placeholder.");
+}
+if (!ordersPage.includes("requireAccountUser")) {
+  throw new Error("Account orders must stay session-gated.");
+}
+
+const googleMark = read("src/components/account/GoogleMark.tsx");
+if (!googleMark.includes("#4285F4")) {
+  throw new Error("Google Auth must use the official G mark.");
+}
+
 console.log("verify-account-orders: ok");

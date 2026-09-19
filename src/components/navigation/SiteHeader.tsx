@@ -5,10 +5,11 @@ import { useCart } from "@/components/cart/CartProvider";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { SearchOverlay } from "@/components/search/SearchOverlay";
 import type { MenuBrandLink } from "@/lib/menu-brands";
-import { primaryNav, routes } from "@/lib/navigation";
+import { primaryNav } from "@/lib/navigation";
 import type { SearchDiscoveryLink } from "@/lib/search-query";
 import { useChrome } from "./ChromeContext";
 import { BrandMark } from "./BrandMark";
+import { AccountMenu } from "./AccountMenu";
 import { MobileNavDrawer } from "./MobileNavDrawer";
 import { NavLink } from "./NavLink";
 import { ShopMenu } from "./ShopMenu";
@@ -19,10 +20,12 @@ export function SiteHeader({
   reduced = false,
   brandLinks = [],
   searchDiscovery = [],
+  signedIn = false,
 }: {
   reduced?: boolean;
   brandLinks?: MenuBrandLink[];
   searchDiscovery?: SearchDiscoveryLink[];
+  signedIn?: boolean;
 }) {
   const { acquirePageLock, releasePageLock } = useChrome();
   const { cart, open: bagOpen, openBag, closeBag } = useCart();
@@ -144,11 +147,7 @@ export function SiteHeader({
               Search
             </UtilityButton>
           )}
-          {reduced ? null : (
-            <NavLink href={routes.account} className={styles.account}>
-              Account
-            </NavLink>
-          )}
+          {reduced ? null : <AccountMenu signedIn={signedIn} />}
           <UtilityButton
             hasPopup="dialog"
             expanded={bagOpen}
@@ -175,6 +174,7 @@ export function SiteHeader({
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
           brandLinks={brandLinks}
+          signedIn={signedIn}
         />
       )}
 

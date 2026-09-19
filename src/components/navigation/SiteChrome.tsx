@@ -19,11 +19,13 @@ export function SiteChrome({
   initialCart,
   brandLinks = [],
   searchDiscovery = [],
+  signedIn = false,
 }: {
   children: ReactNode;
   initialCart: PublicCart;
   brandLinks?: MenuBrandLink[];
   searchDiscovery?: SearchDiscoveryLink[];
+  signedIn?: boolean;
 }) {
   const { pageLocked, value } = useChromeLocks();
   const pathname = usePathname();
@@ -41,6 +43,7 @@ export function SiteChrome({
               reduced={checkout}
               brandLinks={brandLinks}
               searchDiscovery={searchDiscovery}
+              signedIn={signedIn}
             />
             <div className={styles.page}>{children}</div>
             <SiteFooter reduced={checkout} />
