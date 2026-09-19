@@ -24,6 +24,7 @@ import {
   PAYMENT_TRUST_RULES,
   paymentStub,
   selectableColourCount,
+  toCustomerOrderView,
   toCustomerShipmentView,
   toGuestOrderTrackingView,
   toStorefrontImages,
@@ -362,6 +363,107 @@ if (!tracking.deliveryAddress?.line1 || tracking.deliveryAddress.line1 !== "1 Ex
 }
 if ("payment" in tracking || "customerFirstName" in tracking) {
   throw new Error("Guest tracking view must not reuse CustomerOrderView fields.");
+}
+
+const customerOrder = toCustomerOrderView({
+  order: {
+    id: "55555555-5555-5555-5555-555555555555",
+    order_reference: reference,
+    user_id: "11111111-1111-1111-1111-111111111111",
+    customer_email: "guest@example.com",
+    customer_first_name: "Guest",
+    customer_last_name: "Customer",
+    status: "in_transit",
+    payment_status: "captured",
+    currency: "GBP",
+    subtotal_minor: 4900,
+    shipping_minor: 0,
+    total_minor: 4900,
+    delivery_address: {
+      address_line_1: "1 Example Street",
+      city: "London",
+      postcode: "W1A 1AA",
+      country: "GB",
+      extra_internal: "do-not-leak",
+    },
+    created_at: now,
+    updated_at: now,
+  },
+  items: [
+    {
+      id: "66666666-6666-6666-6666-666666666666",
+      order_id: "55555555-5555-5555-5555-555555555555",
+      product_id: productId,
+      product_variant_id: blackId,
+      sku: "SHU-LIVE-BLK",
+      product_name: "Frame Live",
+      colour_name: "Black",
+      variant_name: "Medium",
+      quantity: 1,
+      unit_price_minor: 4900,
+      line_total_minor: 4900,
+      product_snapshot: null,
+      created_at: now,
+    },
+  ],
+  shipment: toCustomerShipmentView(
+    {
+      id: "77777777-7777-7777-7777-777777777777",
+      order_id: "55555555-5555-5555-5555-555555555555",
+      carrier_name: "Royal Mail",
+      tracking_number: "AB123",
+      tracking_url: "https://example.com/track/AB123",
+      status: "in_transit",
+      shipped_at: now,
+      delivered_at: null,
+      notes: "internal only",
+      created_at: now,
+      updated_at: now,
+    },
+    [],
+  ),
+  events: [
+    {
+      id: "88888888-8888-8888-8888-888888888888",
+      order_id: "55555555-5555-5555-5555-555555555555",
+      event_type: "order_status_changed",
+      old_status: "processing",
+      new_status: "in_transit",
+      actor_user_id: "99999999-9999-9999-9999-999999999999",
+      metadata: { staff: true },
+      customer_visible: true,
+      created_at: now,
+    },
+    {
+      id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      order_id: "55555555-5555-5555-5555-555555555555",
+      event_type: "internal_note",
+      old_status: null,
+      new_status: null,
+      actor_user_id: "99999999-9999-9999-9999-999999999999",
+      metadata: { secret: "nope" },
+      customer_visible: false,
+      created_at: now,
+    },
+  ],
+});
+if (customerOrder.status !== "in_transit" || customerOrder.statusLabel !== "IN TRANSIT") {
+  throw new Error("Account order status must use the locked customer vocabulary.");
+}
+if (customerOrder.shipment?.trackingNumber !== "AB123") {
+  throw new Error("Customer shipment tracking number must remain available without changing status.");
+}
+if (JSON.stringify(customerOrder).includes("internal only") || JSON.stringify(customerOrder).includes("99999999")) {
+  throw new Error("Customer order views must not expose shipment notes or actor ids.");
+}
+if (JSON.stringify(customerOrder).includes("do-not-leak") || JSON.stringify(customerOrder).includes("secret")) {
+  throw new Error("Customer order views must not dump raw delivery jsonb or hidden event metadata.");
+}
+if ("payment" in customerOrder || customerOrder.paymentState !== "PAYMENT_SUCCEEDED") {
+  throw new Error("Customer payment summary must be the safe mapped state, not provider ids.");
+}
+if (customerOrder.events.length !== 1 || customerOrder.events[0]?.eventType !== "order_status_changed") {
+  throw new Error("Only customer-visible order events may appear on the account order view.");
 }
 
 console.log("Data contracts OK");

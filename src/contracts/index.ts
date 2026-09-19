@@ -175,11 +175,20 @@ export {
 export type { GuestTrackingRequest } from "./order/tracking";
 export {
   formatOrderHeading,
+  toCustomerOrderListItem,
+  toCustomerOrderView,
   toGuestDeliveryAddress,
   toGuestOrderTrackingView,
 } from "./order/dto";
-export type { GuestDeliveryAddressView, GuestOrderTrackingView } from "./order/dto";
+export type {
+  CustomerOrderListItem,
+  CustomerOrderView,
+  CustomerVisibleOrderEventView,
+  GuestDeliveryAddressView,
+  GuestOrderTrackingView,
+} from "./order/dto";
 export {
+  CUSTOMER_ORDER_STATUS_LABELS,
   CUSTOMER_TRACKING_STEPS,
   customerOrderStatusLabel,
   isLegalOrderStatusTransition,
