@@ -57,13 +57,6 @@ import {
   type PublicCheckoutDraft,
 } from "../src/types/checkout";
 import type { AddressLookupProvider } from "../src/types/integrations";
-}
-import {
-  CHECKOUT_COUNTRY_GB,
-  emptyCheckoutDraft,
-  type PublicCheckoutDraft,
-} from "../src/types/checkout";
-import type { AddressLookupProvider } from "../src/types/integrations";
 
 if (routes.checkout !== "/checkout") {
   throw new Error("Checkout route must stay /checkout.");
