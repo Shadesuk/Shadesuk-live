@@ -71,6 +71,7 @@ export {
   adminOrderSearchReference,
   adminOrderStatusOptions,
   adminShipmentStatusLabel,
+  isUnchangedAdminFulfilment,
   parseAdminFulfilmentInput,
   parseAdminOrderListQuery,
   parseAdminOrderStatusInput,
@@ -87,6 +88,7 @@ export type {
   AdminOrderListPeriod,
   AdminOrderListQuery,
   AdminShipmentView,
+  AdminTrackingEventView,
 } from "./admin/orders";
 
 export {

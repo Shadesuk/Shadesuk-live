@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   ADMIN_FORBIDDEN,
-  ADMIN_ORDER_UPDATE_FAILED_BODY,
+  ADMIN_ORDER_SAVE_FAILED_BODY,
 } from "@/lib/admin-copy";
 import { getAdminGate } from "@/lib/admin-session";
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
@@ -32,7 +32,7 @@ export async function updateAdminOrderStatusAction(
   formData: FormData,
 ): Promise<AdminOrderActionState> {
   if (!(await cartActionOriginAllowed()) || hasForbiddenOwnershipKey(Object.fromEntries(formData))) {
-    return { status: "error", message: ADMIN_ORDER_UPDATE_FAILED_BODY };
+    return { status: "error", message: ADMIN_ORDER_SAVE_FAILED_BODY };
   }
   const gate = await getAdminGate();
   if (gate.status === "unauthenticated" || gate.status === "forbidden") {
@@ -58,7 +58,7 @@ export async function saveAdminFulfilmentAction(
     status: String(formData.get("status") ?? ""),
   };
   if (!(await cartActionOriginAllowed()) || hasForbiddenOwnershipKey(Object.fromEntries(formData))) {
-    return { status: "error", message: ADMIN_ORDER_UPDATE_FAILED_BODY, values };
+    return { status: "error", message: ADMIN_ORDER_SAVE_FAILED_BODY, values };
   }
   const gate = await getAdminGate();
   if (gate.status === "unauthenticated" || gate.status === "forbidden") {
@@ -85,6 +85,7 @@ function finishMutation(
     revalidatePath(routes.adminOrders);
     revalidatePath(adminOrderPath(orderId));
     revalidatePath(routes.admin);
+    revalidatePath(routes.accountOrders, "layout");
     return { status: "ok" };
   }
   if (result.status === "invalid") {
@@ -94,7 +95,7 @@ function finishMutation(
     return { status: "forbidden", message: ADMIN_FORBIDDEN, values };
   }
   if (result.status === "not_found") {
-    return { status: "error", message: ADMIN_ORDER_UPDATE_FAILED_BODY, values };
+    return { status: "error", message: ADMIN_ORDER_SAVE_FAILED_BODY, values };
   }
-  return { status: "error", message: ADMIN_ORDER_UPDATE_FAILED_BODY, values };
+  return { status: "error", message: ADMIN_ORDER_SAVE_FAILED_BODY, values };
 }

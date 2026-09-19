@@ -19,12 +19,13 @@ import {
   ADMIN_ORDER_CARRIER,
   ADMIN_ORDER_SAVE_FULFILMENT,
   ADMIN_ORDER_SAVE_STATUS,
+  ADMIN_ORDER_SAVING,
   ADMIN_ORDER_SHIPMENT_STATUS,
   ADMIN_ORDER_STATUS_HEADING,
   ADMIN_ORDER_TRACKING_NUMBER,
   ADMIN_ORDER_TRACKING_URL,
   ADMIN_ORDER_TRACKING_URL_HINT,
-  ADMIN_ORDER_UPDATE_FAILED_TITLE,
+  ADMIN_ORDER_SAVE_FAILED_TITLE,
   ADMIN_ORDER_UPDATE_SAVED,
   ADMIN_ORDERS_RETRY,
 } from "@/lib/admin-copy";
@@ -58,11 +59,15 @@ export function AdminOrderStatusForm({
           </option>
         ))}
       </FieldSelect>
-      <FormStatus state={state} />
+      <FormStatus state={state} pending={pending} />
       <Button type="submit" variant="secondary" loading={pending}>
-        {state.status === "error" || state.status === "forbidden"
-          ? ADMIN_ORDERS_RETRY
-          : ADMIN_ORDER_SAVE_STATUS}
+        {pending
+          ? ADMIN_ORDER_SAVING
+          : state.status === "error" || state.status === "forbidden"
+            ? ADMIN_ORDERS_RETRY
+            : state.status === "ok"
+              ? ADMIN_ORDER_UPDATE_SAVED
+              : ADMIN_ORDER_SAVE_STATUS}
       </Button>
     </form>
   );
@@ -123,17 +128,34 @@ export function AdminFulfilmentForm({
           </option>
         ))}
       </FieldSelect>
-      <FormStatus state={state} />
+      <FormStatus state={state} pending={pending} />
       <Button type="submit" variant="primary" loading={pending}>
-        {state.status === "error" || state.status === "forbidden"
-          ? ADMIN_ORDERS_RETRY
-          : ADMIN_ORDER_SAVE_FULFILMENT}
+        {pending
+          ? ADMIN_ORDER_SAVING
+          : state.status === "error" || state.status === "forbidden"
+            ? ADMIN_ORDERS_RETRY
+            : state.status === "ok"
+              ? ADMIN_ORDER_UPDATE_SAVED
+              : ADMIN_ORDER_SAVE_FULFILMENT}
       </Button>
     </form>
   );
 }
 
-function FormStatus({ state }: { state: AdminOrderActionState }) {
+function FormStatus({
+  state,
+  pending,
+}: {
+  state: AdminOrderActionState;
+  pending: boolean;
+}) {
+  if (pending) {
+    return (
+      <p className={`text-small ${styles.banner}`} role="status">
+        {ADMIN_ORDER_SAVING}…
+      </p>
+    );
+  }
   if (state.status === "ok") {
     return (
       <p className={`text-small ${styles.banner}`} role="status">
@@ -144,7 +166,7 @@ function FormStatus({ state }: { state: AdminOrderActionState }) {
   if (state.status === "error" || state.status === "forbidden") {
     return (
       <p className={`text-small ${styles.banner}`} role="alert">
-        {ADMIN_ORDER_UPDATE_FAILED_TITLE}. {state.message}
+        {ADMIN_ORDER_SAVE_FAILED_TITLE}. {state.message}
       </p>
     );
   }

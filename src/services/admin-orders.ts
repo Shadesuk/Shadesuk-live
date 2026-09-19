@@ -8,6 +8,7 @@ import {
   adminOrderSearchReference,
   adminOrderStatusOptions,
   mapAdminDelivery,
+  isUnchangedAdminFulfilment,
   parseAdminFulfilmentInput,
   parseAdminOrderStatusInput,
   type AdminFulfilmentInput,
@@ -17,6 +18,7 @@ import {
   type AdminOrderListItem,
   type AdminOrderListQuery,
   type AdminShipmentView,
+  type AdminTrackingEventView,
 } from "@/contracts/admin/orders";
 import {
   isOrderStatus,
@@ -38,6 +40,7 @@ const ITEM_COLUMNS =
 const SHIPMENT_COLUMNS =
   "id, carrier_name, tracking_number, tracking_url, status";
 const EVENT_COLUMNS = "id, event_type, old_status, new_status, created_at";
+const TRACKING_EVENT_COLUMNS = "id, status, description, occurred_at";
 
 export type AdminOrdersLoadResult<T> =
   | { status: "ok"; data: T }
@@ -179,12 +182,31 @@ export async function loadAdminOrderDetail(
         events.push(parsed);
       }
     }
+    const shipment = parseShipment(shipmentResult.data);
+    if (shipment) {
+      const trackingResult = await supabase
+        .from("tracking_events")
+        .select(TRACKING_EVENT_COLUMNS)
+        .eq("shipment_id", shipment.id)
+        .order("occurred_at", { ascending: true });
+      if (trackingResult.error) {
+        return { status: "error" };
+      }
+      const trackingEvents: AdminTrackingEventView[] = [];
+      for (const row of Array.isArray(trackingResult.data) ? trackingResult.data : []) {
+        const parsed = parseTrackingEvent(row);
+        if (parsed) {
+          trackingEvents.push(parsed);
+        }
+      }
+      shipment.events = trackingEvents;
+    }
     return {
       status: "ok",
       data: {
         ...order,
         items,
-        shipment: parseShipment(shipmentResult.data),
+        shipment,
         events,
         statusTargets: adminOrderStatusOptions(order.orderStatus),
       },
@@ -194,6 +216,10 @@ export async function loadAdminOrderDetail(
   }
 }
 
+/**
+ * Cookie-bound staff status write. Event insert is sequential after the order
+ * row update, not a single database transaction.
+ */
 export async function updateAdminOrderStatus(input: {
   orderId: string;
   nextStatus: unknown;
@@ -252,6 +278,16 @@ export async function updateAdminOrderStatus(input: {
   }
 }
 
+/**
+ * Manual fulfilment write. Never updates orders.status — adding tracking
+ * must not mark an order delivered. Shipment notes are not selected: the
+ * authenticated GRANT omits shipments.notes for client roles, including staff.
+ *
+ * Integrity: shipment row writes and event inserts are sequential, not a
+ * single database transaction. If an event insert fails after a successful
+ * shipment write, this function returns error; the shipment change may already
+ * be persisted. Identical retries skip further writes instead of duplicating events.
+ */
 export async function saveAdminFulfilment(input: {
   orderId: string;
   actorId: string;
@@ -281,11 +317,28 @@ export async function saveAdminFulfilment(input: {
     }
     const existing = await supabase
       .from("shipments")
-      .select("id, status, shipped_at, delivered_at")
+      .select("id, status, shipped_at, delivered_at, carrier_name, tracking_number, tracking_url")
       .eq("order_id", input.orderId)
       .maybeSingle();
     if (existing.error && existing.error.code !== "PGRST116") {
       return { status: "error" };
+    }
+    if (
+      existing.data &&
+      typeof existing.data.id === "string" &&
+      isShipmentStatus(existing.data.status) &&
+      isUnchangedAdminFulfilment(
+        {
+          carrierName: typeof existing.data.carrier_name === "string" ? existing.data.carrier_name : null,
+          trackingNumber:
+            typeof existing.data.tracking_number === "string" ? existing.data.tracking_number : null,
+          trackingUrl: typeof existing.data.tracking_url === "string" ? existing.data.tracking_url : null,
+          status: existing.data.status,
+        },
+        parsed.value,
+      )
+    ) {
+      return { status: "ok" };
     }
     const payload = shipmentWritePayload(parsed.value, existing.data);
     if (existing.data && typeof existing.data.id === "string") {
@@ -503,6 +556,23 @@ function parseShipment(value: unknown): AdminShipmentView | null {
     trackingUrl:
       typeof row.tracking_url === "string" ? safeHttpUrl(row.tracking_url) : null,
     status: row.status,
+    events: [],
+  };
+}
+
+function parseTrackingEvent(value: unknown): AdminTrackingEventView | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== "string" || !isShipmentStatus(row.status) || typeof row.occurred_at !== "string") {
+    return null;
+  }
+  return {
+    id: row.id,
+    status: row.status,
+    description: typeof row.description === "string" ? row.description : null,
+    occurredAt: row.occurred_at,
   };
 }
 

@@ -14,6 +14,7 @@ import {
   type PaymentStatus,
 } from "../order/schema";
 import { SHIPMENT_STATUSES, type ShipmentStatus } from "../fulfilment/shipment";
+import { safeHttpUrl } from "@/lib/tracking-url";
 
 export const ADMIN_ORDERS_PAGE_SIZE = 20;
 export const ADMIN_ORDER_SEARCH_MAX = 80;
@@ -72,12 +73,20 @@ export type AdminOrderItemView = {
   lineTotalMinor: number;
 };
 
+export type AdminTrackingEventView = {
+  id: string;
+  status: ShipmentStatus;
+  description: string | null;
+  occurredAt: string;
+};
+
 export type AdminShipmentView = {
   id: string;
   carrierName: string | null;
   trackingNumber: string | null;
   trackingUrl: string | null;
   status: ShipmentStatus;
+  events: AdminTrackingEventView[];
 };
 
 export type AdminOrderEventView = {
@@ -211,14 +220,17 @@ export function parseAdminFulfilmentInput(input: {
 }): { ok: true; value: AdminFulfilmentInput } | { ok: false; errors: Partial<Record<AdminFulfilmentField, string>> } {
   const errors: Partial<Record<AdminFulfilmentField, string>> = {};
   const carrierName = readOptionalText(input.carrierName, ADMIN_FULFILMENT_TEXT_MAX);
-  const trackingNumber = readOptionalText(input.trackingNumber, ADMIN_FULFILMENT_TEXT_MAX);
+  const trackingNumber = parseTrackingNumber(input.trackingNumber);
+  if (!trackingNumber.ok) {
+    errors.trackingNumber = trackingNumber.error;
+  }
   const trackingRaw = typeof input.trackingUrl === "string" ? input.trackingUrl.trim() : "";
   let trackingUrl = "";
   if (trackingRaw) {
     if (trackingRaw.length > ADMIN_TRACKING_URL_MAX) {
       errors.trackingUrl = "Enter a shorter tracking URL.";
     } else {
-      const safe = httpsTrackingUrl(trackingRaw);
+      const safe = safeHttpUrl(trackingRaw);
       if (!safe) {
         errors.trackingUrl = "Enter a valid https tracking URL.";
       } else {
@@ -229,18 +241,35 @@ export function parseAdminFulfilmentInput(input: {
   if (!isShipmentStatus(input.status)) {
     errors.status = "Choose a valid shipment status.";
   }
-  if (Object.keys(errors).length > 0 || !isShipmentStatus(input.status)) {
+  if (Object.keys(errors).length > 0 || !isShipmentStatus(input.status) || !trackingNumber.ok) {
     return { ok: false, errors };
   }
   return {
     ok: true,
     value: {
       carrierName,
-      trackingNumber,
+      trackingNumber: trackingNumber.value,
       trackingUrl,
       status: input.status,
     },
   };
+}
+
+export function isUnchangedAdminFulfilment(
+  existing: {
+    carrierName: string | null;
+    trackingNumber: string | null;
+    trackingUrl: string | null;
+    status: ShipmentStatus;
+  },
+  next: AdminFulfilmentInput,
+): boolean {
+  return (
+    (existing.carrierName ?? "") === next.carrierName &&
+    (existing.trackingNumber ?? "") === next.trackingNumber &&
+    (safeHttpUrl(existing.trackingUrl) ?? "") === next.trackingUrl &&
+    existing.status === next.status
+  );
 }
 
 export function parseAdminOrderStatusInput(
@@ -293,14 +322,15 @@ function readOptionalText(value: unknown, max: number): string {
   return value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max);
 }
 
-function httpsTrackingUrl(value: string): string | null {
-  try {
-    const url = new URL(value.trim());
-    if (url.protocol !== "https:") {
-      return null;
-    }
-    return url.toString();
-  } catch {
-    return null;
+function parseTrackingNumber(
+  value: unknown,
+): { ok: true; value: string } | { ok: false; error: string } {
+  const trackingNumber = readOptionalText(value, ADMIN_FULFILMENT_TEXT_MAX);
+  if (!trackingNumber) {
+    return { ok: true, value: "" };
   }
+  if (trackingNumber.includes("://") || /[<>]/.test(trackingNumber)) {
+    return { ok: false, error: "Enter a valid tracking number." };
+  }
+  return { ok: true, value: trackingNumber };
 }

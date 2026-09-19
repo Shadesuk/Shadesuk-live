@@ -10,6 +10,7 @@ import {
   adminOrderListQueryString,
   adminOrderSearchReference,
   adminOrderStatusOptions,
+  isUnchangedAdminFulfilment,
   parseAdminFulfilmentInput,
   parseAdminOrderListQuery,
   parseAdminOrderStatusInput,
@@ -21,8 +22,12 @@ import {
   ADMIN_ORDER_HISTORY_EMPTY_TITLE,
   ADMIN_ORDER_NOT_FOUND_TITLE,
   ADMIN_ORDER_NO_FULFILMENT_TITLE,
+  ADMIN_ORDER_SAVE_FAILED_TITLE,
+  ADMIN_ORDER_SAVING,
   ADMIN_ORDER_UPDATE_FAILED_TITLE,
+  ADMIN_ORDER_UPDATE_SAVED,
   ADMIN_ORDERS_EMPTY_TITLE,
+  ADMIN_ORDERS_RETRY,
 } from "../src/lib/admin-copy";
 import { isUuid } from "../src/lib/ids";
 import { adminOrderPath, routes } from "../src/lib/navigation";
@@ -130,6 +135,26 @@ for (const trackingUrl of ["http://example.com/track", "javascript:alert(1)", "f
 if (safeHttpUrl("javascript:alert(1)") !== null || safeHttpUrl("http://example.com") !== null) {
   throw new Error("Rendered tracking URLs must stay https-only.");
 }
+if (parseAdminFulfilmentInput({
+  carrierName: "Royal Mail",
+  trackingNumber: "https://example.com/not-a-number",
+  trackingUrl: "",
+  status: "pending",
+}).ok) {
+  throw new Error("Tracking numbers must not accept URL-like values.");
+}
+if (!isUnchangedAdminFulfilment(
+  { carrierName: "Royal Mail", trackingNumber: "AB123", trackingUrl: "https://example.com/track", status: "dispatched" },
+  { carrierName: "Royal Mail", trackingNumber: "AB123", trackingUrl: "https://example.com/track", status: "dispatched" },
+)) {
+  throw new Error("Identical fulfilment payloads must be treated as unchanged.");
+}
+if (isUnchangedAdminFulfilment(
+  { carrierName: "Royal Mail", trackingNumber: "AB123", trackingUrl: "https://example.com/track", status: "dispatched" },
+  { carrierName: "Royal Mail", trackingNumber: "AB124", trackingUrl: "https://example.com/track", status: "dispatched" },
+)) {
+  throw new Error("Tracking number changes must not be treated as identical saves.");
+}
 
 const emptyFulfilment = parseAdminFulfilmentInput({
   carrierName: "",
@@ -139,6 +164,9 @@ const emptyFulfilment = parseAdminFulfilmentInput({
 });
 if (!emptyFulfilment.ok || emptyFulfilment.value.status !== "pending") {
   throw new Error("Tracking fields must stay optional; entering them must not invent delivered.");
+}
+if (httpsOk.ok && httpsOk.value.status === "delivered") {
+  throw new Error("Saving a tracking URL must not set shipment status to delivered.");
 }
 if (parseAdminFulfilmentInput({ carrierName: "", trackingNumber: "", trackingUrl: "", status: "lost" }).ok) {
   throw new Error("Unknown shipment statuses must be rejected.");
@@ -164,9 +192,13 @@ if (
   ADMIN_ORDER_NO_FULFILMENT_TITLE !== "No fulfilment information" ||
   ADMIN_ORDER_HISTORY_EMPTY_TITLE !== "No events yet" ||
   ADMIN_ORDER_NOT_FOUND_TITLE !== "Order not found" ||
-  ADMIN_ORDER_UPDATE_FAILED_TITLE !== "Couldn’t update order"
+  ADMIN_ORDER_UPDATE_FAILED_TITLE !== "Couldn’t update order" ||
+  ADMIN_ORDER_SAVE_FAILED_TITLE !== "Couldn’t save changes" ||
+  ADMIN_ORDER_SAVING !== "Saving" ||
+  ADMIN_ORDER_UPDATE_SAVED !== "Saved just now ✓" ||
+  ADMIN_ORDERS_RETRY !== "Try again"
 ) {
-  throw new Error("Orders empty/error copy must stay operational and honest.");
+  throw new Error("Orders empty/error/save copy must stay operational and honest.");
 }
 
 if (!isUuid("11111111-1111-4111-8111-111111111111") || isUuid("SUK-2026-AB12CD")) {
@@ -198,6 +230,25 @@ if (!service.includes("actor_user_id") || !service.includes("created_by")) {
 if (service.includes("status: \"delivered\"") && service.includes("trackingUrl") && /trackingUrl[\s\S]*status:\s*\"delivered\"/.test(service)) {
   throw new Error("Saving tracking must not automatically mark a shipment delivered.");
 }
+const fulfilmentFn = service.slice(
+  service.indexOf("export async function saveAdminFulfilment"),
+  service.indexOf("function shipmentWritePayload"),
+);
+if (/\.from\("orders"\)[\s\S]*\.update\(/.test(fulfilmentFn.replace(/\.from\("shipments"\)[\s\S]*?return \{ status: "ok" \}/g, ""))) {
+  throw new Error("Saving fulfilment must not update orders.status.");
+}
+if (fulfilmentFn.includes('.from("orders").update') || fulfilmentFn.includes("status: parsed.status")) {
+  throw new Error("Saving fulfilment must not write orders.status.");
+}
+if (!fulfilmentFn.includes("isUnchangedAdminFulfilment")) {
+  throw new Error("Identical fulfilment saves must skip duplicate event writes.");
+}
+if (!service.includes("TRACKING_EVENT_COLUMNS") || !service.includes("parseTrackingEvent")) {
+  throw new Error("Admin order detail must load tracking_events for display.");
+}
+if (service.includes("notes") && /select\([^)]*notes/.test(service)) {
+  throw new Error("Admin Orders must not select shipment notes that clients cannot read.");
+}
 
 const actions = read("src/app/admin/orders/actions.ts");
 if (!actions.includes("\"use server\"") || !actions.includes("getAdminGate")) {
@@ -208,6 +259,9 @@ if (!actions.includes("cartActionOriginAllowed") || !actions.includes("hasForbid
 }
 if (!actions.includes("revalidatePath(routes.adminOrders)") || !actions.includes("adminOrderPath")) {
   throw new Error("Successful mutations must revalidate the order list and detail.");
+}
+if (!actions.includes('result.status === "ok"') || actions.includes("revalidatePath") === false) {
+  throw new Error("Successful mutations must revalidate only after a persisted ok result.");
 }
 if (actions.includes("createSupabaseAdminClient") || actions.includes("error.message")) {
   throw new Error("Actions must not use the service-role client or leak database errors.");
@@ -265,6 +319,12 @@ if (!forms.includes("\"use client\"") || !forms.includes("useActionState")) {
 if (!forms.includes("label={ADMIN_ORDER_TRACKING_URL}") || forms.includes("placeholder={ADMIN_ORDER_TRACKING_URL}")) {
   throw new Error("Fulfilment fields must have explicit labels.");
 }
+if (!forms.includes("ADMIN_ORDER_SAVING") || !forms.includes("ADMIN_ORDER_UPDATE_SAVED") || !forms.includes("ADMIN_ORDERS_RETRY")) {
+  throw new Error("Fulfilment forms must expose Saving, Saved, and Try again states.");
+}
+if (!forms.includes("loading={pending}")) {
+  throw new Error("Fulfilment submit must disable while pending to prevent duplicate saves.");
+}
 
 const detail = read("src/components/admin/AdminOrderDetail.tsx");
 if (!detail.includes("ADMIN_ORDER_GUEST") || !detail.includes("ADMIN_ORDER_NO_FULFILMENT_TITLE")) {
@@ -272,6 +332,51 @@ if (!detail.includes("ADMIN_ORDER_GUEST") || !detail.includes("ADMIN_ORDER_NO_FU
 }
 if (!detail.includes("ADMIN_ORDER_HISTORY_EMPTY_TITLE") || !detail.includes("adminOrderStatusLabel")) {
   throw new Error("Order detail must show event history or an empty state, with textual statuses.");
+}
+if (!detail.includes("ADMIN_ORDER_TRACKING_EVENTS") || !detail.includes("order.shipment.events")) {
+  throw new Error("Order detail must show tracking events from the existing tracking_events table.");
+}
+
+const rls = [
+  read("supabase/migrations/20260914230750_initial_production_schema.sql"),
+  read("supabase/migrations/20260914231056_optimize_foundation_indexes_and_rls.sql"),
+  read("supabase/migrations/20260916063709_admin_v1_role_rls.sql"),
+].join("\n");
+if (!rls.includes("shipments_admin_update") || !rls.includes("tracking_events_admin_insert") || !rls.includes("orders_admin_update")) {
+  throw new Error("Staff fulfilment mutations must stay on existing admin RLS policies.");
+}
+if (rls.includes("tracking_events_customer_insert") || rls.includes("shipments_customer_update") || rls.includes("orders_customer_update")) {
+  throw new Error("Customers must not be able to update shipments, order status, or insert tracking events.");
+}
+if (!rls.includes("'admin'::public.admin_role") || !rls.includes("'superadmin'::public.admin_role")) {
+  throw new Error("private.is_admin() must continue to allow both Admin and Superadmin.");
+}
+
+const session = read("src/lib/admin-session.ts");
+if (!session.includes("getAdminGate") || !session.includes("toAdminV1Role")) {
+  throw new Error("Admin authorization must stay on getAdminGate().");
+}
+
+const customerOrders = read("src/services/customer-orders.ts");
+if (!customerOrders.includes('from("shipments")') || !customerOrders.includes('from("tracking_events")')) {
+  throw new Error("Customer order service must read the same shipments and tracking_events tables.");
+}
+if (customerOrders.includes(".update(") || customerOrders.includes(".insert(")) {
+  throw new Error("Customer order service must remain read-only.");
+}
+
+const checkout = read("src/app/(storefront)/checkout/page.tsx");
+if (!checkout.includes("Checkout") && !read("src/components/checkout/CheckoutContact.tsx").includes("CONTINUE_AS_GUEST")) {
+  throw new Error("Guest checkout must remain present.");
+}
+const checkoutContact = read("src/components/checkout/CheckoutContact.tsx");
+if (!checkoutContact.includes("CONTINUE_AS_GUEST")) {
+  throw new Error("Guest checkout must remain unaffected.");
+}
+
+const dto = read("src/contracts/order/dto.ts");
+if (!dto.includes("shipment notes") || !dto.includes("actor ids stay off this view")) {
+  throw new Error("Customer DTOs must keep stripping internal notes and actor ids.");
 }
 
 const table = read("src/components/admin/AdminOrdersTable.tsx");
