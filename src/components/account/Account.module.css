@@ -69,12 +69,19 @@
   list-style: none;
 }
 
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
 .item {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
   padding-block: var(--space-8);
   border-top: 1px solid var(--color-stone);
+  overflow-wrap: anywhere;
 }
 
 .confirm {

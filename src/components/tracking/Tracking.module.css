@@ -84,6 +84,31 @@
   opacity: 0.48;
 }
 
+.timelineStep[data-state="exception"] .timelineLabel,
+.timelineStep[data-state="current"] .timelineLabel {
+  font-weight: 500;
+}
+
+.tracking {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  padding-top: var(--space-24);
+  border-top: 1px solid var(--color-stone);
+  scroll-margin-top: var(--space-32);
+}
+
+.address {
+  margin: 0;
+  font-style: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.addressLine {
+  display: block;
+}
+
 .timelineLabel {
   margin: 0;
 }
@@ -95,5 +120,11 @@
 @media (min-width: 768px) {
   .page {
     max-width: 42rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .page {
+    max-width: 56rem;
   }
 }

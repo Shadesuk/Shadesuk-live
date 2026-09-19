@@ -200,6 +200,8 @@ export type { CustomerTrackingStep } from "./order/status";
 
 export {
   customerPaymentState,
+  customerPaymentStateLabel,
+  CUSTOMER_PAYMENT_STATE_LABELS,
   PAYMENT_PROVIDER_UNSET,
   PAYMENT_TRUST_RULES,
   paymentStub,

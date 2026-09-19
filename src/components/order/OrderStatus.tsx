@@ -7,7 +7,7 @@ type OrderStatusProps = {
 
 export function OrderStatus({ label }: OrderStatusProps) {
   return (
-    <p className={`text-micro ${styles.status}`} data-order-status>
+    <p className={`text-micro ${styles.status}`} data-order-status role="status">
       {label}
     </p>
   );

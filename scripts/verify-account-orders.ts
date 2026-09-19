@@ -162,4 +162,34 @@ if (!googleMark.includes("#4285F4")) {
   throw new Error("Google Auth must use the official G mark.");
 }
 
+const orderDetailPage = read("src/app/(storefront)/account/orders/[reference]/page.tsx");
+if (!orderDetailPage.includes("getOwnCustomerOrder") || !orderDetailPage.includes("requireAccountUser")) {
+  throw new Error("Account order detail must use getOwnCustomerOrder behind the session.");
+}
+if (orderDetailPage.includes("createSupabaseAdminClient") || orderDetailPage.includes("from(\"orders\")")) {
+  throw new Error("Account order detail must not query orders from the page or service-role.");
+}
+
+const orderDetail = read("src/components/order/OrderDetail.tsx");
+if (!orderDetail.includes("TrackingTimeline") || !orderDetail.includes("TRACKING_UNAVAILABLE_COPY")) {
+  throw new Error("Order detail must render the shared tracking timeline and unavailable state.");
+}
+if (!orderDetail.includes("DELIVERY_UPDATE_TITLE") || !orderDetail.includes("TRACK_WITH_CARRIER")) {
+  throw new Error("Order detail must render exception copy and carrier tracking when present.");
+}
+if (!orderDetail.includes("safeHttpUrl") || !orderDetail.includes("EXPECTED_DELIVERY")) {
+  throw new Error("Order detail must use sanitised tracking URLs and the approved delivery wording.");
+}
+if (orderDetail.includes("createSupabaseAdminClient") || orderDetail.includes("SUPABASE_SECRET_KEY")) {
+  throw new Error("Order detail must not expose the service-role client.");
+}
+
+const summary = read("src/components/account/AccountOrderSummary.tsx");
+if (!summary.includes("OrderDetail") || !orderDetailPage.includes("AccountOrderSummary")) {
+  throw new Error("Account order summary must render OrderDetail from getOwnCustomerOrder data.");
+}
+if (!summary.includes("#track-order")) {
+  throw new Error("Account order detail must link Track order to the on-page timeline.");
+}
+
 console.log("verify-account-orders: ok");

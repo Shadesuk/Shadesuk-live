@@ -50,6 +50,21 @@ export function customerPaymentState(status: PaymentStatus): CustomerPaymentStat
   return SCHEMA_PAYMENT_TO_CUSTOMER[status];
 }
 
+/** Customer-safe payment summary. Never card PAN or provider ids. */
+export const CUSTOMER_PAYMENT_STATE_LABELS = {
+  PAYMENT_READY: "Ready",
+  PAYMENT_PROCESSING: "Processing",
+  PAYMENT_SUCCEEDED: "Paid",
+  PAYMENT_FAILED: "Failed",
+  PAYMENT_CANCELLED: "Cancelled",
+  PAYMENT_REQUIRES_ACTION: "Action required",
+  PAYMENT_UNKNOWN: "Unknown",
+} as const satisfies Record<CustomerPaymentState, string>;
+
+export function customerPaymentStateLabel(state: CustomerPaymentState): string {
+  return CUSTOMER_PAYMENT_STATE_LABELS[state];
+}
+
 export function paymentStub(row: {
   provider: string;
   provider_order_id: string | null;
