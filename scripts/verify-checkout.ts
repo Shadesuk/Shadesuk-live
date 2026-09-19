@@ -13,11 +13,16 @@ import {
 } from "../src/lib/guest-cookie-hmac";
 import {
   ALL_MAJOR_CARDS,
+  ADDRESS_LOOKUP_EMPTY,
+  ADDRESS_SEARCH_HINT,
+  ADDRESS_SEARCH_LABEL,
+  ADDRESS_SEARCH_PLACEHOLDER,
   CHECKOUT_EXPIRED_BODY,
   CHECKOUT_EXPIRED_TITLE,
   CONTINUE_AS_GUEST,
   CONTINUE_TO_PAYMENT,
   ENTER_ADDRESS_MANUALLY,
+  FIND_ADDRESS,
   PAYMENT_NEXT_BODY,
   POSTCODE_INVALID,
   SECURE_CARD_PAYMENT,
@@ -29,6 +34,7 @@ import { isAllowedCartActionOrigin } from "../src/lib/cart-origin";
 import {
   formatUkPostcode,
   hasCheckoutFieldErrors,
+  isUkPostcodeLookupQuery,
   validateCheckoutAddress,
   validateCheckoutEmail,
 } from "../src/lib/checkout-validate";
@@ -57,6 +63,7 @@ import {
   type PublicCheckoutDraft,
 } from "../src/types/checkout";
 import type { AddressLookupProvider } from "../src/types/integrations";
+import { mergeLookupPostalAddress } from "../src/lib/address-merge";
 
 if (routes.checkout !== "/checkout") {
   throw new Error("Checkout route must stay /checkout.");
@@ -71,6 +78,18 @@ if (CONTINUE_AS_GUEST !== "Continue as guest") {
 }
 if (ENTER_ADDRESS_MANUALLY !== "Enter address manually") {
   throw new Error("Manual address fallback copy must stay locked.");
+}
+if (ADDRESS_SEARCH_LABEL !== "Postcode" || ADDRESS_SEARCH_PLACEHOLDER !== "Enter postcode") {
+  throw new Error("Checkout lookup must be postcode-first.");
+}
+if (ADDRESS_SEARCH_HINT !== "Enter your UK postcode to find your area.") {
+  throw new Error("Postcode lookup hint must stay accurate.");
+}
+if (FIND_ADDRESS !== "Find address") {
+  throw new Error("Find address CTA copy must stay locked.");
+}
+if (ADDRESS_LOOKUP_EMPTY !== "No postcode found. Enter address manually.") {
+  throw new Error("Empty lookup copy must not claim household addresses.");
 }
 if (CONTINUE_TO_PAYMENT !== "Continue to payment") {
   throw new Error("Payment CTA copy must stay locked.");
@@ -312,6 +331,40 @@ if (
 if (formatUkPostcode("sw1a1aa") !== "SW1A 1AA") {
   throw new Error("UK postcodes must format with an inward-code space.");
 }
+if (isUkPostcodeLookupQuery("221B Baker Street") || isUkPostcodeLookupQuery("10 Downing Street")) {
+  throw new Error("Street text must not be treated as a postcode lookup query.");
+}
+if (!isUkPostcodeLookupQuery("SW1A 1AA") || !isUkPostcodeLookupQuery("SW1")) {
+  throw new Error("UK postcode queries must be accepted for lookup.");
+}
+const mergedLookup = mergeLookupPostalAddress(
+  {
+    firstName: "Ada",
+    lastName: "Lovelace",
+    line1: "10 Downing Street",
+    line2: "Flat 1",
+    city: "Old town",
+    county: "Old county",
+    postcode: "",
+    country: "GB",
+  },
+  {
+    line1: "",
+    city: "Westminster",
+    county: "London",
+    postcode: "SW1A 1AA",
+    country: "GB",
+  },
+);
+if (
+  mergedLookup.line1 !== "10 Downing Street" ||
+  mergedLookup.line2 !== "Flat 1" ||
+  mergedLookup.firstName !== "Ada" ||
+  mergedLookup.city !== "Westminster" ||
+  mergedLookup.postcode !== "SW1A 1AA"
+) {
+  throw new Error("Postcode lookup must not overwrite street or name fields.");
+}
 
 function validAddressInput() {
   return {
@@ -484,6 +537,15 @@ for (const file of clientLookupFiles) {
 const lookupUi = readFileSync(resolve("src/components/address/AddressLookup.tsx"), "utf8");
 if (!lookupUi.includes("ENTER_ADDRESS_MANUALLY")) {
   throw new Error("Manual address fallback must remain in the lookup UI.");
+}
+if (!lookupUi.includes("FIND_ADDRESS") || !lookupUi.includes('type="button"')) {
+  throw new Error("Postcode lookup must use an explicit Find address button.");
+}
+if (lookupUi.includes("queueSearch") || lookupUi.toLowerCase().includes("start typing your address")) {
+  throw new Error("Lookup must not present fake household autocomplete.");
+}
+if (lookupUi.includes("searchCheckoutAddressAction") === false && !readFileSync(resolve("src/components/checkout/CheckoutPage.tsx"), "utf8").includes("searchCheckoutAddressAction")) {
+  throw new Error("Checkout must keep Server Actions as the lookup entry point.");
 }
 
 const envExample = readFileSync(resolve(".env.example"), "utf8");

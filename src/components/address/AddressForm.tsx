@@ -2,8 +2,11 @@
 
 import { Field, FieldSelect } from "@/components/ui/Field";
 import {
+  ADDRESS_COMPLETE_HINT,
   ADDRESS_LINE_1_LABEL,
+  ADDRESS_LINE_1_PLACEHOLDER,
   ADDRESS_LINE_2_LABEL,
+  ADDRESS_LINE_2_PLACEHOLDER,
   CITY_LABEL,
   COUNTRY_LABEL,
   COUNTY_LABEL,
@@ -75,10 +78,12 @@ export function AddressForm({
         id={`${idPrefix}-line1`}
         name="line1"
         label={ADDRESS_LINE_1_LABEL}
+        placeholder={ADDRESS_LINE_1_PLACEHOLDER}
         autoComplete="address-line1"
         value={value.line1}
         required
         disabled={disabled}
+        hint={ADDRESS_COMPLETE_HINT}
         error={errors?.line1}
         onChange={(event) => patch({ line1: event.target.value })}
       />
@@ -86,6 +91,7 @@ export function AddressForm({
         id={`${idPrefix}-line2`}
         name="line2"
         label={ADDRESS_LINE_2_LABEL}
+        placeholder={ADDRESS_LINE_2_PLACEHOLDER}
         autoComplete="address-line2"
         value={value.line2}
         disabled={disabled}

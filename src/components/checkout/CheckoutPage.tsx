@@ -18,7 +18,9 @@ import { useCart } from "@/components/cart/CartProvider";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { InlineError } from "@/components/ui/InlineError";
+import type { AddressFormValue } from "@/components/address/AddressForm";
 import { track } from "@/lib/analytics";
+import { mergeLookupPostalAddress } from "@/lib/address-merge";
 import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/cart-copy";
 import {
   CHECKOUT_CART_UNAVAILABLE,
@@ -27,7 +29,6 @@ import {
   CHECKOUT_TITLE,
 } from "@/lib/checkout-copy";
 import { routes } from "@/lib/navigation";
-import type { AddressFormValue } from "@/components/address/AddressForm";
 import type {
   CheckoutFieldErrors,
   CheckoutMutationResult,
@@ -157,17 +158,9 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
   }
 
   function handleSelect(selected: PostalAddress) {
-    setAddress((current) => ({
-      ...current,
-      line1: selected.line1,
-      line2: selected.line2 ?? "",
-      city: selected.city,
-      county: selected.county ?? "",
-      postcode: selected.postcode,
-      country: selected.country,
-    }));
+    setAddress((current) => mergeLookupPostalAddress(current, selected));
     setShowForm(true);
-    setQuery("");
+    setQuery(selected.postcode);
     track("address_autocomplete_used");
   }
 

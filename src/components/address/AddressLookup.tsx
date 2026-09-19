@@ -8,13 +8,19 @@ import {
   ADDRESS_LOOKUP_ERROR,
   ADDRESS_LOOKUP_LOADING,
   ADDRESS_LOOKUP_UNAVAILABLE,
+  ADDRESS_SEARCH_HINT,
   ADDRESS_SEARCH_LABEL,
   ADDRESS_SEARCH_PLACEHOLDER,
   ENTER_ADDRESS_MANUALLY,
+  FIND_ADDRESS,
+  POSTCODE_INVALID,
 } from "@/lib/checkout-copy";
+import { isUkPostcodeLookupQuery } from "@/lib/checkout-validate";
 import type { AddressSuggestion, PostalAddress } from "@/types/integrations";
 import type { AddressLookupView, AddressRetrieveView } from "@/types/checkout";
 import styles from "./AddressLookup.module.css";
+
+type LookupStatus = "idle" | "loading" | "empty" | "unavailable" | "error" | "invalid" | "selected";
 
 type AddressLookupProps = {
   query: string;
@@ -38,72 +44,91 @@ export function AddressLookup({
   const inputId = useId();
   const listboxId = useId();
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
-  const [status, setStatus] = useState<"idle" | "loading" | "empty" | "unavailable" | "error">(
-    "idle",
-  );
+  const [status, setStatus] = useState<LookupStatus>("idle");
   const [activeIndex, setActiveIndex] = useState(-1);
-  const debounceRef = useRef<number | null>(null);
   const requestRef = useRef(0);
 
-  const showList = suggestions.length > 0 && status === "idle";
+  const showList = suggestions.length > 0 && (status === "idle" || status === "selected");
   const activeItem = activeIndex >= 0 ? suggestions[activeIndex] : undefined;
   const activeId = activeItem ? `${listboxId}-${activeItem.id}` : undefined;
+  const pending = status === "loading";
 
-  function queueSearch(next: string) {
-    if (debounceRef.current) {
-      window.clearTimeout(debounceRef.current);
-    }
-    if (next.trim().length < 3) {
+  async function runSearch() {
+    const next = query.trim();
+    if (!isUkPostcodeLookupQuery(next)) {
       setSuggestions([]);
-      setStatus("idle");
       setActiveIndex(-1);
+      setStatus("invalid");
       return;
     }
-    setStatus("loading");
-    debounceRef.current = window.setTimeout(() => {
-      void runSearch(next);
-    }, 280);
-  }
-
-  async function runSearch(next: string) {
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
+    setStatus("loading");
+    setSuggestions([]);
+    setActiveIndex(-1);
     const result = await search(next);
     if (requestId !== requestRef.current) {
       return;
     }
     if (result.status === "unavailable") {
-      setSuggestions([]);
       setStatus("unavailable");
+      onManual();
       return;
     }
     if (result.status === "error") {
-      setSuggestions([]);
       setStatus("error");
+      onManual();
+      return;
+    }
+    if (result.suggestions.length === 0) {
+      setStatus("empty");
+      onManual();
+      return;
+    }
+    if (result.suggestions.length === 1 && result.suggestions[0]) {
+      await choose(result.suggestions[0], requestId);
       return;
     }
     setSuggestions(result.suggestions);
-    setStatus(result.suggestions.length === 0 ? "empty" : "idle");
-    setActiveIndex(-1);
+    setStatus("idle");
+    setActiveIndex(0);
   }
 
-  async function choose(suggestion: AddressSuggestion) {
+  async function choose(suggestion: AddressSuggestion, requestId = requestRef.current) {
+    setStatus("loading");
     const result = await retrieve(suggestion.id);
+    if (requestId !== requestRef.current) {
+      return;
+    }
     if (result.status !== "ok") {
+      setSuggestions([]);
       setStatus(result.status === "unavailable" ? "unavailable" : "error");
       onManual();
       return;
     }
     onSelect(result.address);
+    onQueryChange(result.address.postcode);
     setSuggestions([]);
-    setStatus("idle");
+    setStatus("selected");
     setActiveIndex(-1);
+    onManual();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Escape") {
       setSuggestions([]);
       setActiveIndex(-1);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (showList && activeItem) {
+        void choose(activeItem);
+        return;
+      }
+      if (!pending && !disabled) {
+        void runSearch();
+      }
       return;
     }
     if (!showList) {
@@ -117,34 +142,47 @@ export function AddressLookup({
       event.preventDefault();
       setActiveIndex((index) => (index <= 0 ? suggestions.length - 1 : index - 1));
     }
-    if (event.key === "Enter" && activeItem) {
-      event.preventDefault();
-      void choose(activeItem);
-    }
   }
 
   return (
-    <div className={styles.wrap} data-address-lookup>
-      <Field
-        id={inputId}
-        label={ADDRESS_SEARCH_LABEL}
-        placeholder={ADDRESS_SEARCH_PLACEHOLDER}
-        autoComplete="off"
-        value={query}
-        disabled={disabled}
-        role="combobox"
-        aria-autocomplete="list"
-        aria-haspopup="listbox"
-        aria-expanded={showList}
-        aria-controls={showList ? listboxId : undefined}
-        aria-activedescendant={activeId}
-        onChange={(event) => {
-          const next = event.target.value;
-          onQueryChange(next);
-          queueSearch(next);
-        }}
-        onKeyDown={handleKeyDown}
-      />
+    <div className={styles.wrap} data-address-lookup data-lookup-status={status}>
+      <div className={styles.find}>
+        <Field
+          id={inputId}
+          label={ADDRESS_SEARCH_LABEL}
+          placeholder={ADDRESS_SEARCH_PLACEHOLDER}
+          hint={ADDRESS_SEARCH_HINT}
+          autoComplete="postal-code"
+          autoCapitalize="characters"
+          spellCheck={false}
+          value={query}
+          disabled={disabled || pending}
+          error={status === "invalid" ? POSTCODE_INVALID : undefined}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
+          aria-expanded={showList}
+          aria-controls={showList ? listboxId : undefined}
+          aria-activedescendant={activeId}
+          onChange={(event) => {
+            onQueryChange(event.target.value);
+            if (status === "invalid" || status === "empty" || status === "error" || status === "selected") {
+              setStatus("idle");
+            }
+          }}
+          onKeyDown={handleKeyDown}
+        />
+        <Button
+          className={styles.findButton}
+          type="button"
+          variant="secondary"
+          loading={pending}
+          disabled={disabled}
+          onClick={() => void runSearch()}
+        >
+          {FIND_ADDRESS}
+        </Button>
+      </div>
       {status === "loading" ? (
         <p className="text-small" role="status">
           {ADDRESS_LOOKUP_LOADING}

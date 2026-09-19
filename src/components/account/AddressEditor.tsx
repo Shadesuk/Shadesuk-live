@@ -7,7 +7,10 @@ import {
   searchCheckoutAddressAction,
 } from "@/app/(storefront)/checkout/actions";
 import { saveAddressAction } from "@/app/(storefront)/account/actions";
-import { AddressForm, type AddressFormValue } from "@/components/address/AddressForm";
+import {
+  AddressForm,
+  type AddressFormValue,
+} from "@/components/address/AddressForm";
 import { AddressLookup } from "@/components/address/AddressLookup";
 import { Button } from "@/components/ui/Button";
 import { FieldSelect } from "@/components/ui/Field";
@@ -23,6 +26,7 @@ import {
   SAVED_ADDRESSES_LABEL,
 } from "@/lib/account-copy";
 import { ENTER_ADDRESS_MANUALLY } from "@/lib/checkout-copy";
+import { mergeLookupPostalAddress } from "@/lib/address-merge";
 import { routes } from "@/lib/navigation";
 import { CHECKOUT_COUNTRY_GB, type CheckoutFieldErrors } from "@/types/checkout";
 import type { AccountAddress, AccountAddressLabel } from "@/types/account";
@@ -70,16 +74,9 @@ export function AddressEditor({ address }: AddressEditorProps) {
   const [pending, setPending] = useState(false);
 
   function applyPostal(next: PostalAddress) {
-    setValue((current) => ({
-      ...current,
-      line1: next.line1,
-      line2: next.line2 ?? "",
-      city: next.city,
-      county: next.county ?? "",
-      postcode: next.postcode,
-      country: next.country || CHECKOUT_COUNTRY_GB,
-    }));
+    setValue((current) => mergeLookupPostalAddress(current, next));
     setShowForm(true);
+    setQuery(next.postcode);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

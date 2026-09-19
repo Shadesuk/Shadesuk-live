@@ -18,15 +18,20 @@ export const EMAIL_INVALID = "Enter a valid email.";
 export const EMAIL_REQUIRED = "Enter an email.";
 
 export const DELIVERY_HEADING = "Delivery address";
-export const ADDRESS_SEARCH_LABEL = "Start typing your address";
-export const ADDRESS_SEARCH_PLACEHOLDER = "Start typing your address...";
+export const ADDRESS_SEARCH_LABEL = "Postcode";
+export const ADDRESS_SEARCH_PLACEHOLDER = "Enter postcode";
+export const ADDRESS_SEARCH_HINT = "Enter your UK postcode to find your area.";
+export const FIND_ADDRESS = "Find address";
 export const ENTER_ADDRESS_MANUALLY = "Enter address manually";
 export const ADDRESS_LOOKUP_UNAVAILABLE =
-  "Address lookup is unavailable. Enter address manually.";
-export const ADDRESS_LOOKUP_EMPTY = "No addresses found. Enter address manually.";
+  "Postcode lookup is unavailable. Enter address manually.";
+export const ADDRESS_LOOKUP_EMPTY = "No postcode found. Enter address manually.";
 export const ADDRESS_LOOKUP_ERROR =
-  "Address lookup could not be completed. Enter address manually.";
-export const ADDRESS_LOOKUP_LOADING = "Looking up addresses…";
+  "Postcode lookup could not be completed. Enter address manually.";
+export const ADDRESS_LOOKUP_LOADING = "Looking up postcode…";
+export const ADDRESS_COMPLETE_HINT = "Add your house number and street.";
+export const ADDRESS_LINE_1_PLACEHOLDER = "Enter house number and street";
+export const ADDRESS_LINE_2_PLACEHOLDER = "Flat, unit, etc. optional";
 
 export const FIRST_NAME_LABEL = "First name";
 export const LAST_NAME_LABEL = "Last name";
