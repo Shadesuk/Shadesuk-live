@@ -45,6 +45,19 @@ import {
   retrieveAddress,
   unsetAddressLookupProvider,
 } from "../src/lib/address-lookup";
+import { addressLookupAttemptAllowed, resetAddressLookupRateLimitForTests } from "../src/lib/address-lookup-rate-limit";
+import {
+  compactUkPostcodeQuery,
+  createPostcodesIoProvider,
+  POSTCODES_IO_BASE_URL,
+} from "../src/lib/address-providers/postcodes-io";
+import {
+  CHECKOUT_COUNTRY_GB,
+  emptyCheckoutDraft,
+  type PublicCheckoutDraft,
+} from "../src/types/checkout";
+import type { AddressLookupProvider } from "../src/types/integrations";
+}
 import {
   CHECKOUT_COUNTRY_GB,
   emptyCheckoutDraft,
@@ -88,21 +101,34 @@ if (!PAYMENT_NEXT_BODY.includes("Nothing has been charged")) {
   throw new Error("Payment stub must state that nothing has been charged.");
 }
 
-if (isAddressLookupConfigured()) {
-  throw new Error("No address vendor is locked; lookup must stay unconfigured.");
+if (!isAddressLookupConfigured()) {
+  throw new Error("Address lookup factory must expose a server-side provider.");
 }
-if (getAddressLookupProvider() !== null) {
-  throw new Error("Address lookup factory must not invent a provider.");
+if (getAddressLookupProvider() === null) {
+  throw new Error("Address lookup factory must not return unset in production code.");
+}
+if (compactUkPostcodeQuery("221B Baker Street") !== null) {
+  throw new Error("Street text must not be sent to Postcodes.io.");
+}
+if (compactUkPostcodeQuery("sw1a 1aa") !== "SW1A1AA") {
+  throw new Error("Complete UK postcodes must compact before the provider request.");
+}
+if (compactUkPostcodeQuery("SW1") !== "SW1") {
+  throw new Error("Partial UK postcodes must be allowed as search queries.");
 }
 
 void (async () => {
-  const unavailable = await lookupAddresses("221B Baker Street");
-  if (unavailable.status !== "unavailable") {
-    throw new Error("Unset address lookup must report unavailable, not fake suggestions.");
+  const streetQuery = await lookupAddresses("221B Baker Street");
+  if (streetQuery.status !== "ok" || streetQuery.suggestions.length !== 0) {
+    throw new Error("Non-postcode queries must not invent household addresses.");
   }
-  const unsetSearch = await unsetAddressLookupProvider.search("anything");
+  const unsetSearch = await unsetAddressLookupProvider.search("SW1A 1AA");
   if (unsetSearch.length !== 0) {
     throw new Error("Unset provider search must not return suggestions.");
+  }
+  const unsetRetrieve = await retrieveAddress("SW1A 1AA", unsetAddressLookupProvider);
+  if (unsetRetrieve.status !== "unavailable") {
+    throw new Error("Unset provider retrieve must stay unavailable so manual entry remains.");
   }
 
   const fakeProvider: AddressLookupProvider = {
@@ -132,6 +158,132 @@ void (async () => {
   const retrieved = await retrieveAddress("addr-1", fakeProvider);
   if (retrieved.status !== "ok" || retrieved.address.line1 !== "221B Baker Street") {
     throw new Error("Address retrieve must populate fields from the provider.");
+  }
+
+  const requested: string[] = [];
+  const postcodesIo = createPostcodesIoProvider({
+    async fetch(url) {
+      requested.push(url);
+      const parsed = new URL(url);
+      if (parsed.pathname === "/postcodes" && parsed.searchParams.get("q") === "SW1A1AA") {
+        return new Response(
+          JSON.stringify({
+            status: 200,
+            result: [
+              {
+                postcode: "SW1A 1AA",
+                admin_district: "Westminster",
+                admin_county: null,
+                region: "London",
+                country: "England",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (parsed.pathname === "/postcodes/SW1A1AA") {
+        return new Response(
+          JSON.stringify({
+            status: 200,
+            result: {
+              postcode: "SW1A 1AA",
+              admin_district: "Westminster",
+              admin_county: null,
+              region: "London",
+              country: "England",
+              longitude: -0.127695,
+              latitude: 51.50354,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (parsed.pathname === "/postcodes/ZZ99ZZZ") {
+        return new Response(JSON.stringify({ status: 404, error: "Postcode not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (parsed.pathname === "/postcodes" && parsed.searchParams.get("q") === "XX1") {
+        return new Response(JSON.stringify({ status: 200, result: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("unexpected", { status: 500 });
+    },
+  });
+
+  const searched = await lookupAddresses("sw1a 1aa", postcodesIo);
+  if (searched.status !== "ok" || searched.suggestions.length !== 1) {
+    throw new Error("Postcodes.io search must use GET /postcodes?q= and return postcode suggestions.");
+  }
+  if (searched.suggestions[0]?.label !== "SW1A 1AA" || searched.suggestions[0]?.id !== "SW1A 1AA") {
+    throw new Error("Postcode suggestions must not be labelled as street addresses.");
+  }
+  if (!requested[0]?.startsWith(`${POSTCODES_IO_BASE_URL}/postcodes?q=SW1A1AA`)) {
+    throw new Error("Postcodes.io search must call the documented search endpoint.");
+  }
+
+  const filled = await retrieveAddress("SW1A 1AA", postcodesIo);
+  if (filled.status !== "ok") {
+    throw new Error("Postcodes.io retrieve must use GET /postcodes/:postcode.");
+  }
+  if (filled.address.line1 !== "" || filled.address.line2) {
+    throw new Error("Postcodes.io must not invent household street lines.");
+  }
+  if (
+    filled.address.postcode !== "SW1A 1AA" ||
+    filled.address.country !== CHECKOUT_COUNTRY_GB ||
+    filled.address.city !== "Westminster" ||
+    filled.address.county !== "London"
+  ) {
+    throw new Error("Postcodes.io retrieve must map postcode, GB, city, and county only.");
+  }
+  if (JSON.stringify(filled).includes("longitude") || JSON.stringify(filled).includes("latitude")) {
+    throw new Error("Raw Postcodes.io fields must not reach the application view.");
+  }
+  if (!requested.some((url) => url === `${POSTCODES_IO_BASE_URL}/postcodes/SW1A1AA`)) {
+    throw new Error("Exact postcode lookup must use the documented /postcodes/:postcode endpoint.");
+  }
+
+  const emptySearch = await lookupAddresses("XX1", postcodesIo);
+  if (emptySearch.status !== "ok" || emptySearch.suggestions.length !== 0) {
+    throw new Error("Empty Postcodes.io search results must be an empty suggestion list.");
+  }
+  const missing = await retrieveAddress("ZZ9 9ZZ", postcodesIo);
+  if (missing.status !== "error") {
+    throw new Error("Unknown postcodes must not crash checkout.");
+  }
+  const timedOut = await retrieveAddress(
+    "SW1A 1AA",
+    createPostcodesIoProvider({
+      timeoutMs: 20,
+      fetch: (_url, init) =>
+        new Promise((_, reject) => {
+          init.signal.addEventListener("abort", () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          });
+        }),
+    }),
+  );
+  if (timedOut.status !== "error") {
+    throw new Error("Postcodes.io timeouts must fail safely.");
+  }
+  const skipped = await lookupAddresses("10 Downing Street", postcodesIo);
+  if (skipped.status !== "ok" || skipped.suggestions.length !== 0) {
+    throw new Error("Street queries must not call Postcodes.io or return fake houses.");
+  }
+  if (requested.some((url) => url.toLowerCase().includes("downing") || url.toLowerCase().includes("baker"))) {
+    throw new Error("Provider must not send street text to Postcodes.io.");
+  }
+
+  resetAddressLookupRateLimitForTests();
+  if (!addressLookupAttemptAllowed("203.0.113.10")) {
+    throw new Error("Address lookup rate limit must allow the first attempt.");
   }
 
 if (hasCheckoutFieldErrors(validateCheckoutEmail("guest@example.com"))) {
@@ -304,12 +456,61 @@ for (const file of checkoutFiles) {
     throw new Error(`${file} must not invent a payment vendor.`);
   }
 }
-if (!readFileSync(resolve("src/app/(storefront)/checkout/actions.ts"), "utf8").includes("cartActionOriginAllowed")) {
+const actionsSource = readFileSync(resolve("src/app/(storefront)/checkout/actions.ts"), "utf8");
+if (!actionsSource.includes("cartActionOriginAllowed")) {
   throw new Error("Checkout Server Actions must keep CSRF/origin checks.");
+}
+if (
+  !actionsSource.includes("searchCheckoutAddressAction") ||
+  !actionsSource.includes("retrieveCheckoutAddressAction") ||
+  !actionsSource.includes("lookupAddresses") ||
+  !actionsSource.includes("retrieveAddress") ||
+  !actionsSource.includes("addressLookupAttemptAllowed")
+) {
+  throw new Error("Checkout Server Actions must remain the address lookup boundary and rate-limit it.");
+}
+if (actionsSource.includes("api.postcodes.io") || actionsSource.includes("createPostcodesIoProvider")) {
+  throw new Error("Server Actions must not call Postcodes.io directly.");
+}
+
+const clientLookupFiles = [
+  "src/components/address/AddressLookup.tsx",
+  "src/components/address/AddressForm.tsx",
+  "src/components/checkout/CheckoutPage.tsx",
+  "src/components/checkout/CheckoutAddress.tsx",
+];
+for (const file of clientLookupFiles) {
+  const source = readFileSync(resolve(file), "utf8");
+  if (source.includes("api.postcodes.io") || source.includes("address-providers/postcodes-io")) {
+    throw new Error(`${file} must not call Postcodes.io from the browser.`);
+  }
+  if (source.includes("NEXT_PUBLIC_")) {
+    throw new Error(`${file} must not expose provider config.`);
+  }
+}
+const lookupUi = readFileSync(resolve("src/components/address/AddressLookup.tsx"), "utf8");
+if (!lookupUi.includes("ENTER_ADDRESS_MANUALLY")) {
+  throw new Error("Manual address fallback must remain in the lookup UI.");
+}
+
+const envExample = readFileSync(resolve(".env.example"), "utf8");
+if (/NEXT_PUBLIC_.*POSTCODE|NEXT_PUBLIC_.*ADDRESS/.test(envExample)) {
+  throw new Error("No NEXT_PUBLIC address/postcode provider key may exist.");
+}
+const providerSource = readFileSync(resolve("src/lib/address-providers/postcodes-io.ts"), "utf8");
+if (providerSource.includes("NEXT_PUBLIC_") || /api[_-]?key/i.test(providerSource)) {
+  throw new Error("Postcodes.io adapter must not introduce an API key.");
+}
+const factorySource = readFileSync(resolve("src/lib/address-lookup.ts"), "utf8");
+if (!factorySource.includes("postcodesIoAddressLookupProvider")) {
+  throw new Error("Postcodes.io must be selected from the server-side factory.");
+}
+if (factorySource.includes("NEXT_PUBLIC_")) {
+  throw new Error("Address lookup factory must not use public client config.");
 }
 
 console.log(
-  "Checkout OK: guest shell, signed draft cookie, manual address, payment stub, session id never public",
+  "Checkout OK: guest shell, signed draft cookie, Postcodes.io server lookup, manual address, payment stub, session id never public",
 );
 })().catch((error: unknown) => {
   console.error(error);
