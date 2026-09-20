@@ -289,6 +289,7 @@ export function CheckoutPage({
             <CheckoutReview
               cart={view}
               draft={draft}
+              quote={quote}
               pending={pending}
               onBack={() => void goTo("address")}
             />

@@ -24,6 +24,12 @@
   list-style: none;
 }
 
+.summaryTotal {
+  color: var(--color-navy);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
 .summary::-webkit-details-marker {
   display: none;
 }
