@@ -18,15 +18,20 @@ export const EMAIL_INVALID = "Enter a valid email.";
 export const EMAIL_REQUIRED = "Enter an email.";
 
 export const DELIVERY_HEADING = "Delivery address";
-export const ADDRESS_SEARCH_LABEL = "Start typing your address";
-export const ADDRESS_SEARCH_PLACEHOLDER = "Start typing your address...";
+export const ADDRESS_SEARCH_LABEL = "Postcode";
+export const ADDRESS_SEARCH_PLACEHOLDER = "Enter postcode";
+export const ADDRESS_SEARCH_HINT = "Enter your UK postcode to find your area.";
+export const FIND_ADDRESS = "Find address";
 export const ENTER_ADDRESS_MANUALLY = "Enter address manually";
 export const ADDRESS_LOOKUP_UNAVAILABLE =
-  "Address lookup is unavailable. Enter address manually.";
-export const ADDRESS_LOOKUP_EMPTY = "No addresses found. Enter address manually.";
+  "Postcode lookup is unavailable. Enter address manually.";
+export const ADDRESS_LOOKUP_EMPTY = "No postcode found. Enter address manually.";
 export const ADDRESS_LOOKUP_ERROR =
-  "Address lookup could not be completed. Enter address manually.";
-export const ADDRESS_LOOKUP_LOADING = "Looking up addresses…";
+  "Postcode lookup could not be completed. Enter address manually.";
+export const ADDRESS_LOOKUP_LOADING = "Looking up postcode…";
+export const ADDRESS_COMPLETE_HINT = "Add your house number and street.";
+export const ADDRESS_LINE_1_PLACEHOLDER = "Enter house number and street";
+export const ADDRESS_LINE_2_PLACEHOLDER = "Flat, unit, etc. optional";
 
 export const FIRST_NAME_LABEL = "First name";
 export const LAST_NAME_LABEL = "Last name";
@@ -49,17 +54,25 @@ export const COUNTRY_UNSUPPORTED = "Delivery is currently available in the Unite
 export const SHIPPING_HEADING = "Delivery";
 export const SHIPPING_MINIMUM = "Minimum 2-week delivery timeframe.";
 export const SHIPPING_BODY =
-  "International shipping. Delivery is expected to take a minimum of 2 weeks.";
+  "UK delivery. Delivery is expected to take a minimum of 2 weeks.";
 export const SHIPPING_CALCULATED_LATER = "Calculated later";
+export const UK_STANDARD_DELIVERY = "UK Standard Delivery";
+export const CHECKOUT_PRICE_CHANGED =
+  "A price in your bag has changed. The total below uses the current price.";
+export const CHECKOUT_ITEM_UNAVAILABLE =
+  "A shade in your bag is no longer available. Return to your bag to continue.";
+export const CHECKOUT_START_AGAIN = "Start checkout again";
 export const SHIPPING_MANUAL_NOTE =
   "Orders are prepared for dispatch by hand. Carrier details appear once a shipment has been dispatched.";
 export const SHIPPING_INFORMATION = "Shipping information";
 
 export const REVIEW_HEADING = "Your order";
 export const PAYMENT_HEADING = "Payment";
+export const PAYMENTS_ACCEPTED = "Payments accepted";
 export const PAYMENT_NEXT_TITLE = "Payment is next.";
-export const PAYMENT_NEXT_BODY =
-  "Card payment is not available on this screen yet. Nothing has been charged.";
+export const PAYMENT_NEXT_BODY = "Nothing has been charged yet.";
+export const PAYMENT_NOT_READY =
+  "Card payment is not available yet. Continue to payment stays unavailable until checkout can take payment.";
 export const CONTINUE_TO_PAYMENT = "Continue to payment";
 export const SECURE_CARD_PAYMENT = "Secure card payment";
 export const ALL_MAJOR_CARDS = "All major cards accepted";

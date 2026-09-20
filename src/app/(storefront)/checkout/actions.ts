@@ -1,8 +1,12 @@
 "use server";
 
+import { headers } from "next/headers";
+import { addressLookupAttemptAllowed } from "@/lib/address-lookup-rate-limit";
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
+import { clientAddressFromHeaders } from "@/lib/request-address";
 import {
+  restartExpiredCheckout,
   saveCheckoutAddress,
   saveCheckoutContact,
   setCheckoutStep,
@@ -85,6 +89,9 @@ export async function searchCheckoutAddressAction(input: {
   if (typeof input.query !== "string") {
     return { status: "error" };
   }
+  if (!(await addressLookupRateLimitOk())) {
+    return { status: "error" };
+  }
   return lookupAddresses(input.query);
 }
 
@@ -97,5 +104,20 @@ export async function retrieveCheckoutAddressAction(input: {
   if (typeof input.id !== "string") {
     return { status: "error" };
   }
+  if (!(await addressLookupRateLimitOk())) {
+    return { status: "error" };
+  }
   return retrieveAddress(input.id);
+}
+
+export async function restartCheckoutDraftAction(): Promise<CheckoutMutationResult> {
+  if (!(await cartActionOriginAllowed())) {
+    return { status: "error" };
+  }
+  return restartExpiredCheckout();
+}
+
+async function addressLookupRateLimitOk(): Promise<boolean> {
+  const requestHeaders = await headers();
+  return addressLookupAttemptAllowed(clientAddressFromHeaders(requestHeaders));
 }

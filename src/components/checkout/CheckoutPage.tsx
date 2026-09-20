@@ -18,16 +18,24 @@ import { useCart } from "@/components/cart/CartProvider";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { InlineError } from "@/components/ui/InlineError";
+import type { AddressFormValue } from "@/components/address/AddressForm";
 import { track } from "@/lib/analytics";
+import { mergeLookupPostalAddress } from "@/lib/address-merge";
 import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/cart-copy";
 import {
   CHECKOUT_CART_UNAVAILABLE,
+  CHECKOUT_ITEM_UNAVAILABLE,
+  CHECKOUT_PRICE_CHANGED,
   CHECKOUT_REQUEST_ERROR,
   CHECKOUT_STEPS,
   CHECKOUT_TITLE,
 } from "@/lib/checkout-copy";
+import {
+  checkoutHasPriceChange,
+  checkoutUnavailableBlocked,
+  type CheckoutQuote,
+} from "@/lib/checkout-quote";
 import { routes } from "@/lib/navigation";
-import type { AddressFormValue } from "@/components/address/AddressForm";
 import type {
   CheckoutFieldErrors,
   CheckoutMutationResult,
@@ -41,16 +49,24 @@ import styles from "./CheckoutPage.module.css";
 type CheckoutPageProps = {
   initialCart: PublicCart;
   initialDraft: PublicCheckoutDraft;
+  initialQuote: CheckoutQuote;
+  accountEmail?: string;
 };
 
-export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
+export function CheckoutPage({
+  initialCart,
+  initialDraft,
+  initialQuote,
+  accountEmail = "",
+}: CheckoutPageProps) {
   const router = useRouter();
-  const { cart, applyCart } = useCart();
-  const view = cart.items.length > 0 ? cart : initialCart;
+  const { applyCart } = useCart();
+  const [view, setView] = useState(initialCart);
   const [draft, setDraft] = useState(initialDraft);
-  const [email, setEmail] = useState(initialDraft.email);
+  const [quote, setQuote] = useState(initialQuote);
+  const [email, setEmail] = useState(initialDraft.email || accountEmail);
   const [address, setAddress] = useState<AddressFormValue>(toAddressValue(initialDraft));
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialDraft.postcode);
   const [showForm, setShowForm] = useState(
     initialDraft.addressEntry === "manual" || Boolean(initialDraft.line1),
   );
@@ -58,6 +74,8 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
   const [pending, setPending] = useState(false);
   const [requestError, setRequestError] = useState(false);
   const [cartGone, setCartGone] = useState(false);
+  const blocked = checkoutUnavailableBlocked(view);
+  const priceChanged = checkoutHasPriceChange(view);
 
   useEffect(() => {
     if (view.items.length === 0) {
@@ -65,7 +83,7 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
     }
     track("begin_checkout", {
       count: view.items.length,
-      value: view.subtotal,
+      value: quote.total,
       currency: "GBP",
     });
     // Fire once per checkout visit.
@@ -110,10 +128,19 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
       return false;
     }
     applyCart(result.cart);
+    setView(result.cart);
     setDraft(result.draft);
+    setQuote(result.quote);
     setEmail(result.draft.email);
     setAddress(toAddressValue(result.draft));
+    if (result.draft.postcode) {
+      setQuery(result.draft.postcode);
+    }
     if (result.status === "expired") {
+      return false;
+    }
+    if (result.status === "blocked") {
+      setShowForm(true);
       return false;
     }
     if (result.status === "invalid") {
@@ -130,44 +157,42 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
     return true;
   }
 
-  async function submitContact() {
+  async function runMutation(action: () => Promise<CheckoutMutationResult>) {
+    if (pending) {
+      return;
+    }
     setPending(true);
     setRequestError(false);
-    await applyResult(await saveCheckoutContactAction({ email }));
-    setPending(false);
+    try {
+      await applyResult(await action());
+    } catch {
+      setRequestError(true);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function submitContact() {
+    await runMutation(() => saveCheckoutContactAction({ email }));
   }
 
   async function submitAddress() {
-    setPending(true);
-    setRequestError(false);
-    await applyResult(
-      await saveCheckoutAddressAction({
+    await runMutation(() =>
+      saveCheckoutAddressAction({
         ...address,
         addressEntry: "manual",
       }),
     );
-    setPending(false);
   }
 
   async function goTo(next: CheckoutStepId) {
-    setPending(true);
-    setRequestError(false);
-    await applyResult(await setCheckoutStepAction({ step: next }));
-    setPending(false);
+    await runMutation(() => setCheckoutStepAction({ step: next }));
   }
 
   function handleSelect(selected: PostalAddress) {
-    setAddress((current) => ({
-      ...current,
-      line1: selected.line1,
-      line2: selected.line2 ?? "",
-      city: selected.city,
-      county: selected.county ?? "",
-      postcode: selected.postcode,
-      country: selected.country,
-    }));
+    setAddress((current) => mergeLookupPostalAddress(current, selected));
     setShowForm(true);
-    setQuery("");
+    setQuery(selected.postcode);
     track("address_autocomplete_used");
   }
 
@@ -203,6 +228,19 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
         </p>
       ) : null}
       {requestError ? <InlineError>{CHECKOUT_REQUEST_ERROR}</InlineError> : null}
+      {blocked ? (
+        <p className="text-small" role="alert">
+          {CHECKOUT_ITEM_UNAVAILABLE}{" "}
+          <ButtonLink href={routes.cart} variant="tertiary">
+            Return to bag
+          </ButtonLink>
+        </p>
+      ) : null}
+      {priceChanged ? (
+        <p className="text-small" role="status">
+          {CHECKOUT_PRICE_CHANGED}
+        </p>
+      ) : null}
       {view.issues.length > 0 ? (
         <ul className={styles.issues} role="status">
           {view.issues.map((issue, index) => (
@@ -215,13 +253,14 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
       <div className={styles.layout}>
         <div className={styles.main}>
           <div className={styles.mobileSummary}>
-            <CheckoutSummary cart={view} collapsible />
+            <CheckoutSummary cart={view} quote={quote} collapsible />
           </div>
           {step === "contact" ? (
             <CheckoutContact
               email={email}
               errors={errors}
               pending={pending}
+              signedIn={Boolean(accountEmail)}
               onEmailChange={setEmail}
               onSubmit={submitContact}
             />
@@ -256,7 +295,7 @@ export function CheckoutPage({ initialCart, initialDraft }: CheckoutPageProps) {
           ) : null}
         </div>
         <div className={styles.desktopSummary}>
-          <CheckoutSummary cart={view} />
+          <CheckoutSummary cart={view} quote={quote} />
         </div>
       </div>
     </div>

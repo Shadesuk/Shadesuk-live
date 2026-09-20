@@ -1,9 +1,10 @@
+import { postcodesIoAddressLookupProvider } from "@/lib/address-providers/postcodes-io";
 import type { AddressLookupProvider, AddressSuggestion, PostalAddress } from "@/types/integrations";
 import type { AddressLookupView, AddressRetrieveView } from "@/types/checkout";
 
 /**
- * Address lookup is abstracted. No vendor is locked for this slice.
- * Do not invent API keys or call a paid provider from the stub.
+ * Address lookup is abstracted. Postcodes.io is the default server-side adapter.
+ * Swap getAddressLookupProvider() to replace the vendor. Do not call vendors from the browser.
  */
 export const ADDRESS_LOOKUP_PROVIDER_UNSET = "unset" as const;
 
@@ -23,9 +24,9 @@ export const unsetAddressLookupProvider: AddressLookupProvider = {
   },
 };
 
-/** Swap this factory when a vendor is locked. Never read invented env names here. */
+/** Default: Postcodes.io. Pass another provider into lookupAddresses/retrieveAddress to swap. */
 export function getAddressLookupProvider(): AddressLookupProvider | null {
-  return null;
+  return postcodesIoAddressLookupProvider;
 }
 
 export function isAddressLookupConfigured(

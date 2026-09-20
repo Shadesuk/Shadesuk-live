@@ -6,6 +6,7 @@ import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Field } from "@/components/ui/Field";
 import {
   CONTACT_HEADING,
+  CONTINUE,
   CONTINUE_AS_GUEST,
   EMAIL_LABEL,
   HAVE_ACCOUNT_PROMPT,
@@ -19,6 +20,7 @@ type CheckoutContactProps = {
   email: string;
   errors?: CheckoutFieldErrors;
   pending?: boolean;
+  signedIn?: boolean;
   onEmailChange: (email: string) => void;
   onSubmit: () => Promise<void>;
 };
@@ -27,6 +29,7 @@ export function CheckoutContact({
   email,
   errors,
   pending = false,
+  signedIn = false,
   onEmailChange,
   onSubmit,
 }: CheckoutContactProps) {
@@ -38,8 +41,11 @@ export function CheckoutContact({
       return;
     }
     setSubmitted(true);
-    await onSubmit();
-    setSubmitted(false);
+    try {
+      await onSubmit();
+    } finally {
+      setSubmitted(false);
+    }
   }
 
   return (
@@ -60,14 +66,16 @@ export function CheckoutContact({
       />
       <div className={styles.actions}>
         <Button type="submit" loading={pending}>
-          {CONTINUE_AS_GUEST}
+          {signedIn ? CONTINUE : CONTINUE_AS_GUEST}
         </Button>
-        <p className="text-small">
-          {HAVE_ACCOUNT_PROMPT}{" "}
-          <ButtonLink href={routes.account} variant="tertiary">
-            {SIGN_IN}
-          </ButtonLink>
-        </p>
+        {signedIn ? null : (
+          <p className="text-small">
+            {HAVE_ACCOUNT_PROMPT}{" "}
+            <ButtonLink href={routes.account} variant="tertiary">
+              {SIGN_IN}
+            </ButtonLink>
+          </p>
+        )}
       </div>
     </form>
   );

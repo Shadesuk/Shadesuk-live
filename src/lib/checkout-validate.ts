@@ -85,3 +85,12 @@ export function formatUkPostcode(value: string): string {
   }
   return `${compact.slice(0, -3)} ${compact.slice(-3)}`;
 }
+
+/** Partial or complete UK postcode. Rejects street text before lookup. */
+export function isUkPostcodeLookupQuery(value: string): boolean {
+  const compact = value.replace(/\s+/g, "").toUpperCase();
+  if (compact.length < 2 || compact.length > 7) {
+    return false;
+  }
+  return /^[A-Z]{1,2}[0-9][0-9A-Z]{0,3}[A-Z]{0,2}$/.test(compact);
+}
