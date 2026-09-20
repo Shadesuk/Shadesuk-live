@@ -76,7 +76,9 @@ export function CheckoutSummary({ cart, quote, collapsible = false }: CheckoutSu
       <details className={styles.details}>
         <summary className={`text-micro ${styles.summary}`}>
           {ORDER_SUMMARY_HEADING}
-          <span className="text-small">{formatGbpMinor(quote.totalMinor)}</span>
+          <span className={`text-micro ${styles.summaryTotal}`}>
+            {TOTAL_LABEL} {formatGbpMinor(quote.totalMinor)}
+          </span>
         </summary>
         {content}
       </details>

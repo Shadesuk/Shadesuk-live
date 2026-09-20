@@ -71,8 +71,10 @@ export const PAYMENT_HEADING = "Payment";
 export const PAYMENTS_ACCEPTED = "Payments accepted";
 export const PAYMENT_NEXT_TITLE = "Payment is next.";
 export const PAYMENT_NEXT_BODY = "Nothing has been charged yet.";
-export const PAYMENT_NOT_READY =
-  "Card payment is not available yet. Continue to payment stays unavailable until checkout can take payment.";
+export const PAYMENT_NOT_READY = "Continue to payment is unavailable.";
+export const EDIT = "Edit";
+export const ESTIMATED_DELIVERY_LABEL = "Estimated delivery:";
+export const ESTIMATED_DELIVERY_WINDOW = "2+ weeks";
 export const CONTINUE_TO_PAYMENT = "Continue to payment";
 export const SECURE_CARD_PAYMENT = "Secure card payment";
 export const ALL_MAJOR_CARDS = "All major cards accepted";
