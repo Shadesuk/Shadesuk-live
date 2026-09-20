@@ -41,8 +41,11 @@ export function CheckoutContact({
       return;
     }
     setSubmitted(true);
-    await onSubmit();
-    setSubmitted(false);
+    try {
+      await onSubmit();
+    } finally {
+      setSubmitted(false);
+    }
   }
 
   return (

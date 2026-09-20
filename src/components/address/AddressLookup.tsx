@@ -66,7 +66,17 @@ export function AddressLookup({
     setStatus("loading");
     setSuggestions([]);
     setActiveIndex(-1);
-    const result = await search(next);
+    let result: AddressLookupView;
+    try {
+      result = await search(next);
+    } catch {
+      if (requestId !== requestRef.current) {
+        return;
+      }
+      setStatus("error");
+      onManual();
+      return;
+    }
     if (requestId !== requestRef.current) {
       return;
     }
@@ -96,7 +106,18 @@ export function AddressLookup({
 
   async function choose(suggestion: AddressSuggestion, requestId = requestRef.current) {
     setStatus("loading");
-    const result = await retrieve(suggestion.id);
+    let result: AddressRetrieveView;
+    try {
+      result = await retrieve(suggestion.id);
+    } catch {
+      if (requestId !== requestRef.current) {
+        return;
+      }
+      setSuggestions([]);
+      setStatus("error");
+      onManual();
+      return;
+    }
     if (requestId !== requestRef.current) {
       return;
     }

@@ -1,5 +1,6 @@
 import type { PostalAddress } from "@/types/integrations";
 import type { PublicCart } from "@/types/cart";
+import type { CheckoutQuote } from "@/lib/checkout-quote";
 
 export const CHECKOUT_STEP_IDS = ["contact", "address", "review"] as const;
 export type CheckoutStepId = (typeof CHECKOUT_STEP_IDS)[number];
@@ -55,10 +56,22 @@ export type CheckoutFieldErrors = Partial<
 >;
 
 export type CheckoutMutationResult =
-  | { status: "ok"; cart: PublicCart; draft: PublicCheckoutDraft }
-  | { status: "invalid"; cart: PublicCart; draft: PublicCheckoutDraft; errors: CheckoutFieldErrors }
+  | { status: "ok"; cart: PublicCart; draft: PublicCheckoutDraft; quote: CheckoutQuote }
+  | {
+      status: "invalid";
+      cart: PublicCart;
+      draft: PublicCheckoutDraft;
+      quote: CheckoutQuote;
+      errors: CheckoutFieldErrors;
+    }
+  | {
+      status: "blocked";
+      cart: PublicCart;
+      draft: PublicCheckoutDraft;
+      quote: CheckoutQuote;
+    }
   | { status: "empty" }
-  | { status: "expired"; cart: PublicCart; draft: PublicCheckoutDraft }
+  | { status: "expired"; cart: PublicCart; draft: PublicCheckoutDraft; quote: CheckoutQuote }
   | { status: "error" };
 
 export type AddressLookupView =

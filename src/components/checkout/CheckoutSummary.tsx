@@ -3,22 +3,23 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { PublicCart } from "@/types/cart";
-import { formatGbp } from "@/lib/money";
+import type { CheckoutQuote } from "@/lib/checkout-quote";
+import { formatGbp, formatGbpMinor } from "@/lib/money";
 import {
   ORDER_SUMMARY_HEADING,
-  SHIPPING_CALCULATED_LATER,
-  SHIPPING_LABEL,
   SUBTOTAL_LABEL,
   TOTAL_LABEL,
+  UK_STANDARD_DELIVERY,
 } from "@/lib/checkout-copy";
 import styles from "./CheckoutSummary.module.css";
 
 type CheckoutSummaryProps = {
   cart: PublicCart;
+  quote: CheckoutQuote;
   collapsible?: boolean;
 };
 
-export function CheckoutSummary({ cart, collapsible = false }: CheckoutSummaryProps) {
+export function CheckoutSummary({ cart, quote, collapsible = false }: CheckoutSummaryProps) {
   const content = (
     <>
       <ul className={styles.lines}>
@@ -56,15 +57,15 @@ export function CheckoutSummary({ cart, collapsible = false }: CheckoutSummaryPr
       <div className={styles.totals}>
         <div className={styles.row}>
           <p className="text-small">{SUBTOTAL_LABEL}</p>
-          <p className="text-small">{formatGbp(cart.subtotal)}</p>
+          <p className="text-small">{formatGbpMinor(quote.subtotalMinor)}</p>
         </div>
         <div className={styles.row}>
-          <p className="text-small">{SHIPPING_LABEL}</p>
-          <p className="text-small">{SHIPPING_CALCULATED_LATER}</p>
+          <p className="text-small">{UK_STANDARD_DELIVERY}</p>
+          <p className="text-small">{formatGbpMinor(quote.shippingMinor)}</p>
         </div>
         <div className={styles.total}>
           <p className={`text-micro ${styles.totalLabel}`}>{TOTAL_LABEL}</p>
-          <p className={`text-h3 ${styles.totalValue}`}>{formatGbp(cart.subtotal)}</p>
+          <p className={`text-h3 ${styles.totalValue}`}>{formatGbpMinor(quote.totalMinor)}</p>
         </div>
       </div>
     </>
@@ -75,7 +76,7 @@ export function CheckoutSummary({ cart, collapsible = false }: CheckoutSummaryPr
       <details className={styles.details}>
         <summary className={`text-micro ${styles.summary}`}>
           {ORDER_SUMMARY_HEADING}
-          <span className="text-small">{formatGbp(cart.subtotal)}</span>
+          <span className="text-small">{formatGbpMinor(quote.totalMinor)}</span>
         </summary>
         {content}
       </details>

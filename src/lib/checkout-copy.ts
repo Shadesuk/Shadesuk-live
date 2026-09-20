@@ -56,6 +56,12 @@ export const SHIPPING_MINIMUM = "Minimum 2-week delivery timeframe.";
 export const SHIPPING_BODY =
   "UK delivery. Delivery is expected to take a minimum of 2 weeks.";
 export const SHIPPING_CALCULATED_LATER = "Calculated later";
+export const UK_STANDARD_DELIVERY = "UK Standard Delivery";
+export const CHECKOUT_PRICE_CHANGED =
+  "A price in your bag has changed. The total below uses the current price.";
+export const CHECKOUT_ITEM_UNAVAILABLE =
+  "A shade in your bag is no longer available. Return to your bag to continue.";
+export const CHECKOUT_START_AGAIN = "Start checkout again";
 export const SHIPPING_MANUAL_NOTE =
   "Orders are prepared for dispatch by hand. Carrier details appear once a shipment has been dispatched.";
 export const SHIPPING_INFORMATION = "Shipping information";

@@ -6,6 +6,7 @@ import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import { clientAddressFromHeaders } from "@/lib/request-address";
 import {
+  restartExpiredCheckout,
   saveCheckoutAddress,
   saveCheckoutContact,
   setCheckoutStep,
@@ -107,6 +108,13 @@ export async function retrieveCheckoutAddressAction(input: {
     return { status: "error" };
   }
   return retrieveAddress(input.id);
+}
+
+export async function restartCheckoutDraftAction(): Promise<CheckoutMutationResult> {
+  if (!(await cartActionOriginAllowed())) {
+    return { status: "error" };
+  }
+  return restartExpiredCheckout();
 }
 
 async function addressLookupRateLimitOk(): Promise<boolean> {

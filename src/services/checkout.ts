@@ -10,14 +10,20 @@ import {
   validateCheckoutAddress,
   validateCheckoutEmail,
 } from "@/lib/checkout-validate";
+import {
+  checkoutQuoteFromCart,
+  checkoutUnavailableBlocked,
+  type CheckoutQuote,
+} from "@/lib/checkout-quote";
 import { containsForbiddenCartOwnership } from "@/lib/ownership-keys";
-import { readGuestCartSessionId } from "@/lib/guest-cart-cookie";
+import { bindGuestCartSession, readGuestCartSessionId } from "@/lib/guest-cart-cookie";
 import { getPublicCart } from "@/services/cart";
 import {
   CHECKOUT_COUNTRY_GB,
   emptyCheckoutDraft,
   type CheckoutAddressEntry,
   type CheckoutFieldErrors,
+  type CheckoutMutationResult,
   type CheckoutStepId,
   type PublicCheckoutDraft,
 } from "@/types/checkout";
@@ -26,36 +32,30 @@ import type { PublicCart } from "@/types/cart";
 export type CheckoutSnapshot = {
   cart: PublicCart;
   draft: PublicCheckoutDraft;
+  quote: CheckoutQuote;
 };
 
 export async function getCheckoutSnapshot(): Promise<CheckoutSnapshot> {
-  const sessionId = await readGuestCartSessionId();
   const cart = await getPublicCart();
+  const sessionId = await ensureCheckoutSession(cart);
   const draft = await readCheckoutDraft(sessionId);
-  return sanitizeSnapshot({ cart, draft });
+  return sanitizeSnapshot({ cart, draft, quote: checkoutQuoteFromCart(cart) });
 }
 
-export async function saveCheckoutContact(email: string): Promise<
-  | { status: "ok"; cart: PublicCart; draft: PublicCheckoutDraft }
-  | { status: "invalid"; cart: PublicCart; draft: PublicCheckoutDraft; errors: CheckoutFieldErrors }
-  | { status: "empty" }
-  | { status: "expired"; cart: PublicCart; draft: PublicCheckoutDraft }
-  | { status: "error" }
-> {
-  const sessionId = await readGuestCartSessionId();
-  const cart = await getPublicCart();
-  if (!sessionId || cart.items.length === 0) {
+export async function saveCheckoutContact(email: string): Promise<CheckoutMutationResult> {
+  const loaded = await loadCheckout();
+  if (!loaded) {
     return { status: "empty" };
   }
-  const current = await readCheckoutDraft(sessionId);
+  const { sessionId, cart, current, quote } = loaded;
   if (current.expired) {
-    return { status: "expired", cart, draft: current };
+    return { status: "expired", cart, draft: current, quote };
   }
   const normalized = normalizeEmailInput(email).slice(0, 254);
   const errors = validateCheckoutEmail(normalized);
   const draft: PublicCheckoutDraft = { ...current, email: normalized };
   if (hasCheckoutFieldErrors(errors)) {
-    return { status: "invalid", cart, draft, errors };
+    return { status: "invalid", cart, draft, quote, errors };
   }
   draft.step = "address";
   try {
@@ -63,7 +63,7 @@ export async function saveCheckoutContact(email: string): Promise<
   } catch {
     return { status: "error" };
   }
-  return { status: "ok", cart, draft };
+  return { status: "ok", cart, draft, quote };
 }
 
 export async function saveCheckoutAddress(input: {
@@ -76,27 +76,21 @@ export async function saveCheckoutAddress(input: {
   postcode: string;
   country: string;
   addressEntry?: CheckoutAddressEntry;
-}): Promise<
-  | { status: "ok"; cart: PublicCart; draft: PublicCheckoutDraft }
-  | { status: "invalid"; cart: PublicCart; draft: PublicCheckoutDraft; errors: CheckoutFieldErrors }
-  | { status: "empty" }
-  | { status: "expired"; cart: PublicCart; draft: PublicCheckoutDraft }
-  | { status: "error" }
-> {
-  const sessionId = await readGuestCartSessionId();
-  const cart = await getPublicCart();
-  if (!sessionId || cart.items.length === 0) {
+}): Promise<CheckoutMutationResult> {
+  const loaded = await loadCheckout();
+  if (!loaded) {
     return { status: "empty" };
   }
-  const current = await readCheckoutDraft(sessionId);
+  const { sessionId, cart, current, quote } = loaded;
   if (current.expired) {
-    return { status: "expired", cart, draft: current };
+    return { status: "expired", cart, draft: current, quote };
   }
   if (!current.email) {
     return {
       status: "invalid",
       cart,
       draft: { ...current, step: "contact" },
+      quote,
       errors: validateCheckoutEmail(current.email),
     };
   }
@@ -118,7 +112,16 @@ export async function saveCheckoutAddress(input: {
   const errors = validateCheckoutAddress(draft);
   if (hasCheckoutFieldErrors(errors)) {
     draft.addressEntry = "manual";
-    return { status: "invalid", cart, draft, errors };
+    return { status: "invalid", cart, draft, quote, errors };
+  }
+  if (checkoutUnavailableBlocked(cart)) {
+    draft.step = "address";
+    try {
+      await persistDraft(sessionId, draft);
+    } catch {
+      return { status: "error" };
+    }
+    return { status: "blocked", cart, draft, quote };
   }
   draft.step = "review";
   try {
@@ -126,31 +129,73 @@ export async function saveCheckoutAddress(input: {
   } catch {
     return { status: "error" };
   }
-  return { status: "ok", cart, draft };
+  return { status: "ok", cart, draft, quote };
 }
 
-export async function setCheckoutStep(step: CheckoutStepId): Promise<
-  | { status: "ok"; cart: PublicCart; draft: PublicCheckoutDraft }
-  | { status: "empty" }
-  | { status: "expired"; cart: PublicCart; draft: PublicCheckoutDraft }
-  | { status: "error" }
-> {
-  const sessionId = await readGuestCartSessionId();
-  const cart = await getPublicCart();
-  if (!sessionId || cart.items.length === 0) {
+export async function setCheckoutStep(step: CheckoutStepId): Promise<CheckoutMutationResult> {
+  const loaded = await loadCheckout();
+  if (!loaded) {
     return { status: "empty" };
   }
-  const current = await readCheckoutDraft(sessionId);
+  const { sessionId, cart, current, quote } = loaded;
   if (current.expired) {
-    return { status: "expired", cart, draft: current };
+    return { status: "expired", cart, draft: current, quote };
   }
-  const draft = constrainStep({ ...current, step });
+  const requested = step === "review" && checkoutUnavailableBlocked(cart) ? "address" : step;
+  const draft = constrainStep({ ...current, step: requested });
   try {
     await persistDraft(sessionId, draft);
   } catch {
     return { status: "error" };
   }
-  return { status: "ok", cart, draft };
+  if (requested !== step && checkoutUnavailableBlocked(cart)) {
+    return { status: "blocked", cart, draft, quote };
+  }
+  return { status: "ok", cart, draft, quote };
+}
+
+export async function restartExpiredCheckout(): Promise<CheckoutMutationResult> {
+  const loaded = await loadCheckout();
+  if (!loaded) {
+    return { status: "empty" };
+  }
+  const { sessionId, cart, current, quote } = loaded;
+  if (!current.expired) {
+    return { status: "ok", cart, draft: current, quote };
+  }
+  const draft = emptyCheckoutDraft();
+  try {
+    await persistDraft(sessionId, draft);
+  } catch {
+    return { status: "error" };
+  }
+  return { status: "ok", cart, draft, quote };
+}
+
+async function loadCheckout(): Promise<{
+  sessionId: string;
+  cart: PublicCart;
+  current: PublicCheckoutDraft;
+  quote: CheckoutQuote;
+} | null> {
+  const cart = await getPublicCart();
+  const sessionId = await ensureCheckoutSession(cart);
+  if (!sessionId || cart.items.length === 0) {
+    return null;
+  }
+  const current = await readCheckoutDraft(sessionId);
+  return { sessionId, cart, current, quote: checkoutQuoteFromCart(cart) };
+}
+
+async function ensureCheckoutSession(cart: PublicCart): Promise<string | null> {
+  const existing = await readGuestCartSessionId();
+  if (existing) {
+    return existing;
+  }
+  if (cart.items.length === 0) {
+    return null;
+  }
+  return bindGuestCartSession();
 }
 
 function constrainStep(draft: PublicCheckoutDraft): PublicCheckoutDraft {
@@ -174,7 +219,15 @@ async function persistDraft(sessionId: string, draft: PublicCheckoutDraft): Prom
 
 function sanitizeSnapshot(snapshot: CheckoutSnapshot): CheckoutSnapshot {
   if (containsForbiddenCartOwnership(snapshot.draft)) {
-    return { cart: snapshot.cart, draft: emptyCheckoutDraft() };
+    return {
+      cart: snapshot.cart,
+      draft: emptyCheckoutDraft(),
+      quote: snapshot.quote,
+    };
   }
-  return { cart: snapshot.cart, draft: constrainStep(snapshot.draft) };
+  let draft = constrainStep(snapshot.draft);
+  if (checkoutUnavailableBlocked(snapshot.cart) && draft.step === "review") {
+    draft = { ...draft, step: "address" };
+  }
+  return { ...snapshot, draft };
 }

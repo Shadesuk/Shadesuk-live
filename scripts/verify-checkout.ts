@@ -29,7 +29,21 @@ import {
   SHIPPING_BODY,
   SHIPPING_CALCULATED_LATER,
   SHIPPING_MINIMUM,
+  UK_STANDARD_DELIVERY,
+  CHECKOUT_PRICE_CHANGED,
+  CHECKOUT_ITEM_UNAVAILABLE,
+  CHECKOUT_START_AGAIN,
 } from "../src/lib/checkout-copy";
+import { formatGbpMinor } from "../src/lib/money";
+import { STORE_CURRENCY } from "../src/contracts/money";
+import {
+  authoritativeCheckoutQuote,
+  checkoutHasPriceChange,
+  checkoutQuoteFromCart,
+  checkoutUnavailableBlocked,
+  UK_STANDARD_DELIVERY_MINOR,
+} from "../src/lib/checkout-quote";
+import type { PublicCart } from "../src/types/cart";
 import { guestCartCookieSecure } from "../src/lib/guest-cart-cookie-secure";
 import { isAllowedCartActionOrigin } from "../src/lib/cart-origin";
 import {
@@ -103,7 +117,98 @@ if (!CHECKOUT_EXPIRED_BODY.includes("cart is still available")) {
   throw new Error("Expired checkout must keep the cart available.");
 }
 if (SHIPPING_CALCULATED_LATER !== "Calculated later") {
-  throw new Error("Checkout shipping must not invent a cost.");
+  throw new Error("Bag shipping placeholder copy must stay locked.");
+}
+if (UK_STANDARD_DELIVERY !== "UK Standard Delivery") {
+  throw new Error("Checkout shipping label must stay UK Standard Delivery.");
+}
+if (UK_STANDARD_DELIVERY_MINOR !== 465) {
+  throw new Error("UK standard delivery must be 465 GBP minor units.");
+}
+if (formatGbpMinor(UK_STANDARD_DELIVERY_MINOR) !== "£4.65") {
+  throw new Error("UK standard delivery must display as £4.65.");
+}
+if (!CHECKOUT_PRICE_CHANGED.toLowerCase().includes("current price")) {
+  throw new Error("Price-change copy must use the current price, not a silent old snapshot.");
+}
+if (!CHECKOUT_ITEM_UNAVAILABLE.toLowerCase().includes("no longer available")) {
+  throw new Error("Unavailable-item copy must identify that a shade cannot be bought.");
+}
+if (CHECKOUT_START_AGAIN !== "Start checkout again") {
+  throw new Error("Expired checkout recovery CTA must stay locked.");
+}
+
+const tamperedQuote = authoritativeCheckoutQuote({
+  subtotalMinor: 4900,
+  shippingMinor: 0,
+  totalMinor: 1,
+  currency: "USD",
+  subtotal: 100,
+  shipping: 0,
+  total: 100,
+});
+if (
+  tamperedQuote.shippingMinor !== 465 ||
+  tamperedQuote.totalMinor !== 5365 ||
+  tamperedQuote.currency !== STORE_CURRENCY ||
+  tamperedQuote.subtotalMinor !== 4900
+) {
+  throw new Error("Client shipping, total, and currency must not override the server quote.");
+}
+if (formatGbpMinor(tamperedQuote.totalMinor) !== "£53.65") {
+  throw new Error("Authoritative checkout total must display as subtotal plus £4.65.");
+}
+
+const quotedCart: PublicCart = {
+  items: [
+    {
+      id: "line-1",
+      productId: "product-1",
+      slug: "shade",
+      name: "Shade",
+      href: "/products/shade",
+      colourName: "Black",
+      quantity: 1,
+      unitPrice: 49,
+      lineTotal: 49,
+      currency: "GBP",
+    },
+  ],
+  itemCount: 1,
+  subtotal: 1,
+  currency: "GBP",
+  issues: [],
+};
+const cartQuote = checkoutQuoteFromCart(quotedCart);
+if (cartQuote.subtotalMinor !== 4900 || cartQuote.shippingMinor !== 465 || cartQuote.totalMinor !== 5365) {
+  throw new Error("Checkout quote must derive subtotal from live line prices, not a client subtotal.");
+}
+if (!checkoutUnavailableBlocked({ ...quotedCart, items: [] })) {
+  throw new Error("Empty checkout carts must block payable progression.");
+}
+if (
+  !checkoutUnavailableBlocked({
+    ...quotedCart,
+    issues: [{ issue: "variant_unavailable", message: "gone", itemId: "line-1" }],
+  })
+) {
+  throw new Error("Unavailable variants must block checkout progression.");
+}
+if (
+  !checkoutUnavailableBlocked({
+    ...quotedCart,
+    issues: [{ issue: "product_removed", message: "gone", itemId: "line-1" }],
+  })
+) {
+  throw new Error("Removed products must block checkout progression.");
+}
+if (
+  !checkoutHasPriceChange({
+    ...quotedCart,
+    issues: [{ issue: "price_changed", message: "changed", itemId: "line-1" }],
+  })
+) {
+  throw new Error("Price changes must be visible on checkout.");
 }
 if (!SHIPPING_MINIMUM.toLowerCase().includes("2-week")) {
   throw new Error("Checkout must show the minimum 2-week delivery expectation.");
@@ -535,6 +640,8 @@ const checkoutFiles = [
   "src/components/checkout/CheckoutPage.tsx",
   "src/components/checkout/CheckoutReview.tsx",
   "src/lib/address-lookup.ts",
+  "src/lib/checkout-quote.ts",
+  "src/services/checkout.ts",
 ];
 for (const file of checkoutFiles) {
   const source = readFileSync(resolve(file), "utf8").toLowerCase();
@@ -557,6 +664,16 @@ if (
 }
 if (actionsSource.includes("api.postcodes.io") || actionsSource.includes("createPostcodesIoProvider")) {
   throw new Error("Server Actions must not call Postcodes.io directly.");
+}
+if (!actionsSource.includes("restartCheckoutDraftAction")) {
+  throw new Error("Expired checkout must restart through the existing draft action.");
+}
+if (
+  /saveCheckoutAddressAction[\s\S]*shippingMinor/.test(actionsSource) ||
+  /saveCheckoutContactAction[\s\S]*totalMinor/.test(actionsSource) ||
+  actionsSource.includes("currency:")
+) {
+  throw new Error("Checkout Server Actions must not accept payable money or currency from the client.");
 }
 
 const clientLookupFiles = [
@@ -604,8 +721,51 @@ if (factorySource.includes("NEXT_PUBLIC_")) {
   throw new Error("Address lookup factory must not use public client config.");
 }
 
+const summarySource = readFileSync(resolve("src/components/checkout/CheckoutSummary.tsx"), "utf8");
+if (!summarySource.includes("UK_STANDARD_DELIVERY") || !summarySource.includes("quote.shippingMinor")) {
+  throw new Error("Checkout summary must show authoritative UK Standard Delivery.");
+}
+if (!summarySource.includes("quote.totalMinor") || !summarySource.includes("quote.subtotalMinor")) {
+  throw new Error("Checkout summary must display the server quote, not client totals.");
+}
+
+const checkoutPageSource = readFileSync(resolve("src/components/checkout/CheckoutPage.tsx"), "utf8");
+if (!checkoutPageSource.includes("initialDraft") || !checkoutPageSource.includes("initialQuote")) {
+  throw new Error("Checkout UI must hydrate from the server draft and quote.");
+}
+if (checkoutPageSource.includes("localStorage") || checkoutPageSource.includes("sessionStorage")) {
+  throw new Error("Checkout must not use browser storage as persistence.");
+}
+if (!checkoutPageSource.includes("if (pending)") || !checkoutPageSource.includes("setPending(true)")) {
+  throw new Error("Checkout mutations must hold while a request is pending.");
+}
+if (!checkoutPageSource.includes("CHECKOUT_PRICE_CHANGED") || !checkoutPageSource.includes("CHECKOUT_ITEM_UNAVAILABLE")) {
+  throw new Error("Checkout must surface price-change and unavailable-item recovery.");
+}
+if (!checkoutPageSource.includes("setRequestError(true)")) {
+  throw new Error("Checkout request failures must stay recoverable without wiping the form.");
+}
+
+const checkoutService = readFileSync(resolve("src/services/checkout.ts"), "utf8");
+if (!checkoutService.includes("checkoutQuoteFromCart") || !checkoutService.includes("writeCheckoutDraft")) {
+  throw new Error("Checkout must keep the signed draft store and derive the server quote.");
+}
+if (checkoutService.includes("localStorage")) {
+  throw new Error("Checkout service must not add a second persistence system.");
+}
+
+const quoteSource = readFileSync(resolve("src/lib/checkout-quote.ts"), "utf8");
+if (!quoteSource.includes("UK_STANDARD_DELIVERY_MINOR") || !quoteSource.includes("STORE_CURRENCY")) {
+  throw new Error("Authoritative quote must lock GBP shipping to 465 minor units.");
+}
+
+const draftCodec = readFileSync(resolve("src/lib/checkout-draft.ts"), "utf8");
+if (draftCodec.includes("subtotal") || draftCodec.includes("shippingMinor") || draftCodec.includes("totalMinor")) {
+  throw new Error("Checkout draft persistence must not store payable totals.");
+}
+
 console.log(
-  "Checkout OK: guest shell, signed draft cookie, Postcodes.io server lookup, manual address, payment stub, session id never public",
+  "Checkout OK: guest shell, signed draft cookie, Postcodes.io server lookup, manual address, £4.65 GBP shipping, server quote, payment stub, session id never public",
 );
 })().catch((error: unknown) => {
   console.error(error);

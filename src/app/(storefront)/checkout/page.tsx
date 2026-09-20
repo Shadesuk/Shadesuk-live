@@ -15,7 +15,7 @@ export const metadata: Metadata = privatePathMetadata(
 );
 
 export default async function CheckoutRoute() {
-  const [{ cart, draft }, accountUser] = await Promise.all([
+  const [{ cart, draft, quote }, accountUser] = await Promise.all([
     getCheckoutSnapshot(),
     getOptionalAccountUser(),
   ]);
@@ -30,6 +30,7 @@ export default async function CheckoutRoute() {
           <CheckoutPage
             initialCart={cart}
             initialDraft={draft}
+            initialQuote={quote}
             accountEmail={accountUser?.email ?? ""}
           />
         </ContentWidth>
