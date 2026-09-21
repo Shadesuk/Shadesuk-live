@@ -1,6 +1,16 @@
 import "server-only";
 
 export { sendOrderConfirmation, sendShipmentConfirmation } from "./service";
+export {
+  dispatchOrderConfirmationEmail,
+  loadOrderForConfirmation,
+  ORDER_CONFIRMATION_PAYMENT_STATUS,
+} from "./order-confirmation";
+export type {
+  ConfirmedOrderSnapshot,
+  OrderConfirmationDispatchResult,
+  OrderConfirmationDispatcherOptions,
+} from "./order-confirmation";
 export { TRANSACTIONAL_EMAIL_TYPES } from "./types";
 export type {
   EmailSendOptions,

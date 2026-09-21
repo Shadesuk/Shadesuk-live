@@ -85,3 +85,10 @@ export const PAYMENT_TRUST_RULES = {
   webhooksOutOfScopeForPhase33: true,
   noProviderEnvNamesAsFinal: true,
 } as const;
+
+/**
+ * Order confirmation email is a post-commit side effect of `captured` only.
+ * Call `onVerifiedPaymentCaptured(orderId)` from `src/lib/payment/after-captured.ts`
+ * after the commerce write commits. Never send from checkout review or a
+ * frontend success return.
+ */

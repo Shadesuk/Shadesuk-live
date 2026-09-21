@@ -24,6 +24,12 @@ import { createMemoryEmailEventStore } from "../src/lib/email/memory-store";
 import { decideDeliveryTransition, deliveryStatusForResendType } from "../src/lib/email/delivery";
 import { processVerifiedResendWebhook } from "../src/lib/email/webhook";
 import { verifyResendWebhook } from "../src/lib/email/webhook-verify";
+import {
+  dispatchOrderConfirmationEmail,
+  ORDER_CONFIRMATION_PAYMENT_STATUS,
+} from "../src/lib/email/order-confirmation";
+import type { ConfirmedOrderSnapshot } from "../src/lib/email/order-confirmation";
+import type { OrderRow } from "../src/contracts/order/schema";
 
 const root = resolve(process.cwd());
 
@@ -66,6 +72,7 @@ const emailFiles = [
   "delivery.ts",
   "webhook.ts",
   "webhook-verify.ts",
+  "order-confirmation.ts",
 ];
 for (const file of emailFiles) {
   const path = resolve(emailDir, file);
@@ -204,10 +211,48 @@ for (const surface of triggerSurfaces) {
     source.includes("@/lib/email") ||
     source.includes("sendOrderConfirmation") ||
     source.includes("sendShipmentConfirmation") ||
-    source.includes("createOrGetEmailEvent")
+    source.includes("createOrGetEmailEvent") ||
+    source.includes("dispatchOrderConfirmationEmail") ||
+    source.includes("onVerifiedPaymentCaptured")
   ) {
-    throw new Error(`${surface} must not trigger or persist emails in this block.`);
+    throw new Error(`${surface} must not trigger transactional emails.`);
   }
+}
+
+const orderConfirmationTrigger = read("src/lib/email/order-confirmation.ts");
+if (
+  !orderConfirmationTrigger.includes("createOrGetOrderConfirmationEvent") ||
+  !orderConfirmationTrigger.includes("ownsSendAttempt") ||
+  !orderConfirmationTrigger.includes("sendOrderConfirmation") ||
+  !orderConfirmationTrigger.includes("markEmailSent") ||
+  !orderConfirmationTrigger.includes("markEmailFailed") ||
+  !orderConfirmationTrigger.includes("customer_email")
+) {
+  throw new Error("Order confirmation trigger must use the event layer, Resend service, and orders.customer_email.");
+}
+if (orderConfirmationTrigger.includes("sendShipmentConfirmation")) {
+  throw new Error("Order confirmation must not send shipment emails.");
+}
+if (
+  !orderConfirmationTrigger.includes('payment_status !== ORDER_CONFIRMATION_PAYMENT_STATUS') &&
+  !orderConfirmationTrigger.includes('payment_status !== "captured"')
+) {
+  throw new Error("Order confirmation must gate on captured payment_status.");
+}
+
+const afterCaptured = read("src/lib/payment/after-captured.ts");
+if (!afterCaptured.includes('import "server-only"')) {
+  throw new Error("Payment captured hook must be server-only.");
+}
+if (!afterCaptured.includes("dispatchOrderConfirmationEmail") || afterCaptured.includes("sendShipmentConfirmation")) {
+  throw new Error("Captured-payment hook must dispatch order confirmation only, after commit.");
+}
+if (afterCaptured.includes("from \"resend\"") || afterCaptured.includes("getResendClient")) {
+  throw new Error("Payment layer must not construct the Resend client.");
+}
+
+if (ORDER_CONFIRMATION_PAYMENT_STATUS !== "captured") {
+  throw new Error("Order confirmation paid gate must remain captured.");
 }
 
 const eventsSource = read("src/lib/email/events.ts");
@@ -527,5 +572,254 @@ async function verifyEmailEvents() {
   );
   if (!deliveryMigration.includes("email_delivery_status") || !deliveryMigration.includes("email_webhook_events")) {
     throw new Error("Delivery-status migration must add enum and webhook receipts.");
+  }
+
+  await verifyOrderConfirmationTrigger();
+}
+
+async function verifyOrderConfirmationTrigger() {
+  const GUEST_ORDER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const AUTH_ORDER_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const DUP_ORDER_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const FAIL_ORDER_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const BAD_EMAIL_ORDER_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  const UNPAID_ORDER_ID = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+  const WEBHOOK_ORDER_ID = "abababab-abab-4aba-8aba-abababababab";
+  const PROVIDER_MESSAGE_ID = "44444444-4444-4444-8444-444444444444";
+
+  function snapshot(orderId: string, input: Partial<OrderRow> & Pick<OrderRow, "customer_email" | "payment_status">): ConfirmedOrderSnapshot {
+    return {
+      order: {
+        id: orderId,
+        order_reference: "SHU1A2B3C4D5E",
+        user_id: input.user_id === undefined ? null : input.user_id,
+        customer_email: input.customer_email,
+        customer_first_name: input.customer_first_name ?? "Ada",
+        customer_last_name: input.customer_last_name ?? "Lovelace",
+        status: "placed",
+        payment_status: input.payment_status,
+        currency: "GBP",
+        subtotal_minor: 4900,
+        shipping_minor: 465,
+        total_minor: 5365,
+        delivery_address: {
+          first_name: "Ada",
+          last_name: "Lovelace",
+          address_line_1: "10 Example Street",
+          city: "London",
+          postcode: "E1 6AN",
+          country: "GB",
+        },
+        created_at: "2026-09-21T10:00:00.000Z",
+        updated_at: "2026-09-21T10:00:00.000Z",
+      },
+      items: [
+        {
+          id: "99999999-9999-4999-8999-999999999991",
+          order_id: orderId,
+          product_id: "99999999-9999-4999-8999-999999999992",
+          product_variant_id: null,
+          sku: "FRAME-01-BLK",
+          product_name: "Frame 01",
+          colour_name: "Black",
+          variant_name: null,
+          quantity: 1,
+          unit_price_minor: 4900,
+          line_total_minor: 4900,
+          product_snapshot: null,
+          created_at: "2026-09-21T10:00:00.000Z",
+        },
+      ],
+    };
+  }
+
+  // A + D: captured guest order → one event → Resend → sent + provider id
+  const guestStore = createMemoryEmailEventStore();
+  const guestOrder = snapshot(GUEST_ORDER_ID, {
+    customer_email: "guest@shadesuk.example",
+    payment_status: "captured",
+    user_id: null,
+  });
+  let guestSends = 0;
+  const guestSent = await dispatchOrderConfirmationEmail(GUEST_ORDER_ID, {
+    store: guestStore,
+    loadOrder: async () => guestOrder,
+    send: async (payload, options) => {
+      guestSends += 1;
+      if (payload.recipientEmail !== "guest@shadesuk.example") {
+        throw new Error("Guest recipient must come from orders.customer_email.");
+      }
+      if (payload.orderReference !== "SHU1A2B3C4D5E" || payload.totalMinor !== 5365) {
+        throw new Error("Confirmation payload must use the confirmed order totals.");
+      }
+      if (options?.idempotencyKey !== orderConfirmationIdempotencyKey(GUEST_ORDER_ID)) {
+        throw new Error("Send must pass order_confirmation:{order_id}.");
+      }
+      return { success: true, messageId: PROVIDER_MESSAGE_ID };
+    },
+  });
+  if (guestSent.outcome !== "sent" || guestSends !== 1) {
+    throw new Error("Captured guest order must send exactly one confirmation.");
+  }
+  const guestEvent = await guestStore.findById(guestSent.eventId);
+  if (
+    !guestEvent ||
+    guestEvent.status !== "sent" ||
+    guestEvent.provider_message_id !== PROVIDER_MESSAGE_ID ||
+    guestEvent.delivery_status !== "unknown" ||
+    guestEvent.recipient_email !== "guest@shadesuk.example"
+  ) {
+    throw new Error("Successful send must persist provider_message_id with delivery_status unknown.");
+  }
+
+  // Authenticated captured order still uses orders.customer_email, not a profile
+  const authStore = createMemoryEmailEventStore();
+  const authOrder = snapshot(AUTH_ORDER_ID, {
+    customer_email: "ada@shadesuk.example",
+    payment_status: "captured",
+    user_id: "12121212-1212-4121-8121-121212121212",
+  });
+  const authSent = await dispatchOrderConfirmationEmail(AUTH_ORDER_ID, {
+    store: authStore,
+    loadOrder: async () => authOrder,
+    send: async (payload) => {
+      if (payload.recipientEmail !== "ada@shadesuk.example") {
+        throw new Error("Authenticated orders must still use orders.customer_email.");
+      }
+      return { success: true, messageId: "55555555-5555-4555-8555-555555555555" };
+    },
+  });
+  if (authSent.outcome !== "sent") {
+    throw new Error("Captured authenticated order must send confirmation.");
+  }
+
+  // B: duplicate payment/order processing → one event, one Resend send
+  const dupStore = createMemoryEmailEventStore();
+  const dupOrder = snapshot(DUP_ORDER_ID, {
+    customer_email: "ada@shadesuk.example",
+    payment_status: "captured",
+  });
+  let dupSends = 0;
+  const sendDup = async () =>
+    dispatchOrderConfirmationEmail(DUP_ORDER_ID, {
+      store: dupStore,
+      loadOrder: async () => dupOrder,
+      send: async () => {
+        dupSends += 1;
+        return { success: true, messageId: "66666666-6666-4666-8666-666666666666" };
+      },
+    });
+  const [dupFirst, dupSecond] = await Promise.all([sendDup(), sendDup()]);
+  const dupSentCount = [dupFirst, dupSecond].filter((result) => result.outcome === "sent").length;
+  const dupSkipped = [dupFirst, dupSecond].filter((result) => result.outcome === "skipped");
+  if (dupSends !== 1 || dupSentCount !== 1 || dupSkipped.length !== 1) {
+    throw new Error("Duplicate captured-order processing must send only once.");
+  }
+  if (dupSkipped[0]?.reason !== "existing_event") {
+    throw new Error("Non-owner duplicate must skip because the email event already exists.");
+  }
+  const persistedDup = await dupStore.findByIdempotencyKey(orderConfirmationIdempotencyKey(DUP_ORDER_ID));
+  if (!persistedDup || persistedDup.status !== "sent") {
+    throw new Error("Duplicate processing must leave a single sent email_event.");
+  }
+
+  // C: Resend failure records failed email; order snapshot stays captured
+  const failStore = createMemoryEmailEventStore();
+  const failOrder = snapshot(FAIL_ORDER_ID, {
+    customer_email: "ada@shadesuk.example",
+    payment_status: "captured",
+  });
+  const failed = await dispatchOrderConfirmationEmail(FAIL_ORDER_ID, {
+    store: failStore,
+    loadOrder: async () => failOrder,
+    send: async () => ({ success: false, error: "Resend unavailable" }),
+  });
+  if (failed.outcome !== "failed" || failed.reason !== "Resend unavailable") {
+    throw new Error("Resend failure must be recorded without throwing.");
+  }
+  const failedEvent = failed.eventId ? await failStore.findById(failed.eventId) : null;
+  if (!failedEvent || failedEvent.status !== "failed" || failedEvent.provider_message_id) {
+    throw new Error("Resend failure must set email_status = failed.");
+  }
+  if (failOrder.order.payment_status !== "captured" || failOrder.order.status !== "placed") {
+    throw new Error("Resend failure must not mutate the successful order.");
+  }
+
+  // E: invalid recipient → no Resend call; order remains successful
+  const badStore = createMemoryEmailEventStore();
+  const badOrder = snapshot(BAD_EMAIL_ORDER_ID, {
+    customer_email: "not-an-email",
+    payment_status: "captured",
+  });
+  let badSends = 0;
+  const bad = await dispatchOrderConfirmationEmail(BAD_EMAIL_ORDER_ID, {
+    store: badStore,
+    loadOrder: async () => badOrder,
+    send: async () => {
+      badSends += 1;
+      return { success: true, messageId: PROVIDER_MESSAGE_ID };
+    },
+  });
+  if (bad.outcome !== "failed" || badSends !== 0) {
+    throw new Error("Invalid order email must not call Resend.");
+  }
+  if (await badStore.findByIdempotencyKey(orderConfirmationIdempotencyKey(BAD_EMAIL_ORDER_ID))) {
+    throw new Error("Invalid recipient must not persist a sendable email_event.");
+  }
+  if (badOrder.order.payment_status !== "captured") {
+    throw new Error("Invalid recipient must not fail the order.");
+  }
+
+  const unpaid = await dispatchOrderConfirmationEmail(UNPAID_ORDER_ID, {
+    store: createMemoryEmailEventStore(),
+    loadOrder: async () =>
+      snapshot(UNPAID_ORDER_ID, {
+        customer_email: "ada@shadesuk.example",
+        payment_status: "created",
+      }),
+    send: async () => {
+      throw new Error("Uncaptured orders must not send.");
+    },
+  });
+  if (unpaid.outcome !== "skipped" || unpaid.reason !== "payment_not_captured") {
+    throw new Error("Uncaptured orders must not create or send confirmation emails.");
+  }
+
+  // F: sent leaves delivery unknown; existing webhook can mark delivered
+  const hookStore = createMemoryEmailEventStore();
+  const hookOrder = snapshot(WEBHOOK_ORDER_ID, {
+    customer_email: "ada@shadesuk.example",
+    payment_status: "captured",
+  });
+  const hookSent = await dispatchOrderConfirmationEmail(WEBHOOK_ORDER_ID, {
+    store: hookStore,
+    loadOrder: async () => hookOrder,
+    send: async () => ({ success: true, messageId: PROVIDER_MESSAGE_ID }),
+  });
+  if (hookSent.outcome !== "sent") {
+    throw new Error("Webhook continuation fixture must send.");
+  }
+  const beforeWebhook = await hookStore.findById(hookSent.eventId);
+  if (beforeWebhook?.status !== "sent" || beforeWebhook.delivery_status !== "unknown") {
+    throw new Error("Successful send must leave delivery_status = unknown.");
+  }
+  const delivered = await processVerifiedResendWebhook(
+    {
+      type: "email.delivered",
+      createdAt: "2026-09-21T16:00:00.000Z",
+      emailId: PROVIDER_MESSAGE_ID,
+      providerEventId: "msg_order_delivered",
+    },
+    hookStore,
+  );
+  if (delivered.outcome !== "updated") {
+    throw new Error("Block 3.2A webhook must still transition delivery_status.");
+  }
+  if ((await hookStore.findById(hookSent.eventId))?.delivery_status !== "delivered") {
+    throw new Error("Webhook must set delivery_status = delivered after a successful send.");
+  }
+
+  if (!read("src/lib/payment/after-captured.ts").includes("dispatchOrderConfirmationEmail(orderId)")) {
+    throw new Error("onVerifiedPaymentCaptured must call dispatchOrderConfirmationEmail after commit.");
   }
 }

@@ -5,7 +5,8 @@ import type { StoreCurrency } from "@/contracts/money";
 
 /**
  * Application-level transactional types. Persistence lives in `./events`.
- * Sending is still not triggered from order/shipment paths in this block.
+ * Order confirmation send is triggered after captured payment commit only.
+ * Shipment confirmation is not triggered in this block.
  */
 export const TRANSACTIONAL_EMAIL_TYPES = {
   orderConfirmation: "order_confirmation",
