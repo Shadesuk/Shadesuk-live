@@ -1,16 +1,22 @@
 import "server-only";
 
 import type { EmailEventRow } from "./schema";
-import type { EmailEventInsert, EmailEventPendingPatch, EmailEventStore } from "./store";
+import type {
+  EmailEventDeliveryPatch,
+  EmailEventInsert,
+  EmailEventPendingPatch,
+  EmailEventStore,
+  EmailWebhookReceipt,
+} from "./store";
 
 /**
  * In-process unique-key store for repository verification only.
- * It serializes inserts so two concurrent createOrGet calls cannot write two
- * rows with the same idempotency key. That models Postgres unique enforcement,
- * not a live database.
+ * It serializes writes so concurrent createOrGet/webhook claims cannot
+ * duplicate idempotency keys or svix-ids.
  */
 export function createMemoryEmailEventStore(nowIso = () => new Date().toISOString()): EmailEventStore {
   const rows = new Map<string, EmailEventRow>();
+  const receipts = new Set<string>();
   let writeChain = Promise.resolve();
 
   function exclusive<T>(fn: () => T): Promise<T> {
@@ -40,6 +46,8 @@ export function createMemoryEmailEventStore(nowIso = () => new Date().toISOStrin
           provider_message_id: null,
           idempotency_key: row.idempotency_key,
           status: "pending",
+          delivery_status: "unknown",
+          delivery_updated_at: null,
           error_message: null,
           attempts: 0,
           sent_at: null,
@@ -64,6 +72,15 @@ export function createMemoryEmailEventStore(nowIso = () => new Date().toISOStrin
       return event ? { ...event } : null;
     },
 
+    async findByProviderMessageId(provider: string, providerMessageId: string) {
+      for (const event of rows.values()) {
+        if (event.provider === provider && event.provider_message_id === providerMessageId) {
+          return { status: "ok" as const, event: { ...event } };
+        }
+      }
+      return { status: "ok" as const, event: null };
+    },
+
     updateIfPending(id: string, patch: EmailEventPendingPatch) {
       return exclusive(() => {
         const event = rows.get(id);
@@ -73,6 +90,28 @@ export function createMemoryEmailEventStore(nowIso = () => new Date().toISOStrin
         const next: EmailEventRow = { ...event, ...patch };
         rows.set(id, next);
         return { ...next };
+      });
+    },
+
+    updateDeliveryIfCurrent(id: string, expected: EmailEventRow["delivery_status"], patch: EmailEventDeliveryPatch) {
+      return exclusive(() => {
+        const event = rows.get(id);
+        if (!event || event.delivery_status !== expected) {
+          return null;
+        }
+        const next: EmailEventRow = { ...event, ...patch };
+        rows.set(id, next);
+        return { ...next };
+      });
+    },
+
+    claimWebhookReceipt(receipt: EmailWebhookReceipt) {
+      return exclusive(() => {
+        if (receipts.has(receipt.providerEventId)) {
+          return { status: "duplicate" as const };
+        }
+        receipts.add(receipt.providerEventId);
+        return { status: "claimed" as const };
       });
     },
   };

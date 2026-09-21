@@ -3,6 +3,14 @@ import "server-only";
 export const EMAIL_STATUSES = ["pending", "sent", "failed"] as const;
 export type EmailStatus = (typeof EMAIL_STATUSES)[number];
 
+export const EMAIL_DELIVERY_STATUSES = [
+  "unknown",
+  "delivered",
+  "bounced",
+  "complained",
+] as const;
+export type EmailDeliveryStatus = (typeof EMAIL_DELIVERY_STATUSES)[number];
+
 export const EMAIL_PROVIDER_RESEND = "resend";
 
 export type EmailEventRow = {
@@ -15,6 +23,8 @@ export type EmailEventRow = {
   provider_message_id: string | null;
   idempotency_key: string;
   status: EmailStatus;
+  delivery_status: EmailDeliveryStatus;
+  delivery_updated_at: string | null;
   error_message: string | null;
   attempts: number;
   sent_at: string | null;
@@ -40,10 +50,14 @@ export type EmailEventMutationResult =
   | { status: "error"; error: string };
 
 export const EMAIL_EVENT_COLUMNS =
-  "id, order_id, shipment_id, recipient_email, email_type, provider, provider_message_id, idempotency_key, status, error_message, attempts, sent_at, created_at";
+  "id, order_id, shipment_id, recipient_email, email_type, provider, provider_message_id, idempotency_key, status, delivery_status, delivery_updated_at, error_message, attempts, sent_at, created_at";
 
 export function isEmailStatus(value: unknown): value is EmailStatus {
   return typeof value === "string" && (EMAIL_STATUSES as readonly string[]).includes(value);
+}
+
+export function isEmailDeliveryStatus(value: unknown): value is EmailDeliveryStatus {
+  return typeof value === "string" && (EMAIL_DELIVERY_STATUSES as readonly string[]).includes(value);
 }
 
 export function parseEmailEventRow(value: unknown): EmailEventRow | null {
@@ -71,6 +85,9 @@ export function parseEmailEventRow(value: unknown): EmailEventRow | null {
   ) {
     return null;
   }
+  const deliveryStatus = isEmailDeliveryStatus(row.delivery_status)
+    ? row.delivery_status
+    : "unknown";
   return {
     id,
     order_id: asNonEmptyString(row.order_id),
@@ -81,6 +98,8 @@ export function parseEmailEventRow(value: unknown): EmailEventRow | null {
     provider_message_id: asNonEmptyString(row.provider_message_id),
     idempotency_key: idempotencyKey,
     status,
+    delivery_status: deliveryStatus,
+    delivery_updated_at: asNonEmptyString(row.delivery_updated_at),
     error_message: asNonEmptyString(row.error_message),
     attempts,
     sent_at: asNonEmptyString(row.sent_at),
