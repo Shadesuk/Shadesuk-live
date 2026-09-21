@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   CHECKOUT_DRAFT_COOKIE,
@@ -622,8 +622,21 @@ for (const reserved of ["apple_pay", "google_pay", "klarna"] as const) {
     throw new Error(`${reserved} must stay reserved until Razorpay enables it.`);
   }
 }
-if (enabledMethods.some((method) => method.markSrc)) {
-  throw new Error("Do not invent unofficial payment brand artwork.");
+if (enabledMethods.some((method) => !method.markSrc)) {
+  throw new Error("Active card methods must use the supplied brand artwork.");
+}
+for (const required of [
+  ["visa", "/payment/visa.jpg"],
+  ["mastercard", "/payment/mastercard.jpg"],
+  ["amex", "/payment/amex.png"],
+] as const) {
+  const method = PAYMENT_METHODS.find((item) => item.id === required[0]);
+  if (!method?.markSrc || method.markSrc !== required[1]) {
+    throw new Error(`${required[0]} must use the supplied ${required[1]} asset.`);
+  }
+  if (!existsSync(resolve(`public${required[1]}`))) {
+    throw new Error(`Missing supplied payment mark public${required[1]}.`);
+  }
 }
 
 const pdpHero = readFileSync(resolve("src/components/pdp/ProductHero.tsx"), "utf8");
@@ -632,6 +645,20 @@ if (!pdpHero.includes("PaymentMethods")) {
 }
 if (pdpHero.includes("@razorpay") || pdpHero.toLowerCase().includes("checkout.js")) {
   throw new Error("PDP must not load a payment SDK.");
+}
+
+const contactSource = readFileSync(resolve("src/components/checkout/CheckoutContact.tsx"), "utf8");
+if (!contactSource.includes("CONTINUE_AS_GUEST") || !contactSource.includes("GoogleAuthButton")) {
+  throw new Error("Checkout contact must keep guest continue and reuse Google OAuth.");
+}
+if (!contactSource.includes("next={routes.checkout}")) {
+  throw new Error("Checkout Google OAuth must return to /checkout.");
+}
+if (!contactSource.includes("onBeforeAuth") || !contactSource.includes("saveCheckoutContactAction")) {
+  throw new Error("Checkout Google sign-in must persist an already entered email through the existing draft.");
+}
+if (contactSource.toLowerCase().includes("discover") || contactSource.toLowerCase().includes("apple pay")) {
+  throw new Error("Checkout contact must not add extra payment brands.");
 }
 
 const checkoutFiles = [

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { resolveSafeNextPath } from "@/lib/account-validate";
-import { routes } from "@/lib/navigation";
 import { toAccountUser } from "@/lib/account-session";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -15,13 +14,13 @@ export async function GET(request: Request) {
   const origin = requestUrl.origin;
 
   if (errorParam) {
-    const dest = new URL(routes.account, origin);
+    const dest = new URL(next, origin);
     dest.searchParams.set("error", errorParam === "access_denied" ? "google_cancelled" : "oauth");
     return NextResponse.redirect(dest);
   }
 
   if (!code || !isSupabaseConfigured()) {
-    const dest = new URL(routes.account, origin);
+    const dest = new URL(next, origin);
     dest.searchParams.set("error", "oauth");
     return NextResponse.redirect(dest);
   }
@@ -30,7 +29,7 @@ export async function GET(request: Request) {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
-      const dest = new URL(routes.account, origin);
+      const dest = new URL(next, origin);
       dest.searchParams.set("error", "oauth");
       return NextResponse.redirect(dest);
     }
@@ -41,7 +40,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.redirect(new URL(next, origin));
   } catch {
-    const dest = new URL(routes.account, origin);
+    const dest = new URL(next, origin);
     dest.searchParams.set("error", "oauth");
     return NextResponse.redirect(dest);
   }
