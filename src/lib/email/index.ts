@@ -22,11 +22,14 @@ export {
   orderConfirmationIdempotencyKey,
   shipmentConfirmationIdempotencyKey,
 } from "./idempotency";
-export { EMAIL_PROVIDER_RESEND, EMAIL_STATUSES } from "./schema";
+export { EMAIL_PROVIDER_RESEND, EMAIL_DELIVERY_STATUSES, EMAIL_STATUSES } from "./schema";
 export type {
   CreateEmailEventInput,
+  EmailDeliveryStatus,
   EmailEventClaimResult,
   EmailEventMutationResult,
   EmailEventRow,
   EmailStatus,
 } from "./schema";
+export { decideDeliveryTransition, deliveryStatusForResendType } from "./delivery";
+export { processVerifiedResendWebhook } from "./webhook";

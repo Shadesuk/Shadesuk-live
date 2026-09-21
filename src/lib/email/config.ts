@@ -80,3 +80,7 @@ export function formatResendFromHeader(config: Pick<ResendConfig, "fromEmail" | 
 function isFromEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
+
+export function resolveResendWebhookSecret(): string {
+  return readEnv(process.env.RESEND_WEBHOOK_SECRET);
+}

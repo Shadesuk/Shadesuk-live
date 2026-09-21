@@ -21,6 +21,9 @@ import {
   shipmentConfirmationIdempotencyKey,
 } from "../src/lib/email/idempotency";
 import { createMemoryEmailEventStore } from "../src/lib/email/memory-store";
+import { decideDeliveryTransition, deliveryStatusForResendType } from "../src/lib/email/delivery";
+import { processVerifiedResendWebhook } from "../src/lib/email/webhook";
+import { verifyResendWebhook } from "../src/lib/email/webhook-verify";
 
 const root = resolve(process.cwd());
 
@@ -35,6 +38,7 @@ for (const name of [
   "RESEND_FROM_NAME",
   "RESEND_ORDER_CONFIRMATION_TEMPLATE_ID",
   "RESEND_SHIPMENT_CONFIRMATION_TEMPLATE_ID",
+  "RESEND_WEBHOOK_SECRET",
 ] as const) {
   if (!envExample.includes(`${name}=`)) {
     throw new Error(`.env.example must document ${name}.`);
@@ -59,6 +63,9 @@ const emailFiles = [
   "supabase-store.ts",
   "types.ts",
   "variables.ts",
+  "delivery.ts",
+  "webhook.ts",
+  "webhook-verify.ts",
 ];
 for (const file of emailFiles) {
   const path = resolve(emailDir, file);
@@ -338,5 +345,187 @@ async function verifyEmailEvents() {
   );
   if (badKey.status !== "error") {
     throw new Error("Timestamped idempotency keys must be rejected.");
+  }
+
+  if (deliveryStatusForResendType("email.delivered") !== "delivered") {
+    throw new Error("email.delivered must map to delivery_status delivered.");
+  }
+  if (decideDeliveryTransition({
+    currentStatus: "bounced",
+    currentAt: "2026-09-21T12:00:00.000Z",
+    incomingStatus: "delivered",
+    incomingAt: "2026-09-21T13:00:00.000Z",
+  }) !== "ignore") {
+    throw new Error("delivered must not overwrite bounced.");
+  }
+  if (decideDeliveryTransition({
+    currentStatus: "delivered",
+    currentAt: "2026-09-21T13:00:00.000Z",
+    incomingStatus: "bounced",
+    incomingAt: "2026-09-21T12:00:00.000Z",
+  }) !== "ignore") {
+    throw new Error("Older bounced webhooks must not overwrite later delivered state.");
+  }
+
+  const webhookStore = createMemoryEmailEventStore();
+  const pending = await createOrGetEmailEvent(payload, webhookStore);
+  if (pending.status !== "created") {
+    throw new Error("Webhook fixture must create a pending event.");
+  }
+  const sentEvent = await markEmailSent(pending.event.id, MESSAGE_ID, webhookStore);
+  if (sentEvent.status !== "ok") {
+    throw new Error("Webhook fixture must reach application sent state.");
+  }
+  if (sentEvent.event.delivery_status !== "unknown") {
+    throw new Error("Application sent must not imply mailbox delivered.");
+  }
+
+  const delivered = await processVerifiedResendWebhook(
+    {
+      type: "email.delivered",
+      createdAt: "2026-09-21T14:00:00.000Z",
+      emailId: MESSAGE_ID,
+      providerEventId: "msg_delivered_1",
+    },
+    webhookStore,
+  );
+  if (delivered.httpStatus !== 200 || delivered.outcome !== "updated") {
+    throw new Error("email.delivered must set delivery_status.");
+  }
+  const afterDelivered = await webhookStore.findById(pending.event.id);
+  if (afterDelivered?.delivery_status !== "delivered") {
+    throw new Error("email.delivered must persist delivery_status = delivered.");
+  }
+
+  const duplicate = await processVerifiedResendWebhook(
+    {
+      type: "email.delivered",
+      createdAt: "2026-09-21T14:00:00.000Z",
+      emailId: MESSAGE_ID,
+      providerEventId: "msg_delivered_1",
+    },
+    webhookStore,
+  );
+  if (duplicate.outcome !== "duplicate") {
+    throw new Error("Duplicate svix-id must be a no-op.");
+  }
+
+  const bounceStore = createMemoryEmailEventStore();
+  const bouncePending = await createOrGetEmailEvent(payload, bounceStore);
+  if (bouncePending.status !== "created") {
+    throw new Error("Bounce fixture must create a pending event.");
+  }
+  await markEmailSent(bouncePending.event.id, MESSAGE_ID, bounceStore);
+  const bounced = await processVerifiedResendWebhook(
+    {
+      type: "email.bounced",
+      createdAt: "2026-09-21T14:10:00.000Z",
+      emailId: MESSAGE_ID,
+      providerEventId: "msg_bounced_1",
+    },
+    bounceStore,
+  );
+  if (bounced.outcome !== "updated") {
+    throw new Error("email.bounced must set delivery_status.");
+  }
+  if ((await bounceStore.findById(bouncePending.event.id))?.delivery_status !== "bounced") {
+    throw new Error("email.bounced must persist delivery_status = bounced.");
+  }
+  const deliveredAfterBounce = await processVerifiedResendWebhook(
+    {
+      type: "email.delivered",
+      createdAt: "2026-09-21T15:00:00.000Z",
+      emailId: MESSAGE_ID,
+      providerEventId: "msg_delivered_after_bounce",
+    },
+    bounceStore,
+  );
+  if (deliveredAfterBounce.outcome !== "unchanged") {
+    throw new Error("delivered must not overwrite bounced.");
+  }
+  if ((await bounceStore.findById(bouncePending.event.id))?.delivery_status !== "bounced") {
+    throw new Error("Bounce state must remain after a later delivered webhook.");
+  }
+
+  const complaintStore = createMemoryEmailEventStore();
+  const complaintPending = await createOrGetEmailEvent(payload, complaintStore);
+  if (complaintPending.status !== "created") {
+    throw new Error("Complaint fixture must create a pending event.");
+  }
+  await markEmailSent(complaintPending.event.id, MESSAGE_ID, complaintStore);
+  const complained = await processVerifiedResendWebhook(
+    {
+      type: "email.complained",
+      createdAt: "2026-09-21T14:20:00.000Z",
+      emailId: MESSAGE_ID,
+      providerEventId: "msg_complained_1",
+    },
+    complaintStore,
+  );
+  if (complained.outcome !== "updated") {
+    throw new Error("email.complained must set delivery_status.");
+  }
+  if ((await complaintStore.findById(complaintPending.event.id))?.delivery_status !== "complained") {
+    throw new Error("email.complained must persist delivery_status = complained.");
+  }
+
+  const untouched = await processVerifiedResendWebhook(
+    {
+      type: "email.delivered",
+      createdAt: "2026-09-21T14:00:00.000Z",
+      emailId: "99999999-9999-4999-8999-999999999999",
+      providerEventId: "msg_unknown",
+    },
+    webhookStore,
+  );
+  if (untouched.httpStatus !== 404 || untouched.outcome !== "unmatched") {
+    throw new Error("Unknown provider message id must not be acknowledged as processed.");
+  }
+  if ((await webhookStore.findById(pending.event.id))?.delivery_status !== "delivered") {
+    throw new Error("Unknown message ids must not mutate unrelated email events.");
+  }
+
+  const ignored = await processVerifiedResendWebhook(
+    {
+      type: "email.opened",
+      createdAt: "2026-09-21T14:30:00.000Z",
+      emailId: MESSAGE_ID,
+      providerEventId: "msg_opened",
+    },
+    webhookStore,
+  );
+  if (ignored.outcome !== "ignored") {
+    throw new Error("Unsupported Resend events must be acknowledged without changing delivery_status.");
+  }
+
+  const invalid = verifyResendWebhook({
+    payload: '{"type":"email.delivered"}',
+    headers: { id: "msg_bad", timestamp: "1", signature: "v1,not-a-signature" },
+    webhookSecret: "whsec_dGVzdC1yZXNlbmQtd2ViaG9vay1zZWNyZXQ",
+  });
+  if (invalid.ok) {
+    throw new Error("Invalid webhook signatures must be rejected.");
+  }
+
+  const webhookRoute = read("src/app/api/webhooks/resend/route.ts");
+  const webhookProcessor = read("src/lib/email/webhook.ts");
+  for (const source of [webhookRoute, webhookProcessor]) {
+    if (
+      source.includes('.from("orders")') ||
+      source.includes('.from("payments")') ||
+      source.includes('.from("shipments")')
+    ) {
+      throw new Error("Resend webhook processing must not mutate orders, payments, or shipments.");
+    }
+    if (source.includes("sendOrderConfirmation") || source.includes("sendShipmentConfirmation")) {
+      throw new Error("Resend webhook processing must not send mail.");
+    }
+  }
+
+  const deliveryMigration = read(
+    "supabase/migrations/20260921150000_email_delivery_status_and_webhooks.sql",
+  );
+  if (!deliveryMigration.includes("email_delivery_status") || !deliveryMigration.includes("email_webhook_events")) {
+    throw new Error("Delivery-status migration must add enum and webhook receipts.");
   }
 }
