@@ -10,3 +10,23 @@ export type {
   ShipmentConfirmationPayload,
   TransactionalEmailType,
 } from "./types";
+export {
+  createOrGetEmailEvent,
+  createOrGetOrderConfirmationEvent,
+  createOrGetShipmentConfirmationEvent,
+  markEmailFailed,
+  markEmailSent,
+  ownsSendAttempt,
+} from "./events";
+export {
+  orderConfirmationIdempotencyKey,
+  shipmentConfirmationIdempotencyKey,
+} from "./idempotency";
+export { EMAIL_PROVIDER_RESEND, EMAIL_STATUSES } from "./schema";
+export type {
+  CreateEmailEventInput,
+  EmailEventClaimResult,
+  EmailEventMutationResult,
+  EmailEventRow,
+  EmailStatus,
+} from "./schema";

@@ -4,8 +4,8 @@ import type { GuestDeliveryAddressView } from "@/contracts/order/dto";
 import type { StoreCurrency } from "@/contracts/money";
 
 /**
- * Application-level transactional types for later `email_events` work.
- * Persistence is not implemented in this block.
+ * Application-level transactional types. Persistence lives in `./events`.
+ * Sending is still not triggered from order/shipment paths in this block.
  */
 export const TRANSACTIONAL_EMAIL_TYPES = {
   orderConfirmation: "order_confirmation",
