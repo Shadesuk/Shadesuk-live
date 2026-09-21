@@ -51,6 +51,7 @@ type CheckoutPageProps = {
   initialDraft: PublicCheckoutDraft;
   initialQuote: CheckoutQuote;
   accountEmail?: string;
+  authNotice?: string;
 };
 
 export function CheckoutPage({
@@ -58,6 +59,7 @@ export function CheckoutPage({
   initialDraft,
   initialQuote,
   accountEmail = "",
+  authNotice = "",
 }: CheckoutPageProps) {
   const router = useRouter();
   const { applyCart } = useCart();
@@ -261,6 +263,7 @@ export function CheckoutPage({
               errors={errors}
               pending={pending}
               signedIn={Boolean(accountEmail)}
+              authNotice={authNotice}
               onEmailChange={setEmail}
               onSubmit={submitContact}
             />

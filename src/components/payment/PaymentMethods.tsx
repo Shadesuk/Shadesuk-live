@@ -26,9 +26,10 @@ export function PaymentMethods({ heading = PAYMENTS_ACCEPTED }: PaymentMethodsPr
           <li key={method.id} className={styles.item} data-method={method.id}>
             {method.markSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img className={styles.mark} src={method.markSrc} alt="" />
-            ) : null}
-            <span className="text-micro">{method.label}</span>
+              <img className={styles.mark} src={method.markSrc} alt={method.label} />
+            ) : (
+              <span className="text-micro">{method.label}</span>
+            )}
           </li>
         ))}
       </ul>

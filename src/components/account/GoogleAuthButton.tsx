@@ -11,9 +11,10 @@ type GoogleAuthButtonProps = {
   next?: string;
   disabled?: boolean;
   onError: (message: string) => void;
+  onBeforeAuth?: () => Promise<void> | void;
 };
 
-export function GoogleAuthButton({ next, disabled, onError }: GoogleAuthButtonProps) {
+export function GoogleAuthButton({ next, disabled, onError, onBeforeAuth }: GoogleAuthButtonProps) {
   const [pending, setPending] = useState(false);
 
   async function handleClick() {
@@ -21,6 +22,13 @@ export function GoogleAuthButton({ next, disabled, onError }: GoogleAuthButtonPr
       return;
     }
     setPending(true);
+    try {
+      await onBeforeAuth?.();
+    } catch {
+      setPending(false);
+      onError(GOOGLE_FAILED);
+      return;
+    }
     const result = await signInWithGoogleAction(next ? { next } : undefined);
     if (result.status === "oauth") {
       window.location.assign(result.url);

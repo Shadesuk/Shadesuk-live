@@ -18,3 +18,18 @@
 .actions p {
   margin: 0;
 }
+
+.divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--space-16);
+  align-items: center;
+  width: 100%;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  height: 1px;
+  background: var(--color-stone);
+}
