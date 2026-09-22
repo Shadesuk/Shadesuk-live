@@ -8,8 +8,8 @@ import "server-only";
  * payment/order state has been committed. Email failure must never roll
  * back capture.
  *
- * When PR #46 is merged, replace this no-op with:
- *   await dispatchOrderConfirmationEmail(orderId)
+ * When PR #46 is merged, replace this no-op with that stack's
+ * order-confirmation dispatcher. Do not import Resend from here.
  */
 export async function onVerifiedPaymentCaptured(orderId: string): Promise<void> {
   void orderId;

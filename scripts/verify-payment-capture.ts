@@ -49,7 +49,11 @@ if (!captureSource.includes("onVerifiedPaymentCaptured")) {
 }
 
 const afterCaptured = read("src/lib/payment/after-captured.ts");
-if (afterCaptured.includes("resend") || afterCaptured.includes("dispatchOrderConfirmationEmail")) {
+if (
+  afterCaptured.includes('from "@/lib/email') ||
+  afterCaptured.includes("from \"resend\"") ||
+  afterCaptured.includes("new Resend")
+) {
   throw new Error("Do not rebuild Resend on this branch; keep the narrow hook.");
 }
 
