@@ -101,7 +101,7 @@ export function CheckoutReview({
         razorpayOrderId: opened.response.razorpay_order_id,
         razorpaySignature: opened.response.razorpay_signature,
       });
-      if (verified.status === "verified") {
+      if (verified.status === "verified" || verified.status === "already_processed") {
         setPaymentUi("verified");
         return;
       }

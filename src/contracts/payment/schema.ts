@@ -37,12 +37,13 @@ export function isSchemaPaymentStatus(value: unknown): value is PaymentStatus {
 /**
  * Checkout draft/session has no payment-attempt key, and `payments` has no
  * cart_id / session_id. Duplicate initiation is not deduped here.
- * Capture-time idempotency is a later step.
+ * Capture idempotency uses `payments.status` / `captured_at` and unique
+ * `provider_payment_id`.
  */
 export const PAYMENT_ATTEMPT_IDEMPOTENCY = {
   mechanism: "none",
   reason:
-    "No existing draft/session payment-attempt identifier maps to payments. Capture idempotency is out of scope.",
+    "No existing draft/session payment-attempt identifier maps to payments. Capture uses payment row status, captured_at, and unique provider_payment_id.",
 } as const;
 
 export const PAYMENT_CURRENCY = STORE_CURRENCY;

@@ -5,6 +5,7 @@ import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import { isUuid } from "@/lib/ids";
 import { resolveRazorpayServerConfig } from "@/lib/razorpay/config";
 import { initiatePendingRazorpayPayment } from "@/services/pending-payment";
+import { captureVerifiedRazorpayPayment } from "@/lib/payment/capture-verified";
 import { verifyRazorpayCheckoutPayment } from "@/lib/payment/verify-checkout";
 
 export type CheckoutPaymentStartResult =
@@ -109,10 +110,15 @@ export async function verifyCheckoutPaymentAction(input: {
     totalMinor: input.totalMinor,
   });
 
-  if (verified.outcome === "verified") {
-    return { status: "verified", orderReference: verified.orderReference };
+  if (verified.outcome !== "verified" && verified.outcome !== "already_captured") {
+    return { status: "error" };
   }
-  if (verified.outcome === "already_captured") {
+
+  const captured = await captureVerifiedRazorpayPayment(verified);
+  if (captured.outcome === "captured") {
+    return { status: "verified", orderReference: captured.orderReference };
+  }
+  if (captured.outcome === "already_captured") {
     return { status: "already_processed" };
   }
   return { status: "error" };

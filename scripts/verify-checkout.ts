@@ -691,8 +691,12 @@ const paymentActions = readFileSync(resolve("src/app/(storefront)/checkout/payme
 if (!paymentActions.includes("cartActionOriginAllowed")) {
   throw new Error("Payment Server Actions must keep CSRF/origin checks.");
 }
-if (!paymentActions.includes("initiatePendingRazorpayPayment") || !paymentActions.includes("verifyRazorpayCheckoutPayment")) {
-  throw new Error("Payment actions must reuse the existing initiate and verify services.");
+if (
+  !paymentActions.includes("initiatePendingRazorpayPayment") ||
+  !paymentActions.includes("verifyRazorpayCheckoutPayment") ||
+  !paymentActions.includes("captureVerifiedRazorpayPayment")
+) {
+  throw new Error("Payment actions must reuse the existing initiate, verify, and capture services.");
 }
 if (paymentActions.includes("RAZORPAY_KEY_SECRET") || paymentActions.includes("RAZORPAY_WEBHOOK_SECRET")) {
   throw new Error("Payment actions must not embed Razorpay secret names in client-bound results.");
