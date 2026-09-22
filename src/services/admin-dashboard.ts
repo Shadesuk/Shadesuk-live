@@ -45,12 +45,6 @@ export type DashboardRecentOrder = {
   orderStatus: OrderStatus;
 };
 
-export type DashboardAlert = {
-  id: string;
-  label: string;
-  count: number;
-};
-
 export const loadDashboardPeriodSnapshot = cache(async function loadDashboardPeriodSnapshot(
   period: DashboardPeriod,
 ): Promise<DashboardLoadResult<DashboardPeriodSnapshot>> {
@@ -139,45 +133,6 @@ export const loadDashboardRecentOrders = cache(async function loadDashboardRecen
   }
 });
 
-export const loadDashboardAlerts = cache(async function loadDashboardAlerts(): Promise<
-  DashboardLoadResult<DashboardAlert[]>
-> {
-  if (!isSupabaseConfigured()) {
-    return { status: "error" };
-  }
-  try {
-    const supabase = await createSupabaseServerClient();
-    const [exceptions, tracking, failedPayments, shipmentExceptions, outOfStock] =
-      await Promise.all([
-        countRows(supabase, "orders", { column: "status", value: "exception" }),
-        countRows(supabase, "orders", { column: "status", value: "tracking_unavailable" }),
-        countRows(supabase, "orders", { column: "payment_status", value: "failed" }),
-        countRows(supabase, "shipments", { column: "status", value: "exception" }),
-        countOutOfStock(supabase),
-      ]);
-    if (
-      exceptions === null ||
-      tracking === null ||
-      failedPayments === null ||
-      shipmentExceptions === null ||
-      outOfStock === null
-    ) {
-      return { status: "error" };
-    }
-    const alerts: DashboardAlert[] = [];
-    pushAlert(alerts, "order-exceptions", exceptions, "Fulfilment exception", "Fulfilment exceptions");
-    pushAlert(alerts, "tracking-unavailable", tracking, "Tracking unavailable", "Tracking unavailable");
-    pushAlert(alerts, "failed-payments", failedPayments, "Failed payment", "Failed payments");
-    pushAlert(alerts, "shipment-exceptions", shipmentExceptions, "Shipment exception", "Shipment exceptions");
-    pushAlert(alerts, "out-of-stock", outOfStock, "Available variant with no stock", "Available variants with no stock");
-    return { status: "ok", data: alerts };
-  } catch {
-    return { status: "error" };
-  }
-});
-
-type AdminQueryClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
-
 async function sumCapturedQuantities(orderIds: string[]): Promise<number | null> {
   if (orderIds.length === 0) {
     return 0;
@@ -208,50 +163,6 @@ async function sumCapturedQuantities(orderIds: string[]): Promise<number | null>
   } catch {
     return null;
   }
-}
-
-async function countRows(
-  supabase: AdminQueryClient,
-  table: "orders" | "shipments",
-  filter: { column: string; value: string },
-): Promise<number | null> {
-  const { count, error } = await supabase
-    .from(table)
-    .select("id", { count: "exact", head: true })
-    .eq(filter.column, filter.value);
-  if (error || typeof count !== "number") {
-    return null;
-  }
-  return count;
-}
-
-async function countOutOfStock(supabase: AdminQueryClient): Promise<number | null> {
-  const { count, error } = await supabase
-    .from("product_variants")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "available")
-    .eq("stock_quantity", 0);
-  if (error || typeof count !== "number") {
-    return null;
-  }
-  return count;
-}
-
-function pushAlert(
-  alerts: DashboardAlert[],
-  id: string,
-  count: number,
-  singular: string,
-  plural: string,
-): void {
-  if (count <= 0) {
-    return;
-  }
-  alerts.push({
-    id,
-    count,
-    label: count === 1 ? singular : plural,
-  });
 }
 
 function parseMetricRow(value: unknown): DashboardOrderMetricRow | null {

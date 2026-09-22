@@ -37,6 +37,9 @@ export const routes = {
   adminCollectionsNew: "/admin/collections/new",
   adminCustomers: "/admin/customers",
   adminAnalytics: "/admin/analytics",
+  adminFulfilment: "/admin/fulfilment",
+  adminInventory: "/admin/inventory",
+  adminCommunications: "/admin/communications",
   adminMerchandising: "/admin/merchandising",
   adminSettings: "/admin/settings",
 } as const;
