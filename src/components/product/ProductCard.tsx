@@ -12,11 +12,12 @@ import {
   getPrimaryImage,
   getProductBrandName,
   getProductHref,
+  getSaleCompareAtPrice,
   getSecondaryImage,
   isProductAvailable,
 } from "@/lib/product-display";
 import { recordProductView } from "@/lib/recently-viewed";
-import type { Product } from "@/types/catalogue";
+import type { Product, ProductColour } from "@/types/catalogue";
 import styles from "./ProductCard.module.css";
 
 type ProductCardProps = {
@@ -34,6 +35,11 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
   const available = isProductAvailable(product);
   const fallback = getImageFallbackLabel(primary?.role ?? "front");
   const colourLabel = `${colourCount} ${colourCount === 1 ? "colour" : "colours"}`;
+  const compareAt = getSaleCompareAtPrice(product);
+  const swatches = product.colours.filter(
+    (colour): colour is ProductColour & { hex: string } => Boolean(colour.hex),
+  );
+  const imageSizes = "(min-width: 1440px) 280px, (min-width: 1200px) 22vw, (min-width: 768px) 30vw, 45vw";
 
   return (
     <article className={cx(styles.card, !available && styles.unavailable)}>
@@ -78,10 +84,10 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
             <Image
               src={primary.src}
               alt={primary.alt}
-              width={primary.width}
-              height={primary.height}
+              fill
               className={styles.image}
-              sizes="(min-width: 1200px) 25vw, (min-width: 768px) 33vw, 50vw"
+              style={{ objectFit: "contain" }}
+              sizes={imageSizes}
               priority={priority}
             />
           ) : (
@@ -91,10 +97,10 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
             <Image
               src={secondary.src}
               alt=""
-              width={secondary.width}
-              height={secondary.height}
+              fill
               className={`${styles.image} ${styles.secondary}`}
-              sizes="(min-width: 1200px) 25vw, (min-width: 768px) 33vw, 50vw"
+              style={{ objectFit: "contain" }}
+              sizes={imageSizes}
             />
           ) : null}
         </div>
@@ -107,7 +113,16 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
           ) : null}
           <p className={`text-micro ${styles.brand}`}>{brand}</p>
           <h3 className={`text-small ${styles.name}`}>{product.name}</h3>
-          <p className={`text-small ${styles.price}`}>{formatGbp(product.price)}</p>
+          <p className={`text-small ${styles.price}`}>
+            {compareAt != null ? <span className="visually-hidden">Sale price </span> : null}
+            {formatGbp(product.price)}
+            {compareAt != null ? (
+              <s className={styles.compare}>
+                <span className="visually-hidden"> Regular price </span>
+                {formatGbp(compareAt)}
+              </s>
+            ) : null}
+          </p>
           <p className={`text-micro ${styles.count}`} data-colour-count={colourCount}>{colourLabel}</p>
           {!available ? (
             <p className={`text-micro ${styles.status}`}>
@@ -116,15 +131,17 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
           ) : null}
         </div>
       </Link>
-      {product.colours.length > 0 ? (
-        <ul className={styles.swatches} aria-label="Available colours">
-          {product.colours.map((colour) => (
+      {swatches.length > 0 ? (
+        <ul className={styles.swatches} aria-label="Colours">
+          {swatches.map((colour) => (
             <li key={colour.id}>
               <span
-                className={styles.swatch}
-                style={colour.hex ? { background: colour.hex } : undefined}
+                className={cx(styles.swatch, !colour.available && styles.swatchUnavailable)}
+                style={{ background: colour.hex }}
               >
-                <span className="visually-hidden">{colour.name}</span>
+                <span className="visually-hidden">
+                  {colour.available ? colour.name : `${colour.name}, unavailable`}
+                </span>
               </span>
             </li>
           ))}

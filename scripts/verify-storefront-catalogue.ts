@@ -1,5 +1,5 @@
 import { resolveDemoCatalogueMode } from "../src/lib/demo-catalogue-mode";
-import { getProductBrandName, getProductHref } from "../src/lib/product-display";
+import { getProductBrandName, getProductHref, getSaleCompareAtPrice } from "../src/lib/product-display";
 import { getProducts } from "../src/services/catalogue";
 import { searchProducts } from "../src/services/search";
 import { applyFilters, emptyCollectionQuery, getCollectionById, getCollectionProducts } from "../src/services/collections";
@@ -63,6 +63,16 @@ if (!getProductHref(demo).startsWith("/product/")) {
 }
 if (getProductBrandName({ ...demo, brandName: "Demo Line A" }) !== "Demo Line A") {
   throw new Error("ProductCard brand name must come from the product prop, not a catalogue lookup");
+}
+if (getSaleCompareAtPrice({ price: 49, compareAtPrice: 59 }) !== 59) {
+  throw new Error("A higher compare-at price must present as a sale");
+}
+if (
+  getSaleCompareAtPrice({ price: 49, compareAtPrice: 49 }) !== undefined ||
+  getSaleCompareAtPrice({ price: 49, compareAtPrice: 40 }) !== undefined ||
+  getSaleCompareAtPrice({ price: 49 }) !== undefined
+) {
+  throw new Error("Compare-at must stay hidden unless it is above the selling price");
 }
 
 console.log("Storefront catalogue containment OK");
