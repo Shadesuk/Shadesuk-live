@@ -6,6 +6,7 @@ import {
   recipientAddress,
   toOrderConfirmationVariables,
   toShipmentConfirmationVariables,
+  trackOrderCtaUrl,
 } from "../src/lib/email/variables";
 import { TRANSACTIONAL_EMAIL_TYPES } from "../src/lib/email/types";
 import { providerFailureMessage, redactSecrets } from "../src/lib/email/errors";
@@ -29,7 +30,13 @@ import {
   ORDER_CONFIRMATION_PAYMENT_STATUS,
 } from "../src/lib/email/order-confirmation";
 import type { ConfirmedOrderSnapshot } from "../src/lib/email/order-confirmation";
+import {
+  dispatchShipmentConfirmationEmail,
+} from "../src/lib/email/shipment-confirmation";
+import type { ConfirmedShipmentSnapshot } from "../src/lib/email/shipment-confirmation";
 import type { OrderRow } from "../src/contracts/order/schema";
+import type { ShipmentRow } from "../src/contracts/fulfilment/shipment";
+import { isShipmentConfirmationStatus } from "../src/contracts/fulfilment/shipment";
 
 const root = resolve(process.cwd());
 
@@ -73,6 +80,7 @@ const emailFiles = [
   "webhook.ts",
   "webhook-verify.ts",
   "order-confirmation.ts",
+  "shipment-confirmation.ts",
 ];
 for (const file of emailFiles) {
   const path = resolve(emailDir, file);
@@ -168,25 +176,83 @@ const shipmentVariables = toShipmentConfirmationVariables({
   customerFirstName: "Ada",
   customerLastName: "Lovelace",
   orderReference: "SHU1A2B3C4D5E",
+  shipmentStatus: "dispatched",
   carrierName: "Royal Mail",
   trackingNumber: "AB123",
   trackingUrl: "https://example.com/track/AB123",
   shippedAt: "2026-09-22T10:00:00.000Z",
+  trackOrderUrl: trackOrderCtaUrl(),
+  items: [
+    {
+      productName: "Frame 01",
+      colourName: "Black",
+      variantName: null,
+      quantity: 1,
+      unitPriceMinor: 4900,
+      lineTotalMinor: 4900,
+    },
+  ],
 });
+if (shipmentVariables.ORDER_REFERENCE !== "SHU1A2B3C4D5E") {
+  throw new Error("Shipment confirmation must pass the order reference.");
+}
+if (shipmentVariables.SHIPMENT_STATUS !== "Dispatched") {
+  throw new Error("Shipment confirmation must pass the shipment status label.");
+}
+if (shipmentVariables.CARRIER_NAME !== "Royal Mail" || shipmentVariables.TRACKING_NUMBER !== "AB123") {
+  throw new Error("Shipment confirmation must pass carrier and tracking reference.");
+}
 if (shipmentVariables.TRACKING_URL !== "https://example.com/track/AB123") {
   throw new Error("Shipment confirmation must pass a safe https tracking URL.");
+}
+if (
+  shipmentVariables.TRACK_ORDER_URL !== trackOrderCtaUrl() ||
+  shipmentVariables.TRACK_ORDER_LABEL !== "Track order" ||
+  !String(shipmentVariables.TRACK_ORDER_URL).endsWith("/track-order")
+) {
+  throw new Error("Shipment confirmation must include a Track Order CTA on this site.");
+}
+if (String(shipmentVariables.TRACK_ORDER_URL).includes("?") || String(shipmentVariables.TRACK_ORDER_URL).includes("SHU")) {
+  throw new Error("Track Order CTA must not put the order reference in the URL.");
+}
+if (typeof shipmentVariables.ORDER_ITEMS_SUMMARY !== "string" || !shipmentVariables.ORDER_ITEMS_SUMMARY.includes("Frame 01")) {
+  throw new Error("Shipment confirmation must include the shipped order lines.");
 }
 if (toShipmentConfirmationVariables({
   recipientEmail: "ada@shadesuk.example",
   customerFirstName: "Ada",
   customerLastName: "Lovelace",
   orderReference: "SHU1A2B3C4D5E",
+  shipmentStatus: "tracking_unavailable",
   carrierName: null,
   trackingNumber: null,
   trackingUrl: "http://insecure.example/track",
   shippedAt: null,
+  trackOrderUrl: "https://evil.example/track-order",
+  items: [],
 }).TRACKING_URL !== "") {
   throw new Error("Non-https tracking URLs must not be passed to templates.");
+}
+if (toShipmentConfirmationVariables({
+  recipientEmail: "ada@shadesuk.example",
+  customerFirstName: "Ada",
+  customerLastName: "Lovelace",
+  orderReference: "SHU1A2B3C4D5E",
+  shipmentStatus: "tracking_unavailable",
+  carrierName: "Royal Mail",
+  trackingNumber: null,
+  trackingUrl: null,
+  shippedAt: null,
+  trackOrderUrl: "https://evil.example/track-order?ref=SHU1A2B3C4D5E",
+  items: [],
+}).TRACK_ORDER_URL !== "") {
+  throw new Error("Track Order CTA must stay on the site track-order path without a query string.");
+}
+if (!isShipmentConfirmationStatus("dispatched") || !isShipmentConfirmationStatus("tracking_unavailable")) {
+  throw new Error("Dispatch and tracking-unavailable are shipment confirmation events.");
+}
+if (isShipmentConfirmationStatus("pending") || isShipmentConfirmationStatus("exception")) {
+  throw new Error("Pending and exception must not send a shipment confirmation.");
 }
 
 if (formatResendFromHeader({ fromName: "SHADESUK", fromEmail: "orders@example.com" }) !== "SHADESUK <orders@example.com>") {
@@ -202,7 +268,6 @@ if (providerFailureMessage({ message: "invalid_api_key re_secretvalue" }).includ
 
 const triggerSurfaces = [
   "src/services/checkout.ts",
-  "src/services/admin-orders.ts",
   "src/app/admin/orders/actions.ts",
 ];
 for (const surface of triggerSurfaces) {
@@ -213,10 +278,34 @@ for (const surface of triggerSurfaces) {
     source.includes("sendShipmentConfirmation") ||
     source.includes("createOrGetEmailEvent") ||
     source.includes("dispatchOrderConfirmationEmail") ||
-    source.includes("onVerifiedPaymentCaptured")
+    source.includes("dispatchShipmentConfirmationEmail") ||
+    source.includes("onVerifiedPaymentCaptured") ||
+    source.includes("onShipmentConfirmed")
   ) {
     throw new Error(`${surface} must not trigger transactional emails.`);
   }
+}
+
+const adminOrders = read("src/services/admin-orders.ts");
+if (!adminOrders.includes("onShipmentConfirmed") || !adminOrders.includes("finishConfirmedShipment")) {
+  throw new Error("Committed dispatch must call the shipment confirmation hook.");
+}
+if (
+  adminOrders.includes("sendOrderConfirmation") ||
+  adminOrders.includes("sendShipmentConfirmation") ||
+  adminOrders.includes("getResendClient") ||
+  adminOrders.includes('from "resend"') ||
+  adminOrders.includes("dispatchOrderConfirmationEmail") ||
+  adminOrders.includes("createSupabaseAdminClient")
+) {
+  throw new Error("Admin orders must not send mail or use the service-role client directly.");
+}
+const afterShipment = read("src/lib/fulfilment/after-shipment.ts");
+if (!afterShipment.includes('import "server-only"') || !afterShipment.includes("dispatchShipmentConfirmationEmail")) {
+  throw new Error("Shipment hook must dispatch confirmation email after commit.");
+}
+if (afterShipment.includes("getResendClient") || afterShipment.includes('from "resend"')) {
+  throw new Error("Shipment hook must not construct the Resend client.");
 }
 
 const orderConfirmationTrigger = read("src/lib/email/order-confirmation.ts");
@@ -575,6 +664,7 @@ async function verifyEmailEvents() {
   }
 
   await verifyOrderConfirmationTrigger();
+  await verifyShipmentConfirmationTrigger();
 }
 
 async function verifyOrderConfirmationTrigger() {
@@ -821,5 +911,223 @@ async function verifyOrderConfirmationTrigger() {
 
   if (!read("src/lib/payment/after-captured.ts").includes("dispatchOrderConfirmationEmail(orderId)")) {
     throw new Error("onVerifiedPaymentCaptured must call dispatchOrderConfirmationEmail after commit.");
+  }
+}
+
+async function verifyShipmentConfirmationTrigger() {
+  const ORDER_ID = "12121212-1212-4121-8121-121212121212";
+  const SHIPMENT_ID = "34343434-3434-4343-8343-343434343434";
+  const DUP_ORDER_ID = "56565656-5656-4565-8565-565656565656";
+  const DUP_SHIPMENT_ID = "78787878-7878-4787-8787-787878787878";
+  const FAIL_ORDER_ID = "90909090-9090-4909-8909-909090909090";
+  const FAIL_SHIPMENT_ID = "a0a0a0a0-a0a0-40a0-80a0-a0a0a0a0a0a0";
+  const PROVIDER_MESSAGE_ID = "b1b1b1b1-b1b1-41b1-81b1-b1b1b1b1b1b1";
+
+  function shipmentSnapshot(
+    orderId: string,
+    shipmentId: string,
+    input: Partial<ShipmentRow> & Pick<ShipmentRow, "status"> & { payment_status?: OrderRow["payment_status"] },
+  ): ConfirmedShipmentSnapshot {
+    const paymentStatus = input.payment_status ?? "captured";
+    return {
+      order: {
+        id: orderId,
+        order_reference: "SHU1A2B3C4D5E",
+        user_id: null,
+        customer_email: "guest@shadesuk.example",
+        customer_first_name: "Ada",
+        customer_last_name: "Lovelace",
+        status: "dispatched",
+        payment_status: paymentStatus,
+        currency: "GBP",
+        subtotal_minor: 4900,
+        shipping_minor: 465,
+        total_minor: 5365,
+        delivery_address: {
+          first_name: "Ada",
+          last_name: "Lovelace",
+          address_line_1: "10 Example Street",
+          city: "London",
+          postcode: "E1 6AN",
+          country: "GB",
+        },
+        created_at: "2026-09-21T10:00:00.000Z",
+        updated_at: "2026-09-22T10:00:00.000Z",
+      },
+      items: [
+        {
+          id: "99999999-9999-4999-8999-999999999991",
+          order_id: orderId,
+          product_id: "99999999-9999-4999-8999-999999999992",
+          product_variant_id: null,
+          sku: "FRAME-01-BLK",
+          product_name: "Frame 01",
+          colour_name: "Black",
+          variant_name: null,
+          quantity: 1,
+          unit_price_minor: 4900,
+          line_total_minor: 4900,
+          product_snapshot: null,
+          created_at: "2026-09-21T10:00:00.000Z",
+        },
+      ],
+      shipment: {
+        id: shipmentId,
+        order_id: orderId,
+        carrier_name: input.carrier_name === undefined ? "Royal Mail" : input.carrier_name,
+        tracking_number: input.tracking_number === undefined ? "AB123" : input.tracking_number,
+        tracking_url: input.tracking_url === undefined ? "https://example.com/track/AB123" : input.tracking_url,
+        status: input.status,
+        shipped_at: input.shipped_at === undefined ? "2026-09-22T10:00:00.000Z" : input.shipped_at,
+        delivered_at: null,
+        notes: null,
+        created_at: "2026-09-22T10:00:00.000Z",
+        updated_at: "2026-09-22T10:00:00.000Z",
+      },
+    };
+  }
+
+  const store = createMemoryEmailEventStore();
+  const confirmed = shipmentSnapshot(ORDER_ID, SHIPMENT_ID, { status: "dispatched" });
+  let sends = 0;
+  const sent = await dispatchShipmentConfirmationEmail(ORDER_ID, {
+    store,
+    loadShipment: async () => confirmed,
+    send: async (payload, options) => {
+      sends += 1;
+      if (payload.orderReference !== "SHU1A2B3C4D5E" || payload.shipmentStatus !== "dispatched") {
+        throw new Error("Shipment email must include the order reference and shipment status.");
+      }
+      if (payload.carrierName !== "Royal Mail" || payload.trackingNumber !== "AB123") {
+        throw new Error("Shipment email must include carrier and tracking reference.");
+      }
+      if (payload.trackingUrl !== "https://example.com/track/AB123" || payload.trackOrderUrl !== trackOrderCtaUrl()) {
+        throw new Error("Shipment email must include the tracking URL and Track Order CTA.");
+      }
+      if (payload.items.length !== 1 || payload.items[0]?.productName !== "Frame 01") {
+        throw new Error("Shipment email must include the order lines.");
+      }
+      if (payload.recipientEmail !== "guest@shadesuk.example") {
+        throw new Error("Shipment email must use orders.customer_email.");
+      }
+      if (options?.idempotencyKey !== shipmentConfirmationIdempotencyKey(SHIPMENT_ID)) {
+        throw new Error("Send must pass shipment_confirmation:{shipment_id}.");
+      }
+      return { success: true, messageId: PROVIDER_MESSAGE_ID };
+    },
+  });
+  if (sent.outcome !== "sent" || sends !== 1) {
+    throw new Error("A confirmed shipment must send exactly one email.");
+  }
+  const event = await store.findById(sent.eventId);
+  if (!event || event.status !== "sent" || event.shipment_id !== SHIPMENT_ID || event.email_type !== "shipment_confirmation") {
+    throw new Error("Successful shipment email must persist one shipment_confirmation event.");
+  }
+  if (confirmed.shipment.status !== "dispatched" || confirmed.order.payment_status !== "captured") {
+    throw new Error("Sending must not mutate the shipment or order.");
+  }
+
+  const unavailable = await dispatchShipmentConfirmationEmail("cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd", {
+    store: createMemoryEmailEventStore(),
+    loadShipment: async () =>
+      shipmentSnapshot("cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd", "dededede-dede-4ded-8ded-dededededede", {
+        status: "tracking_unavailable",
+        tracking_number: null,
+        tracking_url: null,
+      }),
+    send: async (payload) => {
+      if (payload.shipmentStatus !== "tracking_unavailable" || payload.trackingNumber !== null) {
+        throw new Error("Dispatch without tracking must still confirm the shipment.");
+      }
+      return { success: true, messageId: "efefefef-efef-4efe-8efe-efefefefefef" };
+    },
+  });
+  if (unavailable.outcome !== "sent") {
+    throw new Error("Tracking-unavailable dispatch must send one shipment email.");
+  }
+
+  const dupStore = createMemoryEmailEventStore();
+  const dupSnapshot = shipmentSnapshot(DUP_ORDER_ID, DUP_SHIPMENT_ID, { status: "dispatched" });
+  let dupSends = 0;
+  const sendDup = () =>
+    dispatchShipmentConfirmationEmail(DUP_ORDER_ID, {
+      store: dupStore,
+      loadShipment: async () => dupSnapshot,
+      send: async () => {
+        dupSends += 1;
+        return { success: true, messageId: "f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f1f1" };
+      },
+    });
+  const [dupFirst, dupSecond] = await Promise.all([sendDup(), sendDup()]);
+  const dupSent = [dupFirst, dupSecond].filter((result) => result.outcome === "sent").length;
+  const dupSkipped = [dupFirst, dupSecond].filter((result) => result.outcome === "skipped");
+  if (dupSends !== 1 || dupSent !== 1 || dupSkipped.length !== 1 || dupSkipped[0]?.reason !== "existing_event") {
+    throw new Error("Duplicate shipment events must not send a second email.");
+  }
+
+  const failStore = createMemoryEmailEventStore();
+  const failSnapshot = shipmentSnapshot(FAIL_ORDER_ID, FAIL_SHIPMENT_ID, { status: "in_transit" });
+  const failed = await dispatchShipmentConfirmationEmail(FAIL_ORDER_ID, {
+    store: failStore,
+    loadShipment: async () => failSnapshot,
+    send: async () => ({ success: false, error: "Resend unavailable" }),
+  });
+  if (failed.outcome !== "failed" || failed.reason !== "Resend unavailable") {
+    throw new Error("Shipment email failure must be recorded without throwing.");
+  }
+  const failedEvent = failed.eventId ? await failStore.findById(failed.eventId) : null;
+  if (!failedEvent || failedEvent.status !== "failed") {
+    throw new Error("Shipment email failure must set email_status = failed.");
+  }
+  if (failSnapshot.shipment.status !== "in_transit" || failSnapshot.order.status !== "dispatched") {
+    throw new Error("Shipment email failure must not roll back shipment or order state.");
+  }
+
+  const pending = await dispatchShipmentConfirmationEmail(ORDER_ID, {
+    store: createMemoryEmailEventStore(),
+    loadShipment: async () => shipmentSnapshot(ORDER_ID, SHIPMENT_ID, { status: "pending" }),
+    send: async () => {
+      throw new Error("Pending shipments must not send.");
+    },
+  });
+  if (pending.outcome !== "skipped" || pending.reason !== "not_confirmed") {
+    throw new Error("Pending shipments must not create a shipment email.");
+  }
+
+  const unpaid = await dispatchShipmentConfirmationEmail(ORDER_ID, {
+    store: createMemoryEmailEventStore(),
+    loadShipment: async () =>
+      shipmentSnapshot(ORDER_ID, SHIPMENT_ID, { status: "dispatched", payment_status: "created" }),
+    send: async () => {
+      throw new Error("Uncaptured orders must not send a shipment email.");
+    },
+  });
+  if (unpaid.outcome !== "skipped" || unpaid.reason !== "payment_not_captured") {
+    throw new Error("Uncaptured orders must not send a shipment email.");
+  }
+
+  const hookStore = createMemoryEmailEventStore();
+  const hookSent = await dispatchShipmentConfirmationEmail("13131313-1313-4131-8131-131313131313", {
+    store: hookStore,
+    loadShipment: async () =>
+      shipmentSnapshot("13131313-1313-4131-8131-131313131313", "14141414-1414-4141-8141-141414141414", {
+        status: "dispatched",
+      }),
+    send: async () => ({ success: true, messageId: PROVIDER_MESSAGE_ID }),
+  });
+  if (hookSent.outcome !== "sent") {
+    throw new Error("Shipment webhook fixture must send.");
+  }
+  const delivered = await processVerifiedResendWebhook(
+    {
+      type: "email.delivered",
+      createdAt: "2026-09-22T12:00:00.000Z",
+      emailId: PROVIDER_MESSAGE_ID,
+      providerEventId: "msg_shipment_delivered",
+    },
+    hookStore,
+  );
+  if (delivered.outcome !== "updated" || (await hookStore.findById(hookSent.eventId))?.delivery_status !== "delivered") {
+    throw new Error("Existing Resend webhook must track shipment email delivery.");
   }
 }

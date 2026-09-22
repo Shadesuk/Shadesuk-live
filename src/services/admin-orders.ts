@@ -40,6 +40,7 @@ import {
 import type { ShipmentStatus } from "@/contracts/fulfilment/shipment";
 import type { OrderStatus } from "@/contracts/order/schema";
 import { isUuid } from "@/lib/ids";
+import { onShipmentConfirmed } from "@/lib/fulfilment/after-shipment";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { safeHttpUrl } from "@/lib/tracking-url";
@@ -370,7 +371,7 @@ export async function saveAdminFulfilment(input: {
         parsed.value,
       )
     ) {
-      return { status: "ok" };
+      return finishConfirmedShipment(input.orderId, { status: "ok" });
     }
     const payload = shipmentWritePayload(parsed.value, existing.data);
     if (existing.data && typeof existing.data.id === "string") {
@@ -407,7 +408,10 @@ export async function saveAdminFulfilment(input: {
           return { status: "error" };
         }
       }
-      return syncCapturedOrder(supabase, input.orderId, input.actorId, order.data, parsed.value.status);
+      return finishConfirmedShipment(
+        input.orderId,
+        await syncCapturedOrder(supabase, input.orderId, input.actorId, order.data, parsed.value.status),
+      );
     }
     const created = await supabase
       .from("shipments")
@@ -439,7 +443,10 @@ export async function saveAdminFulfilment(input: {
     if (tracking.error) {
       return { status: "error" };
     }
-    return syncCapturedOrder(supabase, input.orderId, input.actorId, order.data, parsed.value.status);
+    return finishConfirmedShipment(
+      input.orderId,
+      await syncCapturedOrder(supabase, input.orderId, input.actorId, order.data, parsed.value.status),
+    );
   } catch {
     return { status: "error" };
   }
@@ -621,7 +628,7 @@ export async function dispatchAdminOrder(input: {
     }
     const identity = shipmentIdentity(existing.data);
     if (isIdempotentDispatch(identity, parsed.value)) {
-      return { status: "ok" };
+      return finishConfirmedShipment(input.orderId, { status: "ok" });
     }
     const target = orderStatusForShipment(parsed.value.shipmentStatus);
     if (!target || legalOrderStatusPath(order.data.status, target) === null) {
@@ -658,7 +665,7 @@ export async function dispatchAdminOrder(input: {
           return { status: "error" };
         }
         if (isIdempotentDispatch(raced, parsed.value)) {
-          return { status: "ok" };
+          return finishConfirmedShipment(input.orderId, { status: "ok" });
         }
         const updated = await supabase.from("shipments").update(payload).eq("id", raced.id).select("id").maybeSingle();
         if (updated.error || !updated.data) {
@@ -701,10 +708,28 @@ export async function dispatchAdminOrder(input: {
         return { status: "error" };
       }
     }
-    return syncCapturedOrder(supabase, input.orderId, input.actorId, order.data, parsed.value.shipmentStatus);
+    return finishConfirmedShipment(
+      input.orderId,
+      await syncCapturedOrder(supabase, input.orderId, input.actorId, order.data, parsed.value.shipmentStatus),
+    );
   } catch {
     return { status: "error" };
   }
+}
+
+async function finishConfirmedShipment(
+  orderId: string,
+  result: AdminOrderMutationResult,
+): Promise<AdminOrderMutationResult> {
+  if (result.status !== "ok") {
+    return result;
+  }
+  try {
+    await onShipmentConfirmed(orderId);
+  } catch {
+    // Email failure must not change the saved shipment or order.
+  }
+  return result;
 }
 
 function parseListItem(value: unknown): AdminOrderListItem | null {

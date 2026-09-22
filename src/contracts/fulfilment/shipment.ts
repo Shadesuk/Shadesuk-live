@@ -9,6 +9,33 @@ export const SHIPMENT_STATUSES = [
 ] as const;
 export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
 
+/** Customer-facing labels. Matches the admin fulfilment labels. */
+export const SHIPMENT_STATUS_LABELS = {
+  pending: "Pending",
+  dispatched: "Dispatched",
+  in_transit: "In transit",
+  out_for_delivery: "Out for delivery",
+  delivered: "Delivered",
+  exception: "Exception",
+  tracking_unavailable: "Tracking unavailable",
+} as const satisfies Record<ShipmentStatus, string>;
+
+/**
+ * A real dispatch/shipment confirmation. Pending and exception are not
+ * confirmation events and must not send the shipment email.
+ */
+const SHIPMENT_CONFIRMATION_STATUSES = new Set<ShipmentStatus>([
+  "dispatched",
+  "tracking_unavailable",
+  "in_transit",
+  "out_for_delivery",
+  "delivered",
+]);
+
+export function isShipmentConfirmationStatus(status: ShipmentStatus): boolean {
+  return SHIPMENT_CONFIRMATION_STATUSES.has(status);
+}
+
 export type ShipmentRow = {
   id: string;
   order_id: string;
