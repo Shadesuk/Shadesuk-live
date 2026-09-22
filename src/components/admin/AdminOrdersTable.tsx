@@ -3,6 +3,7 @@ import {
   adminOrderStatusLabel,
   adminPaymentStatusLabel,
 } from "@/contracts/admin/dashboard";
+import { isAwaitingFulfilment } from "@/contracts/fulfilment/dispatch";
 import {
   adminOrderCustomerLabel,
   type AdminOrderListItem,
@@ -17,6 +18,7 @@ import {
   ADMIN_ORDER_COL_REFERENCE,
   ADMIN_ORDER_COL_STATUS,
   ADMIN_ORDER_GUEST,
+  ADMIN_ORDERS_AWAITING_FULFILMENT,
   ADMIN_ORDERS_EMPTY_BODY,
   ADMIN_ORDERS_EMPTY_FILTER_BODY,
   ADMIN_ORDERS_EMPTY_FILTER_TITLE,
@@ -62,7 +64,9 @@ export function AdminOrdersTable({
   page: number;
   pageCount: number;
 }) {
-  const filtered = Boolean(query.q || query.status || query.payment || query.period !== "all");
+  const filtered = Boolean(
+    query.q || query.status || query.payment || query.fulfilment || query.period !== "all",
+  );
   if (orders.length === 0) {
     const noMatch = filtered || page > 1;
     return (
@@ -111,6 +115,7 @@ export function AdminOrdersTable({
                 <span className="text-small">
                   <span className="visually-hidden">{ADMIN_ORDER_COL_STATUS} </span>
                   {adminOrderStatusLabel(order.orderStatus)}
+                  {isAwaitingFulfilment(order) ? ` · ${ADMIN_ORDERS_AWAITING_FULFILMENT}` : ""}
                 </span>
                 <span className={`text-small ${styles.amount}`}>
                   <span className="visually-hidden">{ADMIN_ORDER_COL_AMOUNT} </span>

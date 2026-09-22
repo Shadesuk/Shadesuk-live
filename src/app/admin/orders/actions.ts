@@ -10,6 +10,7 @@ import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { adminOrderPath, routes } from "@/lib/navigation";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import {
+  dispatchAdminOrder,
   saveAdminFulfilment,
   updateAdminOrderStatus,
   type AdminOrderMutationResult,
@@ -65,14 +66,24 @@ export async function saveAdminFulfilmentAction(
     return { status: "forbidden", message: ADMIN_FORBIDDEN, values };
   }
   const orderId = String(formData.get("orderId") ?? "");
-  const result = await saveAdminFulfilment({
-    orderId,
-    actorId: gate.actor.id,
-    carrierName: values.carrierName,
-    trackingNumber: values.trackingNumber,
-    trackingUrl: values.trackingUrl,
-    status: values.status,
-  });
+  const intent = String(formData.get("intent") ?? "save");
+  const result =
+    intent === "dispatch"
+      ? await dispatchAdminOrder({
+          orderId,
+          actorId: gate.actor.id,
+          carrierName: values.carrierName,
+          trackingNumber: values.trackingNumber,
+          trackingUrl: values.trackingUrl,
+        })
+      : await saveAdminFulfilment({
+          orderId,
+          actorId: gate.actor.id,
+          carrierName: values.carrierName,
+          trackingNumber: values.trackingNumber,
+          trackingUrl: values.trackingUrl,
+          status: values.status,
+        });
   return finishMutation(result, orderId, values);
 }
 

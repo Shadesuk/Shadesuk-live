@@ -2,6 +2,7 @@ import {
   adminOrderStatusLabel,
   adminPaymentStatusLabel,
 } from "@/contracts/admin/dashboard";
+import { isAwaitingFulfilment } from "@/contracts/fulfilment/dispatch";
 import {
   adminOrderCustomerLabel,
   adminShipmentStatusLabel,
@@ -11,6 +12,7 @@ import { formatOrderHeading } from "@/contracts/order/dto";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import {
   ADMIN_ORDER_BACK,
+  ADMIN_ORDERS_AWAITING_FULFILMENT,
   ADMIN_ORDER_CARRIER,
   ADMIN_ORDER_COL_DATE,
   ADMIN_ORDER_COL_PAYMENT,
@@ -238,6 +240,9 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
             <h2 id="order-fulfilment-heading" className={styles.sectionTitle}>
               {ADMIN_ORDER_FULFILMENT}
             </h2>
+            {isAwaitingFulfilment(order) ? (
+              <p className={`text-small ${styles.quietBody}`}>{ADMIN_ORDERS_AWAITING_FULFILMENT}</p>
+            ) : null}
             {order.shipment ? (
               <dl className={styles.dl}>
                 <div>
@@ -287,7 +292,12 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
                 )}
               </div>
             ) : null}
-            <AdminFulfilmentForm orderId={order.id} shipment={order.shipment} />
+            <AdminFulfilmentForm
+              orderId={order.id}
+              shipment={order.shipment}
+              paymentStatus={order.paymentStatus}
+              orderStatus={order.orderStatus}
+            />
           </section>
         </div>
       </div>
