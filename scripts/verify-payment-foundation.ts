@@ -13,7 +13,7 @@ import {
   quotePendingPaymentLines,
   type PendingPaymentLine,
 } from "../src/lib/payment/pending-attempt";
-import { initiatePendingRazorpayPayment } from "../src/services/pending-payment";
+import { commitPendingRazorpayPayment } from "../src/lib/payment/initiate";
 import { redactRazorpaySecrets } from "../src/lib/razorpay/errors";
 import { emptyCheckoutDraft, type PublicCheckoutDraft } from "../src/types/checkout";
 import type { PaymentRow } from "../src/contracts/payment/schema";
@@ -52,6 +52,7 @@ const serverFiles = [
   "src/lib/razorpay/create-order.ts",
   "src/lib/razorpay/errors.ts",
   "src/lib/payment/pending-store.ts",
+  "src/lib/payment/initiate.ts",
   "src/services/pending-payment.ts",
 ];
 for (const file of serverFiles) {
@@ -205,6 +206,7 @@ if (built.attempt.order.total_minor !== 5365) {
   throw new Error("Order totals must match the server quote, not the client total.");
 }
 
+async function verifyInitiationFlow(): Promise<void> {
 let razorpayAmount: number | null = null;
 let razorpayCurrency: string | null = null;
 const writes: Array<"order" | "items" | "payment" | "attach" | "fail"> = [];
@@ -286,30 +288,10 @@ const memoryStore: PendingPaymentStore = {
   },
 };
 
-const initiated = await initiatePendingRazorpayPayment({
-  cart: {
-    items: [
-      {
-        id: "line-1",
-        productId: lines[0]!.productId,
-        slug: "frame-01",
-        name: "Frame 01",
-        href: "/product/frame-01",
-        colourName: "Black",
-        quantity: 1,
-        unitPrice: 49,
-        lineTotal: 49,
-        currency: "GBP",
-      },
-    ],
-    itemCount: 1,
-    subtotal: 49,
-    currency: "GBP",
-    issues: [],
-  },
+const initiated = await commitPendingRazorpayPayment({
   draft,
+  lines,
   userId: null,
-  loadLines: async () => lines,
   store: memoryStore,
   createProviderOrder: async (input) => {
     razorpayAmount = input.amountMinor;
@@ -345,39 +327,30 @@ if (
 ) {
   throw new Error("Successful initiation must remain created/placed and uncaptured.");
 }
-if (writes.includes("fail") || initiated.paymentStatus === "captured") {
+if (writes.includes("fail")) {
   throw new Error("Successful initiation must not capture or mark payment failed.");
 }
+if (read("src/lib/payment/initiate.ts").includes('paymentStatus: "captured"')) {
+  throw new Error("Initiation result must not report a captured payment.");
+}
 
-const failedProvider = await initiatePendingRazorpayPayment({
-  cart: {
-    items: [
-      {
-        id: "line-1",
-        productId: lines[0]!.productId,
-        slug: "frame-01",
-        name: "Frame 01",
-        href: "/product/frame-01",
-        colourName: "Black",
-        quantity: 1,
-        unitPrice: 49,
-        lineTotal: 49,
-        currency: "GBP",
-      },
-    ],
-    itemCount: 1,
-    subtotal: 49,
-    currency: "GBP",
-    issues: [],
-  },
+const failedProvider = await commitPendingRazorpayPayment({
   draft,
+  lines,
   userId: null,
-  loadLines: async () => lines,
   store: memoryStore,
   createProviderOrder: async () => ({ ok: false, error: "Razorpay unavailable" }),
 });
 if (failedProvider.status !== "provider_failed") {
   throw new Error("Razorpay failure must not report a successful initiation.");
 }
+}
 
-console.log("verify-payment-foundation: ok");
+void verifyInitiationFlow()
+  .then(() => {
+    console.log("verify-payment-foundation: ok");
+  })
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
