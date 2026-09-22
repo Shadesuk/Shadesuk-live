@@ -12,6 +12,7 @@ import {
   TRY_AGAIN,
 } from "@/lib/account-copy";
 import { requireAccountUser } from "@/lib/account-session";
+import { parseOrderReferenceInput } from "@/contracts/order/reference";
 import { accountOrderPath, routes } from "@/lib/navigation";
 import { getOwnCustomerOrder } from "@/services/customer-orders";
 
@@ -20,9 +21,11 @@ type PageProps = {
 };
 
 export default async function AccountOrderPage({ params }: PageProps) {
-  await requireAccountUser();
   const { reference } = await params;
-  const decoded = decodeURIComponent(reference);
+  const decoded = safeOrderReferenceParam(reference);
+  const parsed = parseOrderReferenceInput(decoded);
+  const returnPath = parsed ? accountOrderPath(parsed) : routes.accountOrders;
+  await requireAccountUser(returnPath);
   const result = await getOwnCustomerOrder(decoded);
   if (result.status === "unauthenticated") {
     redirect(routes.account);
@@ -39,7 +42,7 @@ export default async function AccountOrderPage({ params }: PageProps) {
           description={ORDERS_UNAVAILABLE_BODY}
           titleAs="h1"
           actions={
-            <ButtonLink href={accountOrderPath(decoded)} variant="secondary">
+            <ButtonLink href={returnPath} variant="secondary">
               {TRY_AGAIN}
             </ButtonLink>
           }
@@ -58,4 +61,15 @@ export default async function AccountOrderPage({ params }: PageProps) {
       )}
     </>
   );
+}
+
+function safeOrderReferenceParam(reference: string): string {
+  if (reference.length > 80) {
+    return "";
+  }
+  try {
+    return decodeURIComponent(reference);
+  } catch {
+    return "";
+  }
 }

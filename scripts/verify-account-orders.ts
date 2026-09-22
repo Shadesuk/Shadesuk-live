@@ -180,6 +180,19 @@ if (!orderDetail.includes("DELIVERY_UPDATE_TITLE") || !orderDetail.includes("TRA
 if (!orderDetail.includes("safeHttpUrl") || !orderDetail.includes("EXPECTED_DELIVERY")) {
   throw new Error("Order detail must use sanitised tracking URLs and the approved delivery wording.");
 }
+if (!orderDetail.includes("CANCELLED_BODY") || !orderDetail.includes("isNoShipmentYet")) {
+  throw new Error("Order detail must handle cancellation and orders with no shipment.");
+}
+if (!read("src/app/(storefront)/account/orders/[reference]/page.tsx").includes("safeOrderReferenceParam")) {
+  throw new Error("Account order URLs must reject malformed references before lookup.");
+}
+const accountSession = read("src/lib/account-session.ts");
+if (!accountSession.includes('params.set("error", "session")')) {
+  throw new Error("A stale account session must return the existing session-expired sign-in state.");
+}
+if (customerOrders.includes("notes")) {
+  throw new Error("Customer shipment reads must not select notes.");
+}
 if (orderDetail.includes("createSupabaseAdminClient") || orderDetail.includes("SUPABASE_SECRET_KEY")) {
   throw new Error("Order detail must not expose the service-role client.");
 }
