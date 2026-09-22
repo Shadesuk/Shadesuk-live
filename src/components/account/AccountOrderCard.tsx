@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { OrderStatus } from "@/components/order/OrderStatus";
 import { ButtonLink } from "@/components/ui/ButtonLink";
+import { SHIPMENT_STATUS_LABELS } from "@/contracts/fulfilment/shipment";
 import { formatOrderHeading, type CustomerOrderListItem } from "@/contracts";
 import { QTY_PREFIX, VIEW_ORDER } from "@/lib/account-copy";
 import { formatGbp } from "@/lib/money";
 import { accountOrderPath } from "@/lib/navigation";
+import { CANCELLED_STATUS_LABEL, SHIPMENT_LABEL } from "@/lib/tracking-copy";
 import { formatTrackingDateWithYear } from "@/lib/tracking-timeline";
 import styles from "./Account.module.css";
 
@@ -29,7 +31,12 @@ export function AccountOrderCard({ order }: { order: CustomerOrderListItem }) {
         </p>
       ) : null}
       <p className="text-body">{formatGbp(order.total)}</p>
-      <OrderStatus label={order.statusLabel} />
+      <OrderStatus label={order.cancelled ? CANCELLED_STATUS_LABEL : order.statusLabel} />
+      {order.shipmentStatus && !order.cancelled ? (
+        <p className="text-small">
+          {SHIPMENT_LABEL}: {SHIPMENT_STATUS_LABELS[order.shipmentStatus]}
+        </p>
+      ) : null}
       <div className={styles.cardActions}>
         <ButtonLink href={href} variant="tertiary">
           {VIEW_ORDER}

@@ -22,8 +22,14 @@ import {
 } from "@/lib/order-rows";
 import { hasSupabaseSecretKey, createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  clearGuestTrackingGrant,
+  readGuestTrackingGrant,
+  rememberGuestTrackingGrant,
+} from "@/lib/tracking-grant-cookie";
 import { safeHttpUrl } from "@/lib/tracking-url";
 import { guestTrackingAttemptAllowed } from "@/lib/tracking-rate-limit";
+import type { GuestOrderTrackingView } from "@/contracts/order/dto";
 import type { GuestTrackingActionResult } from "@/types/tracking";
 
 const ORDER_COLUMNS =
@@ -85,22 +91,65 @@ export async function lookupGuestOrder(input: {
       return { status: "not_found", message: GUEST_TRACKING_GENERIC_ERROR };
     }
 
-    const [items, shipment] = await Promise.all([
-      loadOrderItems(order.id),
-      loadCustomerShipment(order.id),
-    ]);
-
-    return {
-      status: "ok",
-      order: toGuestOrderTrackingView({
-        order,
-        items,
-        shipment,
-      }),
-    };
+    const view = await loadGuestTrackingView(order);
+    try {
+      await rememberGuestTrackingGrant({
+        orderReference: parsed.orderReference,
+        limiterId: input.limiterId,
+      });
+    } catch {
+      // The verified response still stands if the grant cookie cannot be stored.
+    }
+    return { status: "ok", order: view };
   } catch {
     return { status: "error", message: NETWORK_ERROR };
   }
+}
+
+export type GrantedGuestOrderResult =
+  | { status: "absent" }
+  | { status: "invalid" }
+  | { status: "expired" }
+  | { status: "not_found" }
+  | { status: "error" }
+  | { status: "ok"; order: GuestOrderTrackingView };
+
+/**
+ * Reload a guest order only after the signed verification grant checks out.
+ * Invalid and expired grants never touch the database.
+ */
+export async function lookupGrantedGuestOrder(): Promise<GrantedGuestOrderResult> {
+  const grant = await readGuestTrackingGrant();
+  if (grant.status === "absent") {
+    return { status: "absent" };
+  }
+  if (grant.status === "invalid" || grant.status === "expired") {
+    await clearGuestTrackingGrant();
+    return { status: grant.status };
+  }
+
+  if (!guestTrackingLookupAvailable()) {
+    return { status: "error" };
+  }
+
+  try {
+    const order = await loadOrderByReference(grant.orderReference);
+    if (!order || order.order_reference !== grant.orderReference) {
+      await clearGuestTrackingGrant();
+      return { status: "not_found" };
+    }
+    return { status: "ok", order: await loadGuestTrackingView(order) };
+  } catch {
+    return { status: "error" };
+  }
+}
+
+async function loadGuestTrackingView(order: OrderRow): Promise<GuestOrderTrackingView> {
+  const [items, shipment] = await Promise.all([
+    loadOrderItems(order.id),
+    loadCustomerShipment(order.id),
+  ]);
+  return toGuestOrderTrackingView({ order, items, shipment });
 }
 
 async function loadOrderByReference(orderReference: string): Promise<OrderRow | null> {

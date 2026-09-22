@@ -209,6 +209,7 @@ void (async () => {
     paymentState: "PAYMENT_SUCCEEDED",
     shipment: null,
     events: [],
+    cancelled: false,
   } as CustomerOrderView;
   const accountConfirmed = await loadCapturedCheckoutConfirmation("SHU-ABCDEFGHJKMN", {
     accountUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",

@@ -19,7 +19,12 @@ import {
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { safeHttpUrl } from "@/lib/tracking-url";
-import type { CustomerShipmentView, TrackingEventRow } from "@/contracts/fulfilment/shipment";
+import {
+  SHIPMENT_STATUSES,
+  type CustomerShipmentView,
+  type ShipmentStatus,
+  type TrackingEventRow,
+} from "@/contracts/fulfilment/shipment";
 import type { OrderEventRow, OrderItemRow, OrderRow } from "@/contracts/order/schema";
 
 const ORDER_COLUMNS =
@@ -77,15 +82,16 @@ export async function listOwnCustomerOrders(): Promise<
       return { status: "ok", data: [] };
     }
 
-    const itemsResult = await supabase
-      .from("order_items")
-      .select(ORDER_ITEM_COLUMNS)
-      .in(
-        "order_id",
-        orders.map((order) => order.id),
-      )
-      .order("created_at", { ascending: true });
-    if (itemsResult.error) {
+    const orderIds = orders.map((order) => order.id);
+    const [itemsResult, shipmentsResult] = await Promise.all([
+      supabase
+        .from("order_items")
+        .select(ORDER_ITEM_COLUMNS)
+        .in("order_id", orderIds)
+        .order("created_at", { ascending: true }),
+      supabase.from("shipments").select("order_id, status").in("order_id", orderIds),
+    ]);
+    if (itemsResult.error || shipmentsResult.error) {
       return { status: "error" };
     }
     const itemsByOrder = new Map<string, OrderItemRow[]>();
@@ -97,12 +103,21 @@ export async function listOwnCustomerOrders(): Promise<
       itemsByOrder.set(parsed.order_id, list);
     }
 
+    const shipmentStatusByOrder = new Map<string, ShipmentStatus>();
+    for (const row of Array.isArray(shipmentsResult.data) ? shipmentsResult.data : []) {
+      const parsed = parseShipmentStatus(row);
+      if (parsed) {
+        shipmentStatusByOrder.set(parsed.orderId, parsed.status);
+      }
+    }
+
     return {
       status: "ok",
       data: orders.map((order) =>
         toCustomerOrderListItem({
           order,
           items: itemsByOrder.get(order.id) ?? [],
+          shipmentStatus: shipmentStatusByOrder.get(order.id) ?? null,
         }),
       ),
     };
@@ -163,6 +178,22 @@ export async function getOwnCustomerOrder(
   } catch {
     return { status: "error" };
   }
+}
+
+function parseShipmentStatus(
+  value: unknown,
+): { orderId: string; status: ShipmentStatus } | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const row = value as { order_id?: unknown; status?: unknown };
+  if (typeof row.order_id !== "string" || typeof row.status !== "string") {
+    return null;
+  }
+  if (!(SHIPMENT_STATUSES as readonly string[]).includes(row.status)) {
+    return null;
+  }
+  return { orderId: row.order_id, status: row.status as ShipmentStatus };
 }
 
 type ServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;

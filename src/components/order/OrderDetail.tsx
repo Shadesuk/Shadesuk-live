@@ -3,7 +3,7 @@ import { OrderStatus } from "@/components/order/OrderStatus";
 import { TrackingTimeline } from "@/components/order/TrackingTimeline";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import type { CustomerShipmentView } from "@/contracts/fulfilment/shipment";
-import { TRACKING_UNAVAILABLE_COPY } from "@/contracts/fulfilment/shipment";
+import { SHIPMENT_STATUS_LABELS, TRACKING_UNAVAILABLE_COPY } from "@/contracts/fulfilment/shipment";
 import { formatOrderHeading } from "@/contracts/order/dto";
 import type { GuestDeliveryAddressView } from "@/contracts/order/dto";
 import type { OrderStatus as OrderStatusValue } from "@/contracts/order/schema";
@@ -22,11 +22,15 @@ import {
 } from "@/lib/account-copy";
 import { formatGbp } from "@/lib/money";
 import {
+  CANCELLED_BODY,
+  CANCELLED_STATUS_LABEL,
   DELIVERY_UPDATE_BODY,
   DELIVERY_UPDATE_TITLE,
   EXPECTED_DELIVERY,
+  SHIPMENT_LABEL,
   TRACK_ORDER_HEADING,
   TRACK_WITH_CARRIER,
+  TRACKING_NOT_SUPPLIED_BODY,
   TRACKING_NUMBER_LABEL,
   UNITED_KINGDOM,
 } from "@/lib/tracking-copy";
@@ -34,6 +38,7 @@ import {
   buildTrackingTimeline,
   formatTrackingDateWithYear,
   isExceptionTracking,
+  isNoShipmentYet,
   isTrackingUnavailable,
 } from "@/lib/tracking-timeline";
 import { safeHttpUrl } from "@/lib/tracking-url";
@@ -60,6 +65,7 @@ export type OrderDetailModel = {
   deliveryAddress: GuestDeliveryAddressView | null;
   shipment: CustomerShipmentView | null;
   paymentState?: CustomerPaymentState;
+  cancelled?: boolean;
 };
 
 type OrderDetailProps = {
@@ -71,19 +77,25 @@ type OrderDetailProps = {
 
 export function OrderDetail({ order, variant, trackHref, footer }: OrderDetailProps) {
   const placed = formatTrackingDateWithYear(order.placedAt);
-  const trackingUrl = safeHttpUrl(order.shipment?.trackingUrl);
-  const trackingNumber = order.shipment?.trackingNumber?.trim() || null;
-  const exception = isExceptionTracking(order.status, order.shipment);
-  const trackingUnavailable = isTrackingUnavailable(order.status, order.shipment);
+  const cancelled = order.cancelled === true;
+  const trackingUrl = cancelled ? null : safeHttpUrl(order.shipment?.trackingUrl);
+  const trackingNumber = cancelled ? null : order.shipment?.trackingNumber?.trim() || null;
+  const exception = !cancelled && isExceptionTracking(order.status, order.shipment);
+  const noShipment = !cancelled && !exception && isNoShipmentYet(order.shipment);
+  const trackingUnavailable =
+    !cancelled && !exception && !noShipment && isTrackingUnavailable(order.status, order.shipment);
   const timeline = buildTrackingTimeline({
     status: order.status,
     placedAt: order.placedAt,
     shipment: order.shipment,
   });
-  const visibleTimeline = trackingUnavailable
-    ? timeline.filter((step) => step.state !== "upcoming")
-    : timeline;
+  const visibleTimeline = cancelled
+    ? []
+    : trackingUnavailable
+      ? timeline.filter((step) => step.state !== "upcoming")
+      : timeline;
   const addressLines = formatDeliveryLines(order.deliveryAddress);
+  const statusLabel = cancelled ? CANCELLED_STATUS_LABEL : order.statusLabel;
 
   return (
     <article className={styles.result} data-order-detail data-variant={variant}>
@@ -95,7 +107,7 @@ export function OrderDetail({ order, variant, trackHref, footer }: OrderDetailPr
           <h1 className="text-h2">{formatOrderHeading(order.orderReference)}</h1>
         )}
         {variant === "account" ? <p className="text-micro">{ORDER_CONFIRMED}</p> : null}
-        <OrderStatus label={order.statusLabel} />
+        <OrderStatus label={statusLabel} />
         {placed ? <p className="text-small">{placed}</p> : null}
       </header>
 
@@ -157,7 +169,7 @@ export function OrderDetail({ order, variant, trackHref, footer }: OrderDetailPr
         {TOTAL_LABEL} {formatGbp(order.total)}
       </p>
 
-      {trackHref ? (
+      {trackHref && !cancelled ? (
         <ButtonLink href={trackHref} variant="secondary">
           {TRACK_ORDER_LINK}
         </ButtonLink>
@@ -171,6 +183,21 @@ export function OrderDetail({ order, variant, trackHref, footer }: OrderDetailPr
           {TRACK_ORDER_HEADING}
         </h2>
 
+        {cancelled ? (
+          <div className={styles.notice} aria-labelledby="order-cancelled-heading">
+            <h3 id="order-cancelled-heading" className="text-micro">
+              {CANCELLED_STATUS_LABEL}
+            </h3>
+            <p className="text-small">{CANCELLED_BODY}</p>
+          </div>
+        ) : null}
+
+        {!cancelled && order.shipment ? (
+          <p className="text-small">
+            {SHIPMENT_LABEL}: {SHIPMENT_STATUS_LABELS[order.shipment.status]}
+          </p>
+        ) : null}
+
         {exception ? (
           <div className={styles.notice} aria-labelledby="order-exception-heading">
             <h3 id="order-exception-heading" className="text-micro">
@@ -180,12 +207,14 @@ export function OrderDetail({ order, variant, trackHref, footer }: OrderDetailPr
           </div>
         ) : null}
 
-        {trackingUnavailable ? (
+        {noShipment || trackingUnavailable ? (
           <div className={styles.notice} aria-labelledby="order-unavailable-heading">
             <h3 id="order-unavailable-heading" className="text-micro">
               {TRACKING_UNAVAILABLE_COPY.heading}
             </h3>
-            <p className="text-small">{TRACKING_UNAVAILABLE_COPY.body}</p>
+            <p className="text-small">
+              {noShipment ? TRACKING_UNAVAILABLE_COPY.body : TRACKING_NOT_SUPPLIED_BODY}
+            </p>
           </div>
         ) : null}
 
