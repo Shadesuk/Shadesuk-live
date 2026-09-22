@@ -671,9 +671,15 @@ const checkoutFiles = [
   "src/services/checkout.ts",
 ];
 for (const file of checkoutFiles) {
-  const source = readFileSync(resolve(file), "utf8").toLowerCase();
-  if (source.includes("stripe") || source.includes("razorpay")) {
-    throw new Error(`${file} must not invent a payment vendor.`);
+  const source = readFileSync(resolve(file), "utf8");
+  const lower = source.toLowerCase();
+  if (lower.includes("stripe") || lower.includes("razorpay") || lower.includes("checkout.js")) {
+    throw new Error(
+      `${file} must not host Razorpay/Stripe SDKs, secrets, or Checkout.js. Server Razorpay lives in src/lib/razorpay and src/services/pending-payment.ts.`,
+    );
+  }
+  if (source.includes("RAZORPAY_KEY_SECRET") || source.includes("RAZORPAY_WEBHOOK_SECRET")) {
+    throw new Error(`${file} must never contain Razorpay secrets.`);
   }
 }
 const actionsSource = readFileSync(resolve("src/app/(storefront)/checkout/actions.ts"), "utf8");

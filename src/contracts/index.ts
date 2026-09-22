@@ -207,6 +207,14 @@ export {
   paymentStub,
 } from "./payment/stub";
 export type { PaymentProviderStub, CustomerPaymentState } from "./payment/stub";
+export {
+  isPaymentProviderRazorpay,
+  isSchemaPaymentStatus,
+  PAYMENT_ATTEMPT_IDEMPOTENCY,
+  PAYMENT_CURRENCY,
+  PAYMENT_PROVIDER_RAZORPAY,
+} from "./payment/schema";
+export type { PaymentProviderId, PaymentRow } from "./payment/schema";
 
 export {
   isManualFulfilmentV1,

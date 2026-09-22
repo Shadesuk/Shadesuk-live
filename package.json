@@ -28,12 +28,14 @@
     "verify:admin-customers": "npm run verify:run -- scripts/verify-admin-customers.ts",
     "verify:admin-analytics": "npm run verify:run -- scripts/verify-admin-analytics.ts",
     "verify:admin": "npm run verify:run -- scripts/verify-admin-foundation.ts && npm run verify:run -- scripts/verify-admin-dashboard.ts && npm run verify:admin-orders && npm run verify:admin-products && npm run verify:admin-collections && npm run verify:admin-merchandising && npm run verify:admin-customers && npm run verify:admin-analytics",
-    "verify:completion": "npm run verify:run -- scripts/verify-storefront-completion.ts"
+    "verify:completion": "npm run verify:run -- scripts/verify-storefront-completion.ts",
+    "verify:payment": "npm run verify:run -- scripts/verify-payment-foundation.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
     "next": "16.3.4",
+    "razorpay": "^2.9.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
