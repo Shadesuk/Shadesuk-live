@@ -32,6 +32,43 @@
   letter-spacing: 0.04em;
 }
 
+.media {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--color-stone);
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Close portrait: keep the sunglasses and face, crop the sweater. */
+.men {
+  object-position: center 38%;
+}
+
+/* Landscape close-up: the frame is cut off at the right edge, so anchor there. */
+.women {
+  object-position: right 42%;
+}
+
+/* Nearly square product shot: keep the frames in the upper right. */
+.unisex {
+  object-position: right 36%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image {
+    animation: none;
+    transition: none;
+  }
+}
+
 @media (min-width: 768px) {
   .list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
