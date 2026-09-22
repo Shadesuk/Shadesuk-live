@@ -1,8 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
+import {
+  initiateCheckoutPaymentAction,
+  verifyCheckoutPaymentAction,
+} from "@/app/(storefront)/checkout/payment-actions";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
+import { InlineError } from "@/components/ui/InlineError";
 import { PaymentMethods } from "@/components/payment/PaymentMethods";
 import {
   BACK,
@@ -10,15 +16,19 @@ import {
   EDIT,
   ESTIMATED_DELIVERY_LABEL,
   ESTIMATED_DELIVERY_WINDOW,
+  PAYMENT_CANCELLED,
+  PAYMENT_CONFIRM_ERROR,
   PAYMENT_HEADING,
   PAYMENT_NEXT_BODY,
-  PAYMENT_NOT_READY,
+  PAYMENT_START_ERROR,
+  PAYMENT_VERIFIED_NEXT,
   REVIEW_HEADING,
   SHIPPING_HEADING,
   UK_STANDARD_DELIVERY,
   UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
 import { formatGbp, formatGbpMinor } from "@/lib/money";
+import { openRazorpayCheckout } from "@/lib/razorpay/open-checkout";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { routes } from "@/lib/navigation";
 import type { PublicCheckoutDraft } from "@/types/checkout";
@@ -33,6 +43,8 @@ type CheckoutReviewProps = {
   onBack: () => void;
 };
 
+type PaymentUiState = "idle" | "starting" | "checkout" | "verifying" | "verified" | "cancelled" | "error";
+
 export function CheckoutReview({
   cart,
   draft,
@@ -40,6 +52,9 @@ export function CheckoutReview({
   pending = false,
   onBack,
 }: CheckoutReviewProps) {
+  const [paymentUi, setPaymentUi] = useState<PaymentUiState>("idle");
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState<string>("");
   const addressLines = [
     `${draft.firstName} ${draft.lastName}`.trim(),
     draft.line1,
@@ -48,6 +63,57 @@ export function CheckoutReview({
     draft.postcode,
     draft.country === "GB" ? UNITED_KINGDOM : draft.country,
   ].filter(Boolean);
+
+  async function continueToPayment() {
+    if (paymentBusy || pending || paymentUi === "verified") {
+      return;
+    }
+    setPaymentBusy(true);
+    setPaymentError("");
+    setPaymentUi("starting");
+    try {
+      const started = await initiateCheckoutPaymentAction();
+      if (started.status !== "ok") {
+        setPaymentError(PAYMENT_START_ERROR);
+        setPaymentUi("error");
+        return;
+      }
+      setPaymentUi("checkout");
+      const opened = await openRazorpayCheckout({
+        publicKeyId: started.publicKeyId,
+        providerOrderId: started.providerOrderId,
+        customerName: `${draft.firstName} ${draft.lastName}`.trim(),
+        customerEmail: draft.email,
+      });
+      if (opened.status === "dismissed") {
+        setPaymentUi("cancelled");
+        return;
+      }
+      if (opened.status !== "callback") {
+        setPaymentError(PAYMENT_START_ERROR);
+        setPaymentUi("error");
+        return;
+      }
+      setPaymentUi("verifying");
+      const verified = await verifyCheckoutPaymentAction({
+        paymentId: started.paymentId,
+        razorpayPaymentId: opened.response.razorpay_payment_id,
+        razorpayOrderId: opened.response.razorpay_order_id,
+        razorpaySignature: opened.response.razorpay_signature,
+      });
+      if (verified.status === "verified") {
+        setPaymentUi("verified");
+        return;
+      }
+      setPaymentError(PAYMENT_CONFIRM_ERROR);
+      setPaymentUi("error");
+    } catch {
+      setPaymentError(PAYMENT_CONFIRM_ERROR);
+      setPaymentUi("error");
+    } finally {
+      setPaymentBusy(false);
+    }
+  }
 
   return (
     <div className={styles.review} data-checkout-review>
@@ -127,14 +193,25 @@ export function CheckoutReview({
           {PAYMENT_HEADING}
         </h3>
         <PaymentMethods />
-        <p id="checkout-payment-not-ready" className="text-small">
-          {PAYMENT_NEXT_BODY}
+        <p id="checkout-payment-next" className="text-small">
+          {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
         </p>
-        <p className="visually-hidden">{PAYMENT_NOT_READY}</p>
+        {paymentUi === "cancelled" ? (
+          <p className="text-small" role="status">
+            {PAYMENT_CANCELLED}
+          </p>
+        ) : null}
+        {paymentUi === "error" && paymentError ? <InlineError>{paymentError}</InlineError> : null}
       </section>
 
       <div className={styles.actions}>
-        <Button type="button" disabled held aria-describedby="checkout-payment-not-ready">
+        <Button
+          type="button"
+          onClick={() => void continueToPayment()}
+          disabled={pending || paymentBusy || paymentUi === "verified"}
+          loading={paymentBusy}
+          aria-describedby="checkout-payment-next"
+        >
           {CONTINUE_TO_PAYMENT}
         </Button>
         <Button type="button" variant="tertiary" onClick={onBack} disabled={pending}>

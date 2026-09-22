@@ -595,11 +595,17 @@ const reviewSource = readFileSync(
   resolve("src/components/checkout/CheckoutReview.tsx"),
   "utf8",
 );
-if (!reviewSource.includes("disabled") || !reviewSource.includes("CONTINUE_TO_PAYMENT")) {
-  throw new Error("Continue to payment must stay disabled.");
+if (!reviewSource.includes("CONTINUE_TO_PAYMENT") || !reviewSource.includes("initiateCheckoutPaymentAction")) {
+  throw new Error("Continue to payment must start the server Razorpay initiation action.");
 }
-if (!reviewSource.includes("held") || !reviewSource.includes("PAYMENT_NOT_READY")) {
-  throw new Error("Payment-not-ready must be an intentional held state.");
+if (!reviewSource.includes("openRazorpayCheckout") || !reviewSource.includes("verifyCheckoutPaymentAction")) {
+  throw new Error("Checkout review must open official Checkout.js and send the callback to server verification.");
+}
+if (reviewSource.includes("RAZORPAY_KEY_SECRET") || reviewSource.includes("RAZORPAY_WEBHOOK_SECRET")) {
+  throw new Error("Checkout review must never contain Razorpay secrets.");
+}
+if (reviewSource.includes("orders.create") || reviewSource.includes("createRazorpayOrder")) {
+  throw new Error("The browser must not create Razorpay orders.");
 }
 if (!reviewSource.includes("PaymentMethods")) {
   throw new Error("Checkout must reuse the payment methods presentation.");
@@ -665,7 +671,6 @@ const checkoutFiles = [
   "src/app/(storefront)/checkout/page.tsx",
   "src/app/(storefront)/checkout/actions.ts",
   "src/components/checkout/CheckoutPage.tsx",
-  "src/components/checkout/CheckoutReview.tsx",
   "src/lib/address-lookup.ts",
   "src/lib/checkout-quote.ts",
   "src/services/checkout.ts",
@@ -675,12 +680,25 @@ for (const file of checkoutFiles) {
   const lower = source.toLowerCase();
   if (lower.includes("stripe") || lower.includes("razorpay") || lower.includes("checkout.js")) {
     throw new Error(
-      `${file} must not host Razorpay/Stripe SDKs, secrets, or Checkout.js. Server Razorpay lives in src/lib/razorpay and src/services/pending-payment.ts.`,
+      `${file} must not host Razorpay/Stripe SDKs, secrets, or Checkout.js. Client Checkout is limited to CheckoutReview; server Razorpay lives in src/lib/razorpay.`,
     );
   }
   if (source.includes("RAZORPAY_KEY_SECRET") || source.includes("RAZORPAY_WEBHOOK_SECRET")) {
     throw new Error(`${file} must never contain Razorpay secrets.`);
   }
+}
+const paymentActions = readFileSync(resolve("src/app/(storefront)/checkout/payment-actions.ts"), "utf8");
+if (!paymentActions.includes("cartActionOriginAllowed")) {
+  throw new Error("Payment Server Actions must keep CSRF/origin checks.");
+}
+if (!paymentActions.includes("initiatePendingRazorpayPayment") || !paymentActions.includes("verifyRazorpayCheckoutPayment")) {
+  throw new Error("Payment actions must reuse the existing initiate and verify services.");
+}
+if (paymentActions.includes("RAZORPAY_KEY_SECRET") || paymentActions.includes("RAZORPAY_WEBHOOK_SECRET")) {
+  throw new Error("Payment actions must not embed Razorpay secret names in client-bound results.");
+}
+if (paymentActions.includes("SUPABASE_SECRET_KEY") || paymentActions.includes("SERVICE_ROLE")) {
+  throw new Error("Payment actions must not return service-role credentials.");
 }
 const actionsSource = readFileSync(resolve("src/app/(storefront)/checkout/actions.ts"), "utf8");
 if (!actionsSource.includes("cartActionOriginAllowed")) {
