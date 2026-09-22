@@ -1,16 +1,18 @@
 import "server-only";
 
+import { dispatchOrderConfirmationEmail } from "@/lib/email/order-confirmation";
+
 /**
- * Capture-time integration point for the PR #46 Resend stack.
+ * Authoritative post-commit side effect after verified payment capture.
  *
- * This branch does not rebuild `dispatchOrderConfirmationEmail`.
- * `captureVerifiedRazorpayPayment` calls this only after the captured
- * payment/order state has been committed. Email failure must never roll
- * back capture.
+ * Invoke this only after `captureVerifiedRazorpayPayment` has committed
+ * `orders.payment_status = captured`. Do not call from checkout review,
+ * Razorpay Checkout callbacks, the Razorpay webhook route, analytics,
+ * or admin fulfilment updates.
  *
- * When PR #46 is merged, replace this no-op with that stack's
- * order-confirmation dispatcher. Do not import Resend from here.
+ * Email failures are swallowed by the dispatcher and must never roll back
+ * the captured order or payment.
  */
 export async function onVerifiedPaymentCaptured(orderId: string): Promise<void> {
-  void orderId;
+  await dispatchOrderConfirmationEmail(orderId);
 }

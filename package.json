@@ -32,13 +32,16 @@
     "verify:payment": "npm run verify:run -- scripts/verify-payment-foundation.ts",
     "verify:payment-verify": "npm run verify:run -- scripts/verify-payment-verification.ts",
     "verify:payment-capture": "npm run verify:run -- scripts/verify-payment-capture.ts",
-    "verify:payment-webhook": "npm run verify:run -- scripts/verify-payment-webhook.ts"
+    "verify:payment-webhook": "npm run verify:run -- scripts/verify-payment-webhook.ts",
+    "verify:email": "npm run verify:run -- scripts/verify-email.ts",
+    "verify:payment-final": "npm run verify:run -- scripts/verify-payment-final.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
     "next": "16.3.4",
     "razorpay": "^2.9.8",
+    "resend": "^6.28.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",

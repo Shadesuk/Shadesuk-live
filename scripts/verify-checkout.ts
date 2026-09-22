@@ -601,6 +601,9 @@ if (!reviewSource.includes("CONTINUE_TO_PAYMENT") || !reviewSource.includes("ini
 if (!reviewSource.includes("openRazorpayCheckout") || !reviewSource.includes("verifyCheckoutPaymentAction")) {
   throw new Error("Checkout review must open official Checkout.js and send the callback to server verification.");
 }
+if (!reviewSource.includes("orderConfirmationPath") || !reviewSource.includes("router.replace")) {
+  throw new Error("Checkout review must redirect to confirmation only after the server capture result.");
+}
 if (reviewSource.includes("RAZORPAY_KEY_SECRET") || reviewSource.includes("RAZORPAY_WEBHOOK_SECRET")) {
   throw new Error("Checkout review must never contain Razorpay secrets.");
 }
@@ -687,6 +690,17 @@ for (const file of checkoutFiles) {
     throw new Error(`${file} must never contain Razorpay secrets.`);
   }
 }
+const confirmationPage = readFileSync(
+  resolve("src/app/(storefront)/checkout/confirmation/page.tsx"),
+  "utf8",
+);
+if (!confirmationPage.includes("loadCapturedCheckoutConfirmation")) {
+  throw new Error("Confirmation page must load authoritative captured order state.");
+}
+if (confirmationPage.includes("razorpay") || confirmationPage.includes("paid=true")) {
+  throw new Error("Confirmation page must not trust Razorpay or a client paid flag.");
+}
+
 const paymentActions = readFileSync(resolve("src/app/(storefront)/checkout/payment-actions.ts"), "utf8");
 if (!paymentActions.includes("cartActionOriginAllowed")) {
   throw new Error("Payment Server Actions must keep CSRF/origin checks.");

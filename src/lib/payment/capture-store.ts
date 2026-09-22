@@ -176,6 +176,15 @@ export function createSupabasePaymentCaptureStore(): PaymentCaptureStore {
       return Boolean(updated.data);
     },
 
+    /**
+     * Converts the live checkout cart after capture.
+     *
+     * Guest webhook capture has no browser session cookie, and orders have
+     * no cart_id. That path cannot safely convert a guest cart without a
+     * new identity. Confirmation-page conversion uses the existing session
+     * when the customer returns. A stale guest cart can start a *new*
+     * pending payment; it cannot recapture the same payment row.
+     */
     async convertActiveCheckoutCart(input) {
       if (!isSupabaseConfigured() || !hasSupabaseSecretKey()) {
         return "missing";

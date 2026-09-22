@@ -27,7 +27,7 @@ export type CheckoutPaymentStartResult =
 
 export type CheckoutPaymentVerifyResult =
   | { status: "verified"; orderReference: string }
-  | { status: "already_processed" }
+  | { status: "already_processed"; orderReference: string }
   | { status: "error" };
 
 /**
@@ -115,11 +115,8 @@ export async function verifyCheckoutPaymentAction(input: {
   }
 
   const captured = await captureVerifiedRazorpayPayment(verified);
-  if (captured.outcome === "captured") {
-    return { status: "verified", orderReference: captured.orderReference };
-  }
-  if (captured.outcome === "already_captured") {
-    return { status: "already_processed" };
+  if (captured.outcome === "captured" || captured.outcome === "already_captured") {
+    return { status: captured.outcome === "already_captured" ? "already_processed" : "verified", orderReference: captured.orderReference };
   }
   return { status: "error" };
 }

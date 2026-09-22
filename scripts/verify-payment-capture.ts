@@ -49,12 +49,11 @@ if (!captureSource.includes("onVerifiedPaymentCaptured")) {
 }
 
 const afterCaptured = read("src/lib/payment/after-captured.ts");
-if (
-  afterCaptured.includes('from "@/lib/email') ||
-  afterCaptured.includes("from \"resend\"") ||
-  afterCaptured.includes("new Resend")
-) {
-  throw new Error("Do not rebuild Resend on this branch; keep the narrow hook.");
+if (!afterCaptured.includes("dispatchOrderConfirmationEmail(orderId)")) {
+  throw new Error("onVerifiedPaymentCaptured must call the PR #46 dispatcher.");
+}
+if (afterCaptured.includes("new Resend") || afterCaptured.includes("from \"resend\"")) {
+  throw new Error("The capture hook must not construct Resend directly.");
 }
 
 const paymentActions = read("src/app/(storefront)/checkout/payment-actions.ts");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   initiateCheckoutPaymentAction,
@@ -21,6 +22,7 @@ import {
   PAYMENT_HEADING,
   PAYMENT_NEXT_BODY,
   PAYMENT_START_ERROR,
+  PAYMENT_UNAVAILABLE,
   PAYMENT_VERIFIED_NEXT,
   REVIEW_HEADING,
   SHIPPING_HEADING,
@@ -30,7 +32,7 @@ import {
 import { formatGbp, formatGbpMinor } from "@/lib/money";
 import { openRazorpayCheckout } from "@/lib/razorpay/open-checkout";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
-import { routes } from "@/lib/navigation";
+import { orderConfirmationPath, routes } from "@/lib/navigation";
 import type { PublicCheckoutDraft } from "@/types/checkout";
 import type { PublicCart } from "@/types/cart";
 import styles from "./CheckoutReview.module.css";
@@ -52,6 +54,7 @@ export function CheckoutReview({
   pending = false,
   onBack,
 }: CheckoutReviewProps) {
+  const router = useRouter();
   const [paymentUi, setPaymentUi] = useState<PaymentUiState>("idle");
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string>("");
@@ -74,7 +77,7 @@ export function CheckoutReview({
     try {
       const started = await initiateCheckoutPaymentAction();
       if (started.status !== "ok") {
-        setPaymentError(PAYMENT_START_ERROR);
+        setPaymentError(started.status === "unavailable" ? PAYMENT_UNAVAILABLE : PAYMENT_START_ERROR);
         setPaymentUi("error");
         return;
       }
@@ -101,8 +104,12 @@ export function CheckoutReview({
         razorpayOrderId: opened.response.razorpay_order_id,
         razorpaySignature: opened.response.razorpay_signature,
       });
-      if (verified.status === "verified" || verified.status === "already_processed") {
+      if (
+        (verified.status === "verified" || verified.status === "already_processed") &&
+        verified.orderReference
+      ) {
         setPaymentUi("verified");
+        router.replace(orderConfirmationPath(verified.orderReference));
         return;
       }
       setPaymentError(PAYMENT_CONFIRM_ERROR);

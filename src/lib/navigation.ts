@@ -20,6 +20,7 @@ export const routes = {
   authCallback: "/auth/callback",
   cart: "/cart",
   checkout: "/checkout",
+  checkoutConfirmation: "/checkout/confirmation",
   faq: "/faq",
   contact: "/contact",
   shipping: "/shipping-policy",
@@ -119,6 +120,10 @@ export function brandPath(slug: string): string {
 
 export function accountOrderPath(orderReference: string): string {
   return `/account/orders/${encodeURIComponent(orderReference)}`;
+}
+
+export function orderConfirmationPath(orderReference: string): string {
+  return `${routes.checkoutConfirmation}?ref=${encodeURIComponent(orderReference)}`;
 }
 
 export function isCurrentPath(pathname: string, href: string): boolean {
