@@ -48,8 +48,9 @@ export function Homepage({
             id="featured-heading"
             title="The shades people are wearing"
             products={featured}
-            layout="rail"
+            mobileCount={2}
             imagePriorityCount={2}
+            list="homepage_featured"
             action={
               <ButtonLink href={routes.shop} variant="tertiary">
                 Shop all shades
@@ -65,7 +66,7 @@ export function Homepage({
               id="best-sellers-heading"
               title="The most wanted"
               products={bestSellers}
-              mobileCount={2}
+              list="homepage_best_sellers"
               action={
                 <ButtonLink href={routes.bestSellers} variant="tertiary">
                   View best sellers
@@ -78,6 +79,7 @@ export function Homepage({
               title="Just in"
               products={newArrivals}
               mobileCount={2}
+              list="homepage_new_arrivals"
               action={
                 <ButtonLink href={routes.newArrivals} variant="tertiary">
                   View new arrivals

@@ -182,12 +182,27 @@ if (!mapper.includes("product.status !== \"published\"")) {
   throw new Error("Draft products must still be excluded from the storefront mapper.");
 }
 
-const rail = read("src/components/home/ProductRail.tsx");
-if (!rail.includes("scroll-snap") && !read("src/components/home/ProductRail.module.css").includes("scroll-snap-type")) {
-  throw new Error("Featured must be a customer-controlled rail, not an auto carousel.");
+const homepageView = read("src/components/home/Homepage.tsx");
+if (homepageView.includes('layout="rail"') || homepageView.includes("layout='rail'")) {
+  throw new Error("Homepage product sections must use the shared product grid.");
 }
+if (!homepageView.includes("mobileCount={2}") || !homepageView.includes('list="homepage_featured"')) {
+  throw new Error("Featured homepage products must use the shared grid with a two-product mobile presentation.");
+}
+const productGridCss = read("src/styles/tokens.css");
+if (!productGridCss.includes("--grid-product-columns: 2") || !productGridCss.includes("--grid-product-columns: 4")) {
+  throw new Error("Product grids must be 2 columns on mobile and 4 columns on desktop.");
+}
+const card = read("src/components/product/ProductCard.tsx");
+if (!card.includes("getSaleCompareAtPrice") || !card.includes("Regular price")) {
+  throw new Error("ProductCard must show sale and compare-at prices from product data.");
+}
+if (!card.includes("objectFit: \"contain\"") || !card.includes("getAvailabilityLabel")) {
+  throw new Error("ProductCard must contain the product image and expose sold-out state.");
+}
+const rail = read("src/components/home/ProductRail.tsx");
 if (rail.toLowerCase().includes("autoplay") || rail.toLowerCase().includes("setinterval")) {
-  throw new Error("Featured must not auto-rotate.");
+  throw new Error("Homepage product presentation must not auto-rotate.");
 }
 
 const story = read("src/components/home/ProductStory.tsx");

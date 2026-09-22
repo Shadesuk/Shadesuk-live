@@ -15,6 +15,7 @@ type ProductSectionProps = {
   mobileCount?: number;
   imagePriorityCount?: number;
   layout?: "grid" | "rail";
+  list?: string;
 };
 
 export function ProductSection({
@@ -25,6 +26,7 @@ export function ProductSection({
   mobileCount,
   imagePriorityCount = 0,
   layout = "grid",
+  list,
 }: ProductSectionProps) {
   if (products.length === 0) {
     return null;
@@ -40,10 +42,14 @@ export function ProductSection({
           {action}
         </div>
         {layout === "rail" ? (
-          <ProductRail products={products} imagePriorityCount={imagePriorityCount} />
+          <ProductRail products={products} imagePriorityCount={imagePriorityCount} list={list} />
         ) : (
           <div className={cx(mobileCount === 2 && styles.mobileTwo)}>
-            <ProductGrid products={products} imagePriorityCount={imagePriorityCount} />
+            <ProductGrid
+              products={products}
+              imagePriorityCount={imagePriorityCount}
+              list={list}
+            />
           </div>
         )}
       </ContentWidth>

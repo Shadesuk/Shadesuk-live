@@ -1,0 +1,15 @@
+.intro {
+  padding-block: var(--space-48) var(--space-32);
+}
+
+.campaign {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--color-stone);
+}
+
+@media (min-width: 768px) {
+  .campaign {
+    aspect-ratio: 2.4 / 1;
+  }
+}
