@@ -11,6 +11,15 @@ export type {
   OrderConfirmationDispatchResult,
   OrderConfirmationDispatcherOptions,
 } from "./order-confirmation";
+export {
+  dispatchShipmentConfirmationEmail,
+  loadShipmentForConfirmation,
+} from "./shipment-confirmation";
+export type {
+  ConfirmedShipmentSnapshot,
+  ShipmentConfirmationDispatchResult,
+  ShipmentConfirmationDispatcherOptions,
+} from "./shipment-confirmation";
 export { TRANSACTIONAL_EMAIL_TYPES } from "./types";
 export type {
   EmailSendOptions,

@@ -1,12 +1,13 @@
 import "server-only";
 
+import type { ShipmentStatus } from "@/contracts/fulfilment/shipment";
 import type { GuestDeliveryAddressView } from "@/contracts/order/dto";
 import type { StoreCurrency } from "@/contracts/money";
 
 /**
  * Application-level transactional types. Persistence lives in `./events`.
  * Order confirmation send is triggered after captured payment commit only.
- * Shipment confirmation is not triggered in this block.
+ * Shipment confirmation send is triggered after a committed dispatch only.
  */
 export const TRANSACTIONAL_EMAIL_TYPES = {
   orderConfirmation: "order_confirmation",
@@ -65,8 +66,11 @@ export type ShipmentConfirmationPayload = {
   customerFirstName: string;
   customerLastName: string;
   orderReference: string;
+  shipmentStatus: ShipmentStatus;
   carrierName: string | null;
   trackingNumber: string | null;
   trackingUrl: string | null;
   shippedAt: string | null;
+  trackOrderUrl: string;
+  items: OrderConfirmationItem[];
 };

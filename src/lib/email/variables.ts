@@ -1,9 +1,13 @@
 import "server-only";
 
-import { formatGbpMinor } from "@/lib/money";
+import { SHIPMENT_STATUS_LABELS } from "@/contracts/fulfilment/shipment";
 import { normalizeEmail } from "@/contracts/order/tracking";
+import { formatGbpMinor } from "@/lib/money";
+import { routes } from "@/lib/navigation";
+import { site } from "@/lib/site";
 import { safeHttpUrl } from "@/lib/tracking-url";
-import type { OrderConfirmationPayload, ShipmentConfirmationPayload } from "./types";
+import { TRACK_ORDER_ACTION } from "@/lib/tracking-copy";
+import type { OrderConfirmationItem, OrderConfirmationPayload, ShipmentConfirmationPayload } from "./types";
 
 /**
  * Resend template variable keys must be ASCII letters, numbers, and underscores.
@@ -40,9 +44,13 @@ export const SHIPMENT_CONFIRMATION_VARIABLE_KEYS = [
   "CUSTOMER_FIRST_NAME",
   "CUSTOMER_LAST_NAME",
   "ORDER_REFERENCE",
+  "SHIPMENT_STATUS",
   "CARRIER_NAME",
   "TRACKING_NUMBER",
   "TRACKING_URL",
+  "TRACK_ORDER_URL",
+  "TRACK_ORDER_LABEL",
+  "ORDER_ITEMS_SUMMARY",
   "SHIPPED_AT",
 ] as const;
 
@@ -84,6 +92,11 @@ export function toOrderConfirmationVariables(
   });
 }
 
+/** Absolute Track Order page. No order reference or email in the query string. */
+export function trackOrderCtaUrl(): string {
+  return `${site.url}${routes.trackOrder}`;
+}
+
 export function toShipmentConfirmationVariables(
   payload: ShipmentConfirmationPayload,
 ): TemplateVariables {
@@ -94,9 +107,13 @@ export function toShipmentConfirmationVariables(
     CUSTOMER_FIRST_NAME: first,
     CUSTOMER_LAST_NAME: last,
     ORDER_REFERENCE: payload.orderReference.trim(),
+    SHIPMENT_STATUS: SHIPMENT_STATUS_LABELS[payload.shipmentStatus],
     CARRIER_NAME: payload.carrierName?.trim() ?? "",
     TRACKING_NUMBER: payload.trackingNumber?.trim() ?? "",
     TRACKING_URL: safeHttpUrl(payload.trackingUrl) ?? "",
+    TRACK_ORDER_URL: safeSiteUrl(payload.trackOrderUrl),
+    TRACK_ORDER_LABEL: TRACK_ORDER_ACTION,
+    ORDER_ITEMS_SUMMARY: summariseOrderItems(payload.items),
     SHIPPED_AT: payload.shippedAt?.trim() ?? "",
   });
 }
@@ -113,7 +130,25 @@ function customerName(first: string, last: string): string {
   return [first, last].filter(Boolean).join(" ").trim();
 }
 
-function summariseOrderItems(items: OrderConfirmationPayload["items"]): string {
+function safeSiteUrl(value: string): string {
+  try {
+    const url = new URL(value.trim());
+    if (url.origin !== site.url) {
+      return "";
+    }
+    if (url.pathname !== routes.trackOrder) {
+      return "";
+    }
+    if (url.search || url.hash) {
+      return "";
+    }
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function summariseOrderItems(items: OrderConfirmationItem[]): string {
   const lines = items.map((item) => {
     const label = [item.productName, item.colourName, item.variantName]
       .map((part) => part?.trim())
