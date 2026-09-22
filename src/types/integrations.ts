@@ -23,10 +23,10 @@ export type AddressLookupProvider = {
 
 export type PaymentProvider = {
   /**
-   * Placeholder only. Not a vendor lock.
-   * Opaque payment fields live in `src/contracts/payment/stub.ts`.
+   * Locked production provider. Charge/order writes live in
+   * `src/lib/razorpay` and `src/services/pending-payment.ts`.
    */
-  id: "stripe" | string;
+  id: "razorpay";
 };
 
 export type AuthProvider = {

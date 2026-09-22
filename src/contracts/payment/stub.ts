@@ -1,12 +1,9 @@
 import type { PaymentStatus } from "../order/schema";
 
 /**
- * Payment fields are opaque stubs until Syed locks a provider (3.2 D1).
- * Do not invent `STRIPE_*` / `RAZORPAY_*` env names as final.
- * Do not implement paid-state webhooks in Phase 3.3.
- *
- * PR #10 columns used as a provider-agnostic envelope:
- * `payments.provider`, `provider_order_id`, `provider_payment_id`.
+ * Customer-facing payment-state mapping only. Not the charge/order writer.
+ * Production provider lock is `PAYMENT_PROVIDER_RAZORPAY` in `./schema.ts`.
+ * Do not implement paid-state webhooks or capture from this file.
  */
 
 export const PAYMENT_PROVIDER_UNSET = "unset" as const;

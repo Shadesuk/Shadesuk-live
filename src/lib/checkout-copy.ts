@@ -72,6 +72,22 @@ export const PAYMENTS_ACCEPTED = "Payments accepted";
 export const PAYMENT_NEXT_TITLE = "Payment is next.";
 export const PAYMENT_NEXT_BODY = "Nothing has been charged yet.";
 export const PAYMENT_NOT_READY = "Continue to payment is unavailable.";
+export const PAYMENT_START_ERROR = "Payment could not be started.";
+export const PAYMENT_CONFIRM_ERROR = "We could not confirm that payment.";
+export const PAYMENT_CANCELLED = "Payment was cancelled.";
+export const PAYMENT_VERIFIED_NEXT =
+  "Payment details were confirmed. Final confirmation is next.";
+export const PAYMENT_UNAVAILABLE =
+  "Payment is unavailable. Nothing has been captured.";
+export const ORDER_CONFIRMATION_TITLE = "Order confirmed";
+export const ORDER_CONFIRMATION_BODY =
+  "Thank you. Your payment is confirmed and we have received your order.";
+export const ORDER_CONFIRMATION_UNPAID_TITLE = "Order not confirmed";
+export const ORDER_CONFIRMATION_UNPAID_BODY =
+  "We could not confirm a captured payment for those details.";
+export const ORDER_CONFIRMATION_EMAIL_LABEL = "Confirmation email";
+export const ORDER_CONFIRMATION_NEXT = "Track your order";
+export const AMOUNT_PAID_LABEL = "Amount paid";
 export const EDIT = "Edit";
 export const ESTIMATED_DELIVERY_LABEL = "Estimated delivery:";
 export const ESTIMATED_DELIVERY_WINDOW = "2+ weeks";
