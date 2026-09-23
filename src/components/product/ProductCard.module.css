@@ -31,7 +31,9 @@
 }
 
 .image {
-  object-fit: cover;
+  object-fit: contain;
+  padding: var(--space-12);
+  box-sizing: border-box;
 }
 
 .secondary {

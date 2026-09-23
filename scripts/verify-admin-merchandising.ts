@@ -197,8 +197,8 @@ const card = read("src/components/product/ProductCard.tsx");
 if (!card.includes("getSaleCompareAtPrice") || !card.includes("Regular price")) {
   throw new Error("ProductCard must show sale and compare-at prices from product data.");
 }
-if (!card.includes("objectFit: \"cover\"") || !card.includes("getAvailabilityLabel")) {
-  throw new Error("ProductCard must cover the media frame and expose sold-out state.");
+if (!card.includes("objectFit: \"contain\"") || !card.includes("getAvailabilityLabel")) {
+  throw new Error("ProductCard must contain the product image and expose sold-out state.");
 }
 const rail = read("src/components/home/ProductRail.tsx");
 if (rail.toLowerCase().includes("autoplay") || rail.toLowerCase().includes("setinterval")) {
