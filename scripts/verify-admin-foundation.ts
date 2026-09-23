@@ -42,6 +42,9 @@ if (
   routes.adminCollectionsNew !== "/admin/collections/new" ||
   routes.adminCustomers !== "/admin/customers" ||
   routes.adminAnalytics !== "/admin/analytics" ||
+  routes.adminFulfilment !== "/admin/fulfilment" ||
+  routes.adminInventory !== "/admin/inventory" ||
+  routes.adminCommunications !== "/admin/communications" ||
   routes.adminMerchandising !== "/admin/merchandising"
 ) {
   throw new Error("Admin module routes must be wired under /admin.");
