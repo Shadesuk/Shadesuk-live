@@ -34,3 +34,14 @@
 .skeletonLineShort {
   width: 40%;
 }
+
+.skeletonSwatches {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.skeletonSwatches span {
+  width: 12px;
+  height: 12px;
+  background: var(--color-stone);
+}

@@ -34,6 +34,17 @@ export function getProductHref(product: Pick<Product, "slug">): string {
   return productPath(product.slug);
 }
 
+/** Compare-at is a sale only when it is higher than the selling price. */
+export function getSaleCompareAtPrice(
+  product: Pick<Product, "price" | "compareAtPrice">,
+): number | undefined {
+  const compare = product.compareAtPrice;
+  if (compare == null || !(compare > product.price)) {
+    return undefined;
+  }
+  return compare;
+}
+
 export function getColourCount(product: Product): number {
   return product.colours.length;
 }

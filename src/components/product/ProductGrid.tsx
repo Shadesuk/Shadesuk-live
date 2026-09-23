@@ -31,6 +31,11 @@ function SkeletonCard() {
       <div className={styles.skeletonLine} />
       <div className={`${styles.skeletonLine} ${styles.skeletonLineShort}`} />
       <div className={`${styles.skeletonLine} ${styles.skeletonLineShort}`} />
+      <div className={styles.skeletonSwatches}>
+        <span />
+        <span />
+        <span />
+      </div>
     </div>
   );
 }

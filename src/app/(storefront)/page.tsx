@@ -40,16 +40,20 @@ export default async function HomePage() {
 
   const live = catalogue.source === "live";
   const merchandising = live ? await loadStorefrontMerchandisingConfig() : null;
-  const featured = merchandising?.featuredEnabled
-    ? productsInOrder(catalogue.products, merchandising.featuredIds)
-    : live
-      ? []
-      : getHomepageFeaturedFrom(catalogue.products, 4);
-  const bestSellers = merchandising?.bestSellersEnabled
-    ? productsInOrder(catalogue.products, merchandising.bestSellerIds)
-    : live
-      ? []
-      : getBestSellersFrom(catalogue.products);
+  const featured = (
+    merchandising?.featuredEnabled
+      ? productsInOrder(catalogue.products, merchandising.featuredIds)
+      : live
+        ? []
+        : getHomepageFeaturedFrom(catalogue.products, 4)
+  ).slice(0, 4);
+  const bestSellers = (
+    merchandising?.bestSellersEnabled
+      ? productsInOrder(catalogue.products, merchandising.bestSellerIds)
+      : live
+        ? []
+        : getBestSellersFrom(catalogue.products)
+  ).slice(0, 6);
   const newArrivals = live
     ? getAutomaticNewArrivals(catalogue.products, 4)
     : getNewArrivalsFrom(catalogue.products).slice(0, 4);
