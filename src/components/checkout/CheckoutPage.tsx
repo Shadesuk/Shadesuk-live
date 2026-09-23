@@ -36,6 +36,7 @@ import {
   type CheckoutQuote,
 } from "@/lib/checkout-quote";
 import { routes } from "@/lib/navigation";
+import { usePinPageStart } from "@/lib/page-scroll";
 import type {
   CheckoutFieldErrors,
   CheckoutMutationResult,
@@ -77,6 +78,8 @@ export function CheckoutPage({
   const [requestError, setRequestError] = useState(false);
   const [cartGone, setCartGone] = useState(false);
   const blocked = checkoutUnavailableBlocked(view);
+  const step = draft.step;
+  usePinPageStart(step, "checkout-heading", true);
   const priceChanged = checkoutHasPriceChange(view);
 
   useEffect(() => {
@@ -116,8 +119,6 @@ export function CheckoutPage({
   if (draft.expired) {
     return <CheckoutExpired />;
   }
-
-  const step = draft.step;
 
   async function applyResult(result: CheckoutMutationResult): Promise<boolean> {
     if (result.status === "empty") {
@@ -200,7 +201,9 @@ export function CheckoutPage({
 
   return (
     <div className={styles.page} data-checkout data-checkout-step={step}>
-      <h1 className={`text-h2 ${styles.heading}`}>{CHECKOUT_TITLE}</h1>
+      <h1 id="checkout-heading" tabIndex={-1} className={`text-h2 ${styles.heading}`}>
+        {CHECKOUT_TITLE}
+      </h1>
       <ol className={styles.steps} aria-label="Checkout steps">
         {CHECKOUT_STEPS.map((item) => {
           const current = item.id === step;
@@ -224,6 +227,11 @@ export function CheckoutPage({
           );
         })}
       </ol>
+      {authNotice && step !== "contact" ? (
+        <p className="text-small" role="alert">
+          {authNotice}
+        </p>
+      ) : null}
       {cartGone ? (
         <p className="text-small" role="alert">
           {CHECKOUT_CART_UNAVAILABLE}
