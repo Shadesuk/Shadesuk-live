@@ -30,7 +30,16 @@ import {
   requireGuestCookieSecret,
   resolveGuestCookieSecret,
 } from "../src/lib/guest-cookie-hmac";
+import {
+  accountEntryHref,
+  authNextFromPathname,
+  encodeAuthReturnCookie,
+  isFrameworkRedirect,
+  resolveAuthReturnPath,
+} from "../src/lib/auth-return";
 import { hasForbiddenOwnershipKey } from "../src/lib/ownership-keys";
+import { resolveActionOrigin } from "../src/lib/request-origin";
+import { isSupabaseAuthCookieName } from "../src/lib/supabase/cookie-options";
 
 if (routes.account !== "/account") {
   throw new Error("Account route must stay /account.");
@@ -270,6 +279,103 @@ if (!productionCookieSecretThrew) {
 
 if (ACCOUNT_EXISTS.toLowerCase().includes("try a different")) {
   throw new Error("Duplicate-account copy drifted.");
+}
+
+if (
+  resolveAuthReturnPath({
+    queryNext: null,
+    cookieNext: encodeAuthReturnCookie("/checkout"),
+  }) !== "/checkout"
+) {
+  throw new Error("Google return must restore checkout from the return cookie when the query is stripped.");
+}
+if (
+  resolveAuthReturnPath({
+    queryNext: "/account/orders",
+    cookieNext: encodeAuthReturnCookie("/checkout"),
+  }) !== "/account/orders"
+) {
+  throw new Error("Explicit next query must win over the stored return path.");
+}
+if (resolveAuthReturnPath({ queryNext: "https://evil.test/phish", cookieNext: null }) !== "/account") {
+  throw new Error("Unsafe next must not leave the storefront.");
+}
+if (resolveAuthReturnPath({ queryNext: null, cookieNext: null }) !== "/account") {
+  throw new Error("A missing Google return path must not fall through to the homepage.");
+}
+if (resolveAuthReturnPath({ queryNext: "/admin", cookieNext: encodeAuthReturnCookie("/checkout") }) !== "/checkout") {
+  throw new Error("Admin paths must not be used as a storefront return path.");
+}
+if (accountEntryHref("/checkout") !== "/account?next=%2Fcheckout") {
+  throw new Error("Signing in from checkout must preserve the checkout return path.");
+}
+if (accountEntryHref("/product/frame") !== "/account?next=%2Fproduct%2Fframe") {
+  throw new Error("Return path must follow the page that started sign-in, not only checkout.");
+}
+if (authNextFromPathname("/account") !== undefined || authNextFromPathname("/") !== undefined) {
+  throw new Error("Account and home must not be stored as implicit return paths.");
+}
+if (isSupabaseAuthCookieName("sb-project-auth-token-code-verifier")) {
+  throw new Error("PKCE verifier cookies must not be treated as a session.");
+}
+if (isSupabaseAuthCookieName("sb-project-auth-token-flow-abcdefgh-code-verifier")) {
+  throw new Error("Per-flow PKCE verifier cookies must not be treated as a session.");
+}
+if (!isSupabaseAuthCookieName("sb-project-auth-token")) {
+  throw new Error("Session cookies must still be recognised.");
+}
+if (!isFrameworkRedirect({ digest: "NEXT_REDIRECT;push;https://accounts.google.com/o/oauth2;307;" })) {
+  throw new Error("OAuth redirect rejections must be recognised as navigation.");
+}
+if (isFrameworkRedirect(new Error("Google sign-in could not be completed."))) {
+  throw new Error("Real Google failures must not be treated as redirects.");
+}
+const shopperOrigin = resolveActionOrigin({
+  origin: "https://shop.example",
+  forwardedHost: "shop.example",
+  host: "shop.example",
+  forwardedProto: "https",
+  siteUrl: "https://canonical.example",
+});
+if (shopperOrigin !== "https://shop.example") {
+  throw new Error("OAuth callback origin must follow the shopper host.");
+}
+const foreignOrigin = resolveActionOrigin({
+  origin: "https://evil.test",
+  forwardedHost: null,
+  host: null,
+  forwardedProto: null,
+  siteUrl: "https://canonical.example",
+});
+if (foreignOrigin !== "https://canonical.example") {
+  throw new Error("Untrusted origins must not become the OAuth callback host.");
+}
+
+const googleAction = readFileSync(resolve(root, "src/app/(storefront)/account/actions.ts"), "utf8");
+const googleStart = googleAction.slice(
+  googleAction.indexOf("export async function signInWithGoogleAction"),
+  googleAction.indexOf("export async function signOutAction"),
+);
+if (!googleStart.includes("rememberAuthReturnPath") || !googleStart.includes("redirect(oauthUrl)")) {
+  throw new Error("Google sign-in must store the return path and redirect with the PKCE response.");
+}
+if (googleStart.includes("callbackUrl(")) {
+  throw new Error("Google redirectTo must be the exact callback URL, without a next query.");
+}
+if (!googleStart.includes("isFrameworkRedirect")) {
+  throw new Error("Google sign-in must rethrow framework redirects instead of reporting them as failures.");
+}
+const googleButtonSource = readFileSync(resolve(root, "src/components/account/GoogleAuthButton.tsx"), "utf8");
+if (!googleButtonSource.includes("isFrameworkRedirect")) {
+  throw new Error("Google button must not present the OAuth redirect rejection as a failure.");
+}
+const callbackSource = readFileSync(resolve(root, "src/app/auth/callback/route.ts"), "utf8");
+if (!callbackSource.includes("resolveAuthReturnPath") || !callbackSource.includes("AUTH_RETURN_COOKIE")) {
+  throw new Error("Auth callback must restore the stored return path.");
+}
+const refreshSource = readFileSync(resolve(root, "src/lib/supabase/refresh-session.ts"), "utf8");
+if (!refreshSource.includes("isOAuthCallbackExchange")) {
+  throw new Error("Session refresh must not run over the OAuth code exchange.");
 }
 
 console.log("verify-account: ok");

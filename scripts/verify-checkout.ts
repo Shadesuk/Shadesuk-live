@@ -601,8 +601,8 @@ if (!reviewSource.includes("CONTINUE_TO_PAYMENT") || !reviewSource.includes("ini
 if (!reviewSource.includes("openRazorpayCheckout") || !reviewSource.includes("verifyCheckoutPaymentAction")) {
   throw new Error("Checkout review must open official Checkout.js and send the callback to server verification.");
 }
-if (!reviewSource.includes("orderConfirmationPath") || !reviewSource.includes("router.replace")) {
-  throw new Error("Checkout review must redirect to confirmation only after the server capture result.");
+if (!reviewSource.includes("orderConfirmationPath") || !reviewSource.includes("{ scroll: true }")) {
+  throw new Error("Checkout review must redirect to confirmation only after the server capture result, and reset scroll.");
 }
 if (reviewSource.includes("RAZORPAY_KEY_SECRET") || reviewSource.includes("RAZORPAY_WEBHOOK_SECRET")) {
   throw new Error("Checkout review must never contain Razorpay secrets.");
@@ -668,6 +668,19 @@ if (!contactSource.includes("onBeforeAuth") || !contactSource.includes("saveChec
 }
 if (contactSource.toLowerCase().includes("discover") || contactSource.toLowerCase().includes("apple pay")) {
   throw new Error("Checkout contact must not add extra payment brands.");
+}
+
+const checkoutScrollSource = readFileSync(resolve("src/components/checkout/CheckoutPage.tsx"), "utf8");
+if (!checkoutScrollSource.includes("usePinPageStart") || !checkoutScrollSource.includes("checkout-heading")) {
+  throw new Error("Checkout step changes must pin the viewport to the top of the step.");
+}
+const checkoutCss = readFileSync(resolve("src/components/checkout/CheckoutPage.module.css"), "utf8");
+if (!checkoutCss.includes("overflow-anchor: none")) {
+  throw new Error("Checkout must disable scroll anchoring so the payment CTA does not hold the viewport.");
+}
+const confirmationSource = readFileSync(resolve("src/components/checkout/OrderConfirmation.tsx"), "utf8");
+if (!confirmationSource.includes("PinPageStart")) {
+  throw new Error("Order confirmation must open at the top of the page.");
 }
 
 const checkoutFiles = [

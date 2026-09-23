@@ -66,6 +66,7 @@ export function SiteHeader({
     function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setShopOpen(false);
+        shopRef.current?.querySelector("button")?.focus();
       }
     }
 

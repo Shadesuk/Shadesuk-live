@@ -14,5 +14,12 @@ export function supabaseAuthCookieOptions(): {
 }
 
 export function isSupabaseAuthCookieName(name: string): boolean {
+  // PKCE verifier cookies are named `<storageKey>-code-verifier` and
+  // `<storageKey>-flow-<id>-code-verifier`. The storage key itself contains
+  // `-auth-token`, so a substring check would treat the handshake cookie as a
+  // session and call getUser()/getClaims() before the code is exchanged.
+  if (name.includes("code-verifier")) {
+    return false;
+  }
   return name.includes("-auth-token");
 }

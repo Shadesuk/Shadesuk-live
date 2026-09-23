@@ -13,6 +13,7 @@ type ErrorStateProps = {
   onRetry?: () => void;
   actions?: ReactNode;
   titleAs?: "h1" | "h2";
+  titleId?: string;
 };
 
 export function ErrorState({
@@ -21,12 +22,14 @@ export function ErrorState({
   onRetry,
   actions,
   titleAs = "h1",
+  titleId,
 }: ErrorStateProps) {
   return (
     <EmptyState
       title={title}
       description={description}
       titleAs={titleAs}
+      titleId={titleId}
       actions={
         actions ??
         (onRetry ? (

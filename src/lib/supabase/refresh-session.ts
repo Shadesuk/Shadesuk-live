@@ -9,6 +9,13 @@ import { supabaseAuthCookieOptions } from "@/lib/supabase/cookie-options";
  * pages by itself — account routes still call getUser() on the server.
  */
 export async function refreshAccountSession(request: NextRequest): Promise<NextResponse> {
+  // The OAuth callback must exchange the code before any session refresh.
+  // getClaims() on a verifier-only cookie can clear the PKCE cookie and make
+  // a successful Google round trip look like a failure.
+  if (isOAuthCallbackExchange(request)) {
+    return NextResponse.next({ request });
+  }
+
   const resolved = resolveSupabasePublicConfig();
   if (!resolved.ok) {
     return NextResponse.next({ request });
@@ -43,4 +50,12 @@ export async function refreshAccountSession(request: NextRequest): Promise<NextR
   // Validates/refreshes the JWT. Do not trust an unverified session object here.
   await supabase.auth.getClaims();
   return response;
+}
+
+function isOAuthCallbackExchange(request: NextRequest): boolean {
+  if (request.nextUrl.pathname !== "/auth/callback") {
+    return false;
+  }
+  const params = request.nextUrl.searchParams;
+  return params.has("code") || params.has("error") || params.has("error_description");
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import { Drawer } from "@/components/ui/Drawer";
 import {
@@ -10,6 +11,7 @@ import {
   ORDERS_LABEL,
   TRACK_ORDER_LINK,
 } from "@/lib/account-copy";
+import { accountEntryHref } from "@/lib/auth-return";
 import { genderLinks, routes, shapeLinks } from "@/lib/navigation";
 import type { MenuBrandLink } from "@/lib/menu-brands";
 import { NavLink } from "./NavLink";
@@ -58,6 +60,22 @@ export function MobileNavDrawer({
 }: MobileNavDrawerProps) {
   const [panel, setPanel] = useState<Panel>("root");
   const titleId = "mobile-nav-title";
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const panelRef = useRef<Panel>(panel);
+  const pathname = usePathname();
+  const signInHref = accountEntryHref(pathname);
+
+  useEffect(() => {
+    if (!open) {
+      panelRef.current = "root";
+      return;
+    }
+    if (panelRef.current === panel) {
+      return;
+    }
+    panelRef.current = panel;
+    titleRef.current?.focus();
+  }, [open, panel]);
 
   const parent = useMemo<Panel | null>(() => {
     if (panel === "shop" || panel === "collections") {
@@ -94,7 +112,7 @@ export function MobileNavDrawer({
         ) : (
           <span />
         )}
-        <h2 id={titleId} className={`text-micro ${styles.title}`}>
+        <h2 id={titleId} ref={titleRef} tabIndex={-1} className={`text-micro ${styles.title}`}>
           {titles[panel]}
         </h2>
         <button type="button" className={styles.close} onClick={handleClose}>
@@ -128,7 +146,7 @@ export function MobileNavDrawer({
             </NavLink>
           </li>
           <li>
-            <NavLink href={routes.account} className={styles.item} onClick={handleClose}>
+            <NavLink href={signInHref} className={styles.item} onClick={handleClose}>
               {signedIn ? MY_ACCOUNT_LABEL : LOGIN_LABEL}
             </NavLink>
           </li>

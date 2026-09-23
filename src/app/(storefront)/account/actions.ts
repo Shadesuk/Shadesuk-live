@@ -1,6 +1,6 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   ACCOUNT_CREATE_FAILED,
@@ -25,6 +25,13 @@ import {
   validateSignInInput,
   validateAccountEmail,
 } from "@/lib/account-validate";
+import {
+  AUTH_RETURN_COOKIE,
+  AUTH_RETURN_MAX_AGE_SECONDS,
+  encodeAuthReturnCookie,
+  isFrameworkRedirect,
+  resolveAuthReturnPath,
+} from "@/lib/auth-return";
 import { authAttemptAllowed, authRateLimitKey } from "@/lib/auth-rate-limit";
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import {
@@ -32,7 +39,9 @@ import {
   hasCheckoutFieldErrors,
   validateCheckoutAddress,
 } from "@/lib/checkout-validate";
+import { guestCartCookieSecure } from "@/lib/guest-cart-cookie-secure";
 import { routes } from "@/lib/navigation";
+import { resolveActionOrigin } from "@/lib/request-origin";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import { site } from "@/lib/site";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -219,22 +228,48 @@ export async function signInWithGoogleAction(input?: {
   if (!isSupabaseConfigured()) {
     return { status: "error", message: GOOGLE_UNAVAILABLE };
   }
+  const next = resolveAuthReturnPath({ queryNext: input?.next });
+  let oauthUrl: string | null = null;
   try {
+    await rememberAuthReturnPath(next);
     const supabase = await createSupabaseServerClient();
+    const requestHeaders = await headers();
+    const origin = resolveActionOrigin({
+      origin: requestHeaders.get("origin"),
+      forwardedHost: requestHeaders.get("x-forwarded-host"),
+      host: requestHeaders.get("host"),
+      forwardedProto: requestHeaders.get("x-forwarded-proto"),
+      siteUrl: site.url,
+    });
+    // Exact `/auth/callback` — no `next` query. Supabase allow-lists the
+    // redirect URL including the query string, so `?next=/checkout` misses
+    // the registered callback and the provider sends the shopper to the site root.
+    const redirectTo = new URL(routes.authCallback, origin).toString();
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: callbackUrl(resolveSafeNextPath(input?.next)),
+        redirectTo,
         skipBrowserRedirect: true,
       },
     });
     if (error || !data.url) {
+      await clearAuthReturnPath();
       return { status: "error", message: GOOGLE_UNAVAILABLE };
     }
-    return { status: "oauth", url: data.url };
-  } catch {
+    oauthUrl = data.url;
+  } catch (error) {
+    if (isFrameworkRedirect(error)) {
+      throw error;
+    }
     return { status: "error", message: GOOGLE_FAILED };
   }
+  if (!oauthUrl) {
+    return { status: "error", message: GOOGLE_FAILED };
+  }
+  // One response: PKCE cookies + navigation. Returning the URL for a client
+  // `location.assign` lets the cookie write revalidate this page first, which
+  // paints a failure before the Google account picker.
+  redirect(oauthUrl);
 }
 
 export async function signOutAction(): Promise<void> {
@@ -379,6 +414,32 @@ async function allowAuthAttempt(kind: "sign-in" | "reset" | "register", email: s
     requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     requestHeaders.get("x-real-ip");
   return authAttemptAllowed(kind, authRateLimitKey(ip, email));
+}
+
+async function rememberAuthReturnPath(next: string): Promise<void> {
+  const store = await cookies();
+  store.set({
+    name: AUTH_RETURN_COOKIE,
+    value: encodeAuthReturnCookie(next),
+    httpOnly: true,
+    path: "/",
+    sameSite: "lax",
+    secure: guestCartCookieSecure(),
+    maxAge: AUTH_RETURN_MAX_AGE_SECONDS,
+  });
+}
+
+async function clearAuthReturnPath(): Promise<void> {
+  const store = await cookies();
+  store.set({
+    name: AUTH_RETURN_COOKIE,
+    value: "",
+    httpOnly: true,
+    path: "/",
+    sameSite: "lax",
+    secure: guestCartCookieSecure(),
+    maxAge: 0,
+  });
 }
 
 function callbackUrl(next: string): string {

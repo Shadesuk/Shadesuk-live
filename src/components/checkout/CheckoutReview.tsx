@@ -109,7 +109,7 @@ export function CheckoutReview({
         verified.orderReference
       ) {
         setPaymentUi("verified");
-        router.replace(orderConfirmationPath(verified.orderReference));
+        router.replace(orderConfirmationPath(verified.orderReference), { scroll: true });
         return;
       }
       setPaymentError(PAYMENT_CONFIRM_ERROR);

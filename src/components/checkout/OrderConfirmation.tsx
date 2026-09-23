@@ -1,4 +1,5 @@
 import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PinPageStart } from "@/lib/page-scroll";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { OrderConfirmationPurchase } from "@/components/checkout/OrderConfirmationPurchase";
 import {
@@ -28,24 +29,29 @@ type OrderConfirmationProps = {
 export function OrderConfirmation({ order }: OrderConfirmationProps) {
   if (!order) {
     return (
+      <>
+      <PinPageStart focusId="order-confirmation-heading" />
       <ErrorState
         title={ORDER_CONFIRMATION_UNPAID_TITLE}
         description={ORDER_CONFIRMATION_UNPAID_BODY}
         titleAs="h1"
+        titleId="order-confirmation-heading"
         actions={
           <ButtonLink href={routes.trackOrder} variant="secondary">
             {ORDER_CONFIRMATION_NEXT}
           </ButtonLink>
         }
       />
+      </>
     );
   }
 
   return (
     <div className={styles.review} data-order-confirmation>
+      <PinPageStart focusId="order-confirmation-heading" />
       <OrderConfirmationPurchase orderReference={order.orderReference} total={order.total} />
       <section className={styles.block} aria-labelledby="order-confirmation-heading">
-        <h1 id="order-confirmation-heading" className="text-h3">
+        <h1 id="order-confirmation-heading" tabIndex={-1} className="text-h3">
           {ORDER_CONFIRMATION_TITLE}
         </h1>
         <p className="text-small">{ORDER_CONFIRMATION_BODY}</p>
