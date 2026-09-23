@@ -86,7 +86,7 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
               alt={primary.alt}
               fill
               className={styles.image}
-              style={{ objectFit: "contain" }}
+              style={{ objectFit: "cover" }}
               sizes={imageSizes}
               priority={priority}
             />
@@ -99,7 +99,7 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
               alt=""
               fill
               className={`${styles.image} ${styles.secondary}`}
-              style={{ objectFit: "contain" }}
+              style={{ objectFit: "cover" }}
               sizes={imageSizes}
             />
           ) : null}
