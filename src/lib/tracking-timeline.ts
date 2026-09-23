@@ -53,29 +53,34 @@ export function isExceptionTracking(
   return status === "exception" || shipment?.status === "exception";
 }
 
+export function isNoShipmentYet(shipment: CustomerShipmentView | null): boolean {
+  return shipment == null;
+}
+
 export function isTrackingUnavailable(
   status: OrderStatus,
   shipment: CustomerShipmentView | null,
 ): boolean {
-  if (isExceptionTracking(status, shipment)) {
+  if (isExceptionTracking(status, shipment) || !shipment) {
     return false;
   }
-  if (status === "tracking_unavailable" || shipment?.status === "tracking_unavailable") {
+  if (status === "tracking_unavailable" || shipment.status === "tracking_unavailable") {
     return true;
   }
   if (
     status === "dispatched" ||
     status === "in_transit" ||
     status === "out_for_delivery" ||
-    status === "delivered"
+    status === "delivered" ||
+    shipment.status === "dispatched" ||
+    shipment.status === "in_transit" ||
+    shipment.status === "out_for_delivery" ||
+    shipment.status === "delivered"
   ) {
     return false;
   }
-  const hasTracking = Boolean(shipment?.trackingNumber?.trim() || shipment?.trackingUrl);
-  if (hasTracking) {
-    return false;
-  }
-  return true;
+  const hasTracking = Boolean(shipment.trackingNumber?.trim() || shipment.trackingUrl);
+  return !hasTracking;
 }
 
 export function timelineStateLabel(state: TimelineStepState): string {
@@ -130,14 +135,21 @@ function currentStepIndex(
   status: OrderStatus,
   shipment: CustomerShipmentView | null,
 ): number {
-  if (status === "exception" || status === "tracking_unavailable") {
+  const unavailable =
+    status === "tracking_unavailable" || shipment?.status === "tracking_unavailable";
+  const exception = status === "exception" || shipment?.status === "exception";
+  if (exception || unavailable) {
     const fromEvents = latestMainStepFromShipment(shipment);
     if (fromEvents) {
       return CUSTOMER_TRACKING_STEPS.indexOf(fromEvents);
     }
-    return status === "tracking_unavailable" ? 0 : 1;
+    return unavailable ? 0 : 1;
   }
-  return CUSTOMER_TRACKING_STEPS.indexOf(status as CustomerTrackingStep);
+
+  const orderIndex = isMainStep(status) ? CUSTOMER_TRACKING_STEPS.indexOf(status) : -1;
+  const shipmentIndex =
+    shipment && isMainStep(shipment.status) ? CUSTOMER_TRACKING_STEPS.indexOf(shipment.status) : -1;
+  return Math.max(orderIndex, shipmentIndex);
 }
 
 function latestMainStepFromShipment(

@@ -6,7 +6,7 @@ import { routes } from "@/lib/navigation";
 import { listOwnCustomerOrders } from "@/services/customer-orders";
 
 export default async function AccountOrdersPage() {
-  await requireAccountUser();
+  await requireAccountUser(routes.accountOrders);
   const result = await listOwnCustomerOrders();
   if (result.status === "unauthenticated") {
     redirect(routes.account);

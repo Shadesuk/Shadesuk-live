@@ -24,3 +24,10 @@ export const UNITED_KINGDOM = "United Kingdom";
 
 export const DELIVERY_UPDATE_TITLE = "Delivery update";
 export const DELIVERY_UPDATE_BODY = "Your order is taking longer than expected.";
+
+export const CANCELLED_STATUS_LABEL = "CANCELLED";
+export const CANCELLED_BODY = "This order was cancelled.";
+export const SHIPMENT_LABEL = "Shipment";
+export const TRACKING_NOT_SUPPLIED_BODY = "Tracking information has not been supplied yet.";
+export const VERIFICATION_EXPIRED_TITLE = "Tracking check expired";
+export const VERIFICATION_EXPIRED_BODY = "Enter your order reference and email again.";

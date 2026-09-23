@@ -1,7 +1,7 @@
 import { minorToMajorGbp, STORE_CURRENCY } from "../money";
 import type { CustomerPaymentState } from "../payment/stub";
 import { customerPaymentState } from "../payment/stub";
-import type { CustomerShipmentView } from "../fulfilment/shipment";
+import type { CustomerShipmentView, ShipmentStatus } from "../fulfilment/shipment";
 import type { OrderEventRow, OrderItemRow, OrderRow, OrderStatus } from "./schema";
 import { customerOrderStatusLabel, type CustomerOrderStatusLabel } from "./status";
 
@@ -38,6 +38,8 @@ export type CustomerOrderListItem = {
   quantity: number;
   total: number;
   currency: typeof STORE_CURRENCY;
+  cancelled: boolean;
+  shipmentStatus: ShipmentStatus | null;
 };
 
 /**
@@ -64,6 +66,7 @@ export type CustomerOrderView = {
   paymentState: CustomerPaymentState;
   shipment: CustomerShipmentView | null;
   events: CustomerVisibleOrderEventView[];
+  cancelled: boolean;
 };
 
 /**
@@ -95,6 +98,7 @@ export type GuestOrderTrackingView = {
   currency: typeof STORE_CURRENCY;
   deliveryAddress: GuestDeliveryAddressView | null;
   shipment: CustomerShipmentView | null;
+  cancelled: boolean;
 };
 
 export function toOrderItemSnapshotView(row: OrderItemRow): OrderItemSnapshotView {
@@ -134,6 +138,7 @@ export function toGuestOrderTrackingView(input: {
     currency: STORE_CURRENCY,
     deliveryAddress: toGuestDeliveryAddress(input.order.delivery_address),
     shipment: input.shipment,
+    cancelled: input.order.payment_status === "cancelled",
   };
 }
 
@@ -162,12 +167,14 @@ export function toCustomerOrderView(input: {
     paymentState: customerPaymentState(input.order.payment_status),
     shipment: input.shipment,
     events: toCustomerVisibleOrderEvents(input.events ?? []),
+    cancelled: input.order.payment_status === "cancelled",
   };
 }
 
 export function toCustomerOrderListItem(input: {
   order: OrderRow;
   items: OrderItemRow[];
+  shipmentStatus?: ShipmentStatus | null;
 }): CustomerOrderListItem {
   const first = input.items[0];
   return {
@@ -181,6 +188,8 @@ export function toCustomerOrderListItem(input: {
     quantity: first?.quantity ?? 0,
     total: minorToMajorGbp(input.order.total_minor),
     currency: STORE_CURRENCY,
+    cancelled: input.order.payment_status === "cancelled",
+    shipmentStatus: input.shipmentStatus ?? null,
   };
 }
 

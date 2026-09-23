@@ -5,6 +5,7 @@ import { NETWORK_ERROR } from "@/lib/account-copy";
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import { clientAddressFromHeaders } from "@/lib/request-address";
+import { clearGuestTrackingGrant } from "@/lib/tracking-grant-cookie";
 import { bindTrackingLimiterId } from "@/lib/tracking-limiter-cookie";
 import { lookupGuestOrder } from "@/services/guest-tracking";
 import type { GuestTrackingActionResult } from "@/types/tracking";
@@ -30,4 +31,11 @@ export async function trackGuestOrderAction(input: {
     ip,
     limiterId,
   });
+}
+
+export async function clearGuestTrackingGrantAction(): Promise<void> {
+  if (!(await cartActionOriginAllowed())) {
+    return;
+  }
+  await clearGuestTrackingGrant();
 }

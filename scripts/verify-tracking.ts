@@ -34,6 +34,11 @@ import {
 } from "../src/lib/guest-cookie-hmac";
 import { buildTrackingTimeline } from "../src/lib/tracking-timeline";
 import { safeHttpUrl } from "../src/lib/tracking-url";
+import {
+  decodeTrackingGrant,
+  encodeTrackingGrant,
+  TRACKING_GRANT_TTL_SECONDS,
+} from "../src/lib/tracking-grant";
 import { hasForbiddenOwnershipKey } from "../src/lib/ownership-keys";
 
 const root = resolve(process.cwd());
@@ -390,6 +395,92 @@ if (unavailableTimeline.find((step) => step.status === "delivered")?.state !== "
   throw new Error("TRACKING NOT AVAILABLE must not complete later timeline steps.");
 }
 
+const shipmentLed = buildTrackingTimeline({
+  status: "placed",
+  placedAt: "2026-09-06T10:00:00.000Z",
+  shipment: {
+    status: "in_transit",
+    carrierName: "Carrier",
+    trackingNumber: "AB123",
+    trackingUrl: "https://carrier.example/t/1",
+    shippedAt: "2026-09-09T10:00:00.000Z",
+    deliveredAt: null,
+    events: [
+      {
+        status: "in_transit",
+        description: "On the way",
+        occurredAt: "2026-09-10T10:00:00.000Z",
+      },
+    ],
+  },
+});
+if (shipmentLed.find((step) => step.status === "in_transit")?.state !== "current") {
+  throw new Error("Tracking timeline must follow a shipment status ahead of the order status.");
+}
+if (shipmentLed.find((step) => step.status === "delivered")?.state !== "upcoming") {
+  throw new Error("A shipment in transit must not mark delivery complete.");
+}
+
+const grantSecret = "tracking-grant-test-secret";
+const grantLimiter = createTrackingLimiterId();
+const grantNow = Date.parse("2026-09-22T12:00:00.000Z");
+const grant = encodeTrackingGrant({
+  orderReference: reference,
+  limiterId: grantLimiter,
+  secret: grantSecret,
+  now: grantNow,
+});
+if (!grant || grant.includes("@") || grant.includes("guest@example.com")) {
+  throw new Error("Guest verification grant must omit the email address.");
+}
+const grantValid = decodeTrackingGrant({
+  value: grant,
+  limiterId: grantLimiter,
+  secret: grantSecret,
+  now: grantNow + 60_000,
+});
+if (grantValid.status !== "valid" || grantValid.orderReference !== reference) {
+  throw new Error("A fresh guest verification grant must verify.");
+}
+const grantExpired = decodeTrackingGrant({
+  value: grant,
+  limiterId: grantLimiter,
+  secret: grantSecret,
+  now: grantNow + (TRACKING_GRANT_TTL_SECONDS + 5) * 1000,
+});
+if (grantExpired.status !== "expired") {
+  throw new Error("An elapsed guest verification grant must expire.");
+}
+const grantTampered = decodeTrackingGrant({
+  value: `${grant.slice(0, -4)}abcd`,
+  limiterId: grantLimiter,
+  secret: grantSecret,
+  now: grantNow,
+});
+if (grantTampered.status !== "invalid") {
+  throw new Error("A tampered guest verification grant must be invalid.");
+}
+const grantWrongBrowser = decodeTrackingGrant({
+  value: grant,
+  limiterId: createTrackingLimiterId(),
+  secret: grantSecret,
+  now: grantNow,
+});
+if (grantWrongBrowser.status !== "invalid") {
+  throw new Error("A guest verification grant must stay bound to the tracking limiter.");
+}
+if (
+  decodeTrackingGrant({
+    value: grant,
+    limiterId: grantLimiter,
+    secret: grantSecret,
+    now: grantNow,
+  }).status === "valid" &&
+  JSON.stringify(grantValid).includes("email")
+) {
+  throw new Error("Grant verification must not echo an email.");
+}
+
 if (hasForbiddenOwnershipKey({ orderReference: reference, email: "a@b.com", sessionId: "nope" })) {
   // expected true
 } else {
@@ -455,6 +546,15 @@ if (!service.includes("limiterId")) {
 if (!service.includes("guestTrackingVerified") || !service.includes("toGuestOrderTrackingView")) {
   throw new Error("Guest tracking must verify email then return GuestOrderTrackingView.");
 }
+if (!service.includes("lookupGrantedGuestOrder") || !service.includes("rememberGuestTrackingGrant")) {
+  throw new Error("Guest tracking must keep a short-lived verification grant after email match.");
+}
+const grantLookup = service.slice(service.indexOf("export async function lookupGrantedGuestOrder"));
+const grantDbLookup = grantLookup.indexOf("loadOrderByReference");
+const grantReject = grantLookup.indexOf('grant.status === "invalid"');
+if (grantReject < 0 || grantDbLookup < 0 || grantReject > grantDbLookup) {
+  throw new Error("Invalid guest verification must be rejected before an order lookup.");
+}
 if (service.includes("CustomerOrderView") || service.includes("toCustomerOrderView")) {
   throw new Error("Guest tracking must not reuse CustomerOrderView.");
 }
@@ -486,6 +586,16 @@ const result = readFileSync(resolve(root, "src/components/tracking/TrackOrderRes
 const orderDetail = readFileSync(resolve(root, "src/components/order/OrderDetail.tsx"), "utf8");
 if (!orderDetail.includes("TRACKING_UNAVAILABLE_COPY") || !orderDetail.includes("TRACK_WITH_CARRIER")) {
   throw new Error("Order detail must handle unavailable tracking and pasted carrier URLs.");
+}
+if (!orderDetail.includes("isNoShipmentYet") || !orderDetail.includes("CANCELLED_STATUS_LABEL")) {
+  throw new Error("Order detail must distinguish no shipment, unavailable tracking, and cancellation.");
+}
+if (!form.includes("NETWORK_ERROR") || !form.includes("VERIFICATION_EXPIRED_TITLE")) {
+  throw new Error("Guest tracking must show network failure and expired verification.");
+}
+const grantCookie = readFileSync(resolve(root, "src/lib/tracking-grant-cookie.ts"), "utf8");
+if (!grantCookie.includes("httpOnly: true") || grantCookie.includes("email")) {
+  throw new Error("Guest verification cookie must be httpOnly and must not store an email.");
 }
 if (!orderDetail.includes("safeHttpUrl") || orderDetail.includes("javascript:")) {
   throw new Error("Carrier links must use the sanitised HTTPS tracking URL only.");

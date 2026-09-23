@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
+import { resolveSafeNextPath } from "@/lib/account-validate";
 import { routes } from "@/lib/navigation";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { isSupabaseAuthCookieName } from "@/lib/supabase/cookie-options";
@@ -29,12 +30,49 @@ export async function getOptionalAccountUser(): Promise<AccountUser | null> {
   }
 }
 
-export async function requireAccountUser(): Promise<AccountUser> {
-  const user = await getOptionalAccountUser();
-  if (!user) {
-    redirect(routes.account);
+export async function requireAccountUser(nextPath?: string): Promise<AccountUser> {
+  const access = await readAccountAccess();
+  if (access.status === "ok") {
+    return access.user;
   }
-  return user;
+  redirect(accountSignInPath(access.status, nextPath));
+}
+
+async function readAccountAccess(): Promise<
+  | { status: "ok"; user: AccountUser }
+  | { status: "anonymous" }
+  | { status: "expired" }
+> {
+  if (!isSupabaseConfigured()) {
+    return { status: "anonymous" };
+  }
+  try {
+    const store = await cookies();
+    if (!store.getAll().some((cookie) => isSupabaseAuthCookieName(cookie.name))) {
+      return { status: "anonymous" };
+    }
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      return { status: "expired" };
+    }
+    return { status: "ok", user: toAccountUser(data.user) };
+  } catch {
+    return { status: "expired" };
+  }
+}
+
+function accountSignInPath(access: "anonymous" | "expired", nextPath?: string): string {
+  const params = new URLSearchParams();
+  if (access === "expired") {
+    params.set("error", "session");
+  }
+  const next = resolveSafeNextPath(nextPath, "");
+  if (next && next !== routes.account) {
+    params.set("next", next);
+  }
+  const query = params.toString();
+  return query ? `${routes.account}?${query}` : routes.account;
 }
 
 export function toAccountUser(user: User): AccountUser {

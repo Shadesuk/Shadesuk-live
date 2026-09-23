@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { trackGuestOrderAction } from "@/app/(storefront)/track-order/actions";
+import {
+  clearGuestTrackingGrantAction,
+  trackGuestOrderAction,
+} from "@/app/(storefront)/track-order/actions";
 import { TrackOrderResult } from "@/components/tracking/TrackOrderResult";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
-import { EMAIL_REQUIRED } from "@/lib/account-copy";
+import { EMAIL_REQUIRED, NETWORK_ERROR } from "@/lib/account-copy";
 import {
   EMAIL_LABEL,
   GENERIC_LOOKUP_ERROR,
@@ -17,19 +20,33 @@ import {
   TRACK_ORDER_ACTION,
   TRACK_YOUR_ORDER,
   TRACKING_LOOKUP_PENDING,
+  VERIFICATION_EXPIRED_BODY,
+  VERIFICATION_EXPIRED_TITLE,
 } from "@/lib/tracking-copy";
 import { track } from "@/lib/analytics";
 import type { GuestOrderTrackingView } from "@/contracts/order/dto";
 import styles from "./Tracking.module.css";
 
-export function TrackOrderForm() {
+export function TrackOrderForm({
+  initialOrder = null,
+  verificationExpired = false,
+  orderMissing = false,
+}: {
+  initialOrder?: GuestOrderTrackingView | null;
+  verificationExpired?: boolean;
+  orderMissing?: boolean;
+}) {
   const [orderReference, setOrderReference] = useState("");
   const [email, setEmail] = useState("");
-  const [formError, setFormError] = useState("");
-  const [formErrorTitle, setFormErrorTitle] = useState("");
+  const [formError, setFormError] = useState(
+    verificationExpired ? VERIFICATION_EXPIRED_BODY : orderMissing ? GUEST_ORDER_NOT_FOUND_BODY : "",
+  );
+  const [formErrorTitle, setFormErrorTitle] = useState(
+    verificationExpired ? VERIFICATION_EXPIRED_TITLE : orderMissing ? GUEST_ORDER_NOT_FOUND_TITLE : "",
+  );
   const [fieldErrors, setFieldErrors] = useState<{ orderReference?: string; email?: string }>({});
   const [pending, setPending] = useState(false);
-  const [order, setOrder] = useState<GuestOrderTrackingView | null>(null);
+  const [order, setOrder] = useState<GuestOrderTrackingView | null>(initialOrder);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,7 +67,16 @@ export function TrackOrderForm() {
     setPending(true);
     setFormError("");
     setFormErrorTitle("");
-    const result = await trackGuestOrderAction({ orderReference, email });
+    let result: Awaited<ReturnType<typeof trackGuestOrderAction>>;
+    try {
+      result = await trackGuestOrderAction({ orderReference, email });
+    } catch {
+      setOrder(null);
+      setFormErrorTitle("");
+      setFormError(NETWORK_ERROR);
+      setPending(false);
+      return;
+    }
     if (result.status === "ok") {
       setOrder(result.order);
       setPending(false);
@@ -72,7 +98,16 @@ export function TrackOrderForm() {
   }
 
   if (order) {
-    return <TrackOrderResult order={order} onTrackAnother={() => setOrder(null)} />;
+    return (
+      <TrackOrderResult
+        order={order}
+        onTrackAnother={() => {
+          void clearGuestTrackingGrantAction()
+            .catch(() => undefined)
+            .then(() => setOrder(null));
+        }}
+      />
+    );
   }
 
   return (
