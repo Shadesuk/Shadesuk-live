@@ -2,12 +2,13 @@
 
 import { useActionState } from "react";
 import { ADMIN_ORDER_STATUS_LABELS, isShipmentStatus } from "@/contracts/admin/dashboard";
+import { canDispatchOrder } from "@/contracts/fulfilment/dispatch";
 import {
   ADMIN_SHIPMENT_STATUS_LABELS,
   type AdminShipmentView,
 } from "@/contracts/admin/orders";
 import { SHIPMENT_STATUSES } from "@/contracts/fulfilment/shipment";
-import type { OrderStatus } from "@/contracts/order/schema";
+import type { OrderStatus, PaymentStatus } from "@/contracts/order/schema";
 import {
   saveAdminFulfilmentAction,
   updateAdminOrderStatusAction,
@@ -17,6 +18,8 @@ import { Button } from "@/components/ui/Button";
 import { Field, FieldSelect } from "@/components/ui/Field";
 import {
   ADMIN_ORDER_CARRIER,
+  ADMIN_ORDER_DISPATCH,
+  ADMIN_ORDER_DISPATCH_HINT,
   ADMIN_ORDER_SAVE_FULFILMENT,
   ADMIN_ORDER_SAVE_STATUS,
   ADMIN_ORDER_SAVING,
@@ -76,15 +79,24 @@ export function AdminOrderStatusForm({
 export function AdminFulfilmentForm({
   orderId,
   shipment,
+  paymentStatus,
+  orderStatus,
 }: {
   orderId: string;
   shipment: AdminShipmentView | null;
+  paymentStatus: PaymentStatus;
+  orderStatus: OrderStatus;
 }) {
   const [state, action, pending] = useActionState(saveAdminFulfilmentAction, idle);
   const values = state.values;
   const status = isShipmentStatus(values?.status)
     ? values.status
     : shipment?.status ?? "pending";
+  const dispatchable = canDispatchOrder({
+    paymentStatus,
+    orderStatus,
+    shipmentStatus: shipment?.status ?? null,
+  });
   return (
     <form className={styles.form} action={action} noValidate>
       <input type="hidden" name="orderId" value={orderId} />
@@ -129,15 +141,45 @@ export function AdminFulfilmentForm({
         ))}
       </FieldSelect>
       <FormStatus state={state} pending={pending} />
-      <Button type="submit" variant="primary" loading={pending}>
-        {pending
-          ? ADMIN_ORDER_SAVING
-          : state.status === "error" || state.status === "forbidden"
-            ? ADMIN_ORDERS_RETRY
-            : state.status === "ok"
-              ? ADMIN_ORDER_UPDATE_SAVED
-              : ADMIN_ORDER_SAVE_FULFILMENT}
-      </Button>
+      {state.status === "invalid" && state.errors?.payment ? (
+        <p className={`text-small ${styles.banner}`} role="alert">
+          {state.errors.payment}
+        </p>
+      ) : null}
+      {dispatchable ? (
+        <p className={`text-small ${styles.banner}`} id="admin-dispatch-hint">
+          {ADMIN_ORDER_DISPATCH_HINT}
+        </p>
+      ) : null}
+      <div className={styles.filterActions}>
+        {dispatchable ? (
+          <Button
+            type="submit"
+            name="intent"
+            value="dispatch"
+            variant="primary"
+            loading={pending}
+            aria-describedby="admin-dispatch-hint"
+          >
+            {pending ? ADMIN_ORDER_SAVING : ADMIN_ORDER_DISPATCH}
+          </Button>
+        ) : null}
+        <Button
+          type="submit"
+          name="intent"
+          value="save"
+          variant={dispatchable ? "secondary" : "primary"}
+          loading={pending}
+        >
+          {pending
+            ? ADMIN_ORDER_SAVING
+            : state.status === "error" || state.status === "forbidden"
+              ? ADMIN_ORDERS_RETRY
+              : state.status === "ok"
+                ? ADMIN_ORDER_UPDATE_SAVED
+                : ADMIN_ORDER_SAVE_FULFILMENT}
+        </Button>
+      </div>
     </form>
   );
 }

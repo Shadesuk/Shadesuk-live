@@ -11,11 +11,23 @@ import {
   adminOrderSearchReference,
   adminOrderStatusOptions,
   isUnchangedAdminFulfilment,
+  ADMIN_DISPATCH_CARRIER_ERROR,
+  ADMIN_DISPATCH_UNPAID_ERROR,
+  awaitingFulfilmentListConflict,
+  parseAdminDispatchInput,
   parseAdminFulfilmentInput,
   parseAdminOrderListQuery,
   parseAdminOrderStatusInput,
   sanitizeAdminOrderSearch,
 } from "../src/contracts/admin/orders";
+import {
+  canDispatchOrder,
+  isAwaitingFulfilment,
+  isIdempotentDispatch,
+  legalOrderStatusPath,
+  orderStatusForShipment,
+  resolveDispatchShipmentStatus,
+} from "../src/contracts/fulfilment/dispatch";
 import { isLegalOrderStatusTransition, legalOrderStatusTargets } from "../src/contracts/order/status";
 import {
   ADMIN_ORDER_GUEST,
@@ -70,8 +82,39 @@ const queryString = adminOrderListQueryString(parsed);
 if (!queryString.includes("status=processing") || !queryString.includes("page=2")) {
   throw new Error("List query string must round-trip filters and page.");
 }
-if (adminOrderListQueryString({ q: "", status: null, payment: null, period: "all", page: 1 }) !== "") {
+if (
+  adminOrderListQueryString({
+    q: "",
+    status: null,
+    payment: null,
+    fulfilment: null,
+    period: "all",
+    page: 1,
+  }) !== ""
+) {
   throw new Error("Default list query must not add empty params.");
+}
+if (parseAdminOrderListQuery({ fulfilment: "awaiting" }).fulfilment !== "awaiting") {
+  throw new Error("Awaiting fulfilment must be a list filter.");
+}
+if (parseAdminOrderListQuery({ fulfilment: "shipped" }).fulfilment !== null) {
+  throw new Error("Unknown fulfilment filters must be ignored.");
+}
+const awaitingQuery = parseAdminOrderListQuery({ fulfilment: "awaiting", payment: "captured" });
+if (!adminOrderListQueryString(awaitingQuery).includes("fulfilment=awaiting")) {
+  throw new Error("Awaiting fulfilment must round-trip in the list query.");
+}
+if (!isAwaitingFulfilment({ paymentStatus: "captured", orderStatus: "processing" })) {
+  throw new Error("Captured processing orders are awaiting fulfilment.");
+}
+if (isAwaitingFulfilment({ paymentStatus: "captured", orderStatus: "dispatched" })) {
+  throw new Error("Dispatched orders are no longer awaiting fulfilment.");
+}
+if (isAwaitingFulfilment({ paymentStatus: "created", orderStatus: "placed" })) {
+  throw new Error("Unpaid orders must not be listed as awaiting fulfilment.");
+}
+if (!awaitingFulfilmentListConflict(parseAdminOrderListQuery({ fulfilment: "awaiting", status: "delivered" }))) {
+  throw new Error("Awaiting fulfilment cannot include delivered orders.");
 }
 
 if (sanitizeAdminOrderSearch("a".repeat(200)).length !== 80) {
@@ -171,6 +214,78 @@ if (httpsOk.ok && httpsOk.value.status === "delivered") {
 if (parseAdminFulfilmentInput({ carrierName: "", trackingNumber: "", trackingUrl: "", status: "lost" }).ok) {
   throw new Error("Unknown shipment statuses must be rejected.");
 }
+const missingTracking = parseAdminDispatchInput({
+  carrierName: "Royal Mail",
+  trackingNumber: "",
+  trackingUrl: "",
+});
+if (!missingTracking.ok || missingTracking.value.shipmentStatus !== "tracking_unavailable") {
+  throw new Error("Dispatch without a tracking number must record tracking unavailable, not a failure.");
+}
+if (resolveDispatchShipmentStatus("AB123") !== "dispatched") {
+  throw new Error("Dispatch with a tracking number must set the shipment to dispatched.");
+}
+const invalidDispatch = parseAdminDispatchInput({
+  carrierName: " ",
+  trackingNumber: "javascript:alert(1)",
+  trackingUrl: "http://example.com/track",
+});
+if (invalidDispatch.ok) {
+  throw new Error("Dispatch must require a carrier and reject invalid tracking.");
+}
+if (
+  invalidDispatch.errors.carrierName !== ADMIN_DISPATCH_CARRIER_ERROR ||
+  !invalidDispatch.errors.trackingNumber ||
+  !invalidDispatch.errors.trackingUrl
+) {
+  throw new Error("Dispatch must require a carrier and reject invalid tracking.");
+}
+if (ADMIN_DISPATCH_UNPAID_ERROR !== "Only paid orders can be dispatched.") {
+  throw new Error("Unpaid dispatch must stay a specific operator-facing error.");
+}
+const placedPath = legalOrderStatusPath("placed", "dispatched");
+if (!placedPath || placedPath.join(",") !== "processing,dispatched") {
+  throw new Error("Dispatch must follow the existing placed → processing → dispatched path.");
+}
+if (legalOrderStatusPath("delivered", "dispatched") !== null) {
+  throw new Error("Delivered orders must not be dispatched backwards.");
+}
+if (orderStatusForShipment("pending") !== null) {
+  throw new Error("A pending shipment must not move the order status.");
+}
+if (orderStatusForShipment("dispatched") !== "dispatched") {
+  throw new Error("Shared shipment statuses must map onto the same order status.");
+}
+if (!canDispatchOrder({ paymentStatus: "captured", orderStatus: "placed", shipmentStatus: null })) {
+  throw new Error("A paid order with no shipment must be dispatchable.");
+}
+if (canDispatchOrder({ paymentStatus: "authorized", orderStatus: "processing", shipmentStatus: null })) {
+  throw new Error("Authorized but unpaid orders must not be dispatchable.");
+}
+if (canDispatchOrder({ paymentStatus: "captured", orderStatus: "processing", shipmentStatus: "in_transit" })) {
+  throw new Error("Dispatch must not rewind a shipment that is already in transit.");
+}
+if (!isIdempotentDispatch(
+  { carrierName: "Royal Mail", trackingNumber: "AB123", trackingUrl: "https://example.com/track", status: "dispatched" },
+  { carrierName: "Royal Mail", trackingNumber: "AB123", trackingUrl: "https://example.com/track", shipmentStatus: "dispatched" },
+)) {
+  throw new Error("Repeating the same dispatch must be treated as already done.");
+}
+if (isIdempotentDispatch(null, {
+  carrierName: "Royal Mail",
+  trackingNumber: "AB123",
+  trackingUrl: "",
+  shipmentStatus: "dispatched",
+})) {
+  throw new Error("The first dispatch must not be treated as a duplicate.");
+}
+if (!isIdempotentDispatch(
+  { carrierName: "Royal Mail", trackingNumber: "AB123", trackingUrl: "https://example.com/track", status: "in_transit" },
+  { carrierName: "Other", trackingNumber: "ZZ", trackingUrl: "", shipmentStatus: "dispatched" },
+)) {
+  throw new Error("A later shipment status must not be overwritten by a second dispatch.");
+}
+
 if (parseAdminFulfilmentInput({
   carrierName: "x".repeat(ADMIN_FULFILMENT_TEXT_MAX + 8),
   trackingNumber: "",
@@ -234,11 +349,30 @@ const fulfilmentFn = service.slice(
   service.indexOf("export async function saveAdminFulfilment"),
   service.indexOf("function shipmentWritePayload"),
 );
-if (/\.from\("orders"\)[\s\S]*\.update\(/.test(fulfilmentFn.replace(/\.from\("shipments"\)[\s\S]*?return \{ status: "ok" \}/g, ""))) {
-  throw new Error("Saving fulfilment must not update orders.status.");
-}
 if (fulfilmentFn.includes('.from("orders").update') || fulfilmentFn.includes("status: parsed.status")) {
-  throw new Error("Saving fulfilment must not write orders.status.");
+  throw new Error("Saving fulfilment must not write orders.status directly.");
+}
+if (!fulfilmentFn.includes("syncCapturedOrder")) {
+  throw new Error("Captured fulfilment saves must synchronize order status.");
+}
+const syncFn = service.slice(
+  service.indexOf("async function syncOrderStatusWithShipment"),
+  service.indexOf("export async function dispatchAdminOrder"),
+);
+if (!syncFn.includes("legalOrderStatusPath") || !syncFn.includes("orderStatusForShipment")) {
+  throw new Error("Order/shipment sync must follow the legal status path.");
+}
+if (syncFn.includes("trackingUrl") || syncFn.includes("status: \"delivered\"")) {
+  throw new Error("Status sync must not mark an order delivered because a tracking URL was saved.");
+}
+if (!service.includes("export async function dispatchAdminOrder") || !service.includes("isIdempotentDispatch")) {
+  throw new Error("Dispatch must be a dedicated idempotent action.");
+}
+if (!service.includes("23505")) {
+  throw new Error("A unique shipment conflict must be treated as a duplicate dispatch, not a second insert.");
+}
+if (!service.includes("AWAITING_FULFILMENT_ORDER_STATUSES") || !service.includes('query.fulfilment === "awaiting"')) {
+  throw new Error("The order list must be able to load paid orders awaiting fulfilment.");
 }
 if (!fulfilmentFn.includes("isUnchangedAdminFulfilment")) {
   throw new Error("Identical fulfilment saves must skip duplicate event writes.");
@@ -256,6 +390,9 @@ if (!actions.includes("\"use server\"") || !actions.includes("getAdminGate")) {
 }
 if (!actions.includes("cartActionOriginAllowed") || !actions.includes("hasForbiddenOwnershipKey")) {
   throw new Error("Order mutations must keep origin and ownership-key guards.");
+}
+if (!actions.includes("dispatchAdminOrder") || !actions.includes('intent === "dispatch"')) {
+  throw new Error("Dispatch must be a server action behind the same admin gate.");
 }
 if (!actions.includes("revalidatePath(routes.adminOrders)") || !actions.includes("adminOrderPath")) {
   throw new Error("Successful mutations must revalidate the order list and detail.");
@@ -325,6 +462,9 @@ if (!forms.includes("ADMIN_ORDER_SAVING") || !forms.includes("ADMIN_ORDER_UPDATE
 if (!forms.includes("loading={pending}")) {
   throw new Error("Fulfilment submit must disable while pending to prevent duplicate saves.");
 }
+if (!forms.includes('value="dispatch"') || !forms.includes("canDispatchOrder")) {
+  throw new Error("Paid orders awaiting fulfilment must expose a dispatch action.");
+}
 
 const detail = read("src/components/admin/AdminOrderDetail.tsx");
 if (!detail.includes("ADMIN_ORDER_GUEST") || !detail.includes("ADMIN_ORDER_NO_FULFILMENT_TITLE")) {
@@ -332,6 +472,9 @@ if (!detail.includes("ADMIN_ORDER_GUEST") || !detail.includes("ADMIN_ORDER_NO_FU
 }
 if (!detail.includes("ADMIN_ORDER_HISTORY_EMPTY_TITLE") || !detail.includes("adminOrderStatusLabel")) {
   throw new Error("Order detail must show event history or an empty state, with textual statuses.");
+}
+if (!detail.includes("ADMIN_ORDERS_AWAITING_FULFILMENT") || !detail.includes("isAwaitingFulfilment")) {
+  throw new Error("Order detail must identify paid orders awaiting fulfilment.");
 }
 if (!detail.includes("ADMIN_ORDER_TRACKING_EVENTS") || !detail.includes("order.shipment.events")) {
   throw new Error("Order detail must show tracking events from the existing tracking_events table.");

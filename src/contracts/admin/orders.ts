@@ -13,6 +13,11 @@ import {
   type OrderStatus,
   type PaymentStatus,
 } from "../order/schema";
+import {
+  AWAITING_FULFILMENT_ORDER_STATUSES,
+  AWAITING_FULFILMENT_PAYMENT_STATUS,
+  resolveDispatchShipmentStatus,
+} from "../fulfilment/dispatch";
 import { SHIPMENT_STATUSES, type ShipmentStatus } from "../fulfilment/shipment";
 import { safeHttpUrl } from "@/lib/tracking-url";
 
@@ -43,10 +48,19 @@ export const ADMIN_ORDER_EVENT_TYPES = {
 export type AdminOrderEventType =
   (typeof ADMIN_ORDER_EVENT_TYPES)[keyof typeof ADMIN_ORDER_EVENT_TYPES];
 
+export const ADMIN_FULFILMENT_FILTERS = ["awaiting"] as const;
+export type AdminFulfilmentFilter = (typeof ADMIN_FULFILMENT_FILTERS)[number];
+
+export const ADMIN_DISPATCH_CARRIER_ERROR = "Enter a carrier.";
+export const ADMIN_DISPATCH_UNPAID_ERROR = "Only paid orders can be dispatched.";
+export const ADMIN_DISPATCH_BLOCKED_ERROR = "This order can’t be dispatched from its current status.";
+export const DISPATCH_TRACKING_UNAVAILABLE_DESCRIPTION = "Tracking information is not available yet.";
+
 export type AdminOrderListQuery = {
   q: string;
   status: OrderStatus | null;
   payment: PaymentStatus | null;
+  fulfilment: AdminFulfilmentFilter | null;
   period: AdminOrderListPeriod;
   page: number;
 };
@@ -134,10 +148,12 @@ export function parseAdminOrderListQuery(
   const paymentRaw = readParam(params.payment);
   const periodRaw = readParam(params.period);
   const pageRaw = Number.parseInt(readParam(params.page) || "1", 10);
+  const fulfilmentRaw = readParam(params.fulfilment);
   return {
     q,
     status: isOrderStatus(statusRaw) ? statusRaw : null,
     payment: isPaymentStatus(paymentRaw) ? paymentRaw : null,
+    fulfilment: isAdminFulfilmentFilter(fulfilmentRaw) ? fulfilmentRaw : null,
     period: isAdminOrderListPeriod(periodRaw) ? periodRaw : "all",
     page: Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1,
   };
@@ -153,6 +169,9 @@ export function adminOrderListQueryString(query: AdminOrderListQuery, page = que
   }
   if (query.payment) {
     params.set("payment", query.payment);
+  }
+  if (query.fulfilment) {
+    params.set("fulfilment", query.fulfilment);
   }
   if (query.period !== "all") {
     params.set("period", query.period);
@@ -195,6 +214,10 @@ export function isAdminOrderListPeriod(value: string | null | undefined): value 
   return value === "all" || value === "today" || value === "7d" || value === "30d";
 }
 
+export function isAdminFulfilmentFilter(value: string | null | undefined): value is AdminFulfilmentFilter {
+  return value === "awaiting";
+}
+
 export function adminShipmentStatusLabel(status: ShipmentStatus): string {
   return ADMIN_SHIPMENT_STATUS_LABELS[status];
 }
@@ -224,24 +247,14 @@ export function parseAdminFulfilmentInput(input: {
   if (!trackingNumber.ok) {
     errors.trackingNumber = trackingNumber.error;
   }
-  const trackingRaw = typeof input.trackingUrl === "string" ? input.trackingUrl.trim() : "";
-  let trackingUrl = "";
-  if (trackingRaw) {
-    if (trackingRaw.length > ADMIN_TRACKING_URL_MAX) {
-      errors.trackingUrl = "Enter a shorter tracking URL.";
-    } else {
-      const safe = safeHttpUrl(trackingRaw);
-      if (!safe) {
-        errors.trackingUrl = "Enter a valid https tracking URL.";
-      } else {
-        trackingUrl = safe;
-      }
-    }
+  const trackingUrl = parseTrackingUrl(input.trackingUrl);
+  if (!trackingUrl.ok) {
+    errors.trackingUrl = trackingUrl.error;
   }
   if (!isShipmentStatus(input.status)) {
     errors.status = "Choose a valid shipment status.";
   }
-  if (Object.keys(errors).length > 0 || !isShipmentStatus(input.status) || !trackingNumber.ok) {
+  if (Object.keys(errors).length > 0 || !isShipmentStatus(input.status) || !trackingNumber.ok || !trackingUrl.ok) {
     return { ok: false, errors };
   }
   return {
@@ -249,10 +262,65 @@ export function parseAdminFulfilmentInput(input: {
     value: {
       carrierName,
       trackingNumber: trackingNumber.value,
-      trackingUrl,
+      trackingUrl: trackingUrl.value,
       status: input.status,
     },
   };
+}
+
+export type AdminDispatchInput = {
+  carrierName: string;
+  trackingNumber: string;
+  trackingUrl: string;
+  shipmentStatus: ShipmentStatus;
+};
+
+export function parseAdminDispatchInput(input: {
+  carrierName: unknown;
+  trackingNumber: unknown;
+  trackingUrl: unknown;
+}): { ok: true; value: AdminDispatchInput } | { ok: false; errors: Partial<Record<AdminFulfilmentField, string>> } {
+  const errors: Partial<Record<AdminFulfilmentField, string>> = {};
+  const carrierName = readOptionalText(input.carrierName, ADMIN_FULFILMENT_TEXT_MAX);
+  if (!carrierName) {
+    errors.carrierName = ADMIN_DISPATCH_CARRIER_ERROR;
+  }
+  const trackingNumber = parseTrackingNumber(input.trackingNumber);
+  if (!trackingNumber.ok) {
+    errors.trackingNumber = trackingNumber.error;
+  }
+  const trackingUrl = parseTrackingUrl(input.trackingUrl);
+  if (!trackingUrl.ok) {
+    errors.trackingUrl = trackingUrl.error;
+  }
+  if (Object.keys(errors).length > 0 || !trackingNumber.ok || !trackingUrl.ok) {
+    return { ok: false, errors };
+  }
+  return {
+    ok: true,
+    value: {
+      carrierName,
+      trackingNumber: trackingNumber.value,
+      trackingUrl: trackingUrl.value,
+      shipmentStatus: resolveDispatchShipmentStatus(trackingNumber.value),
+    },
+  };
+}
+
+export function awaitingFulfilmentListConflict(query: AdminOrderListQuery): boolean {
+  if (query.fulfilment !== "awaiting") {
+    return false;
+  }
+  if (query.payment && query.payment !== AWAITING_FULFILMENT_PAYMENT_STATUS) {
+    return true;
+  }
+  if (
+    query.status &&
+    !(AWAITING_FULFILMENT_ORDER_STATUSES as readonly OrderStatus[]).includes(query.status)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function isUnchangedAdminFulfilment(
@@ -322,6 +390,23 @@ function readOptionalText(value: unknown, max: number): string {
   return value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max);
 }
 
+function parseTrackingUrl(
+  value: unknown,
+): { ok: true; value: string } | { ok: false; error: string } {
+  const trackingRaw = typeof value === "string" ? value.trim() : "";
+  if (!trackingRaw) {
+    return { ok: true, value: "" };
+  }
+  if (trackingRaw.length > ADMIN_TRACKING_URL_MAX) {
+    return { ok: false, error: "Enter a shorter tracking URL." };
+  }
+  const safe = safeHttpUrl(trackingRaw);
+  if (!safe) {
+    return { ok: false, error: "Enter a valid https tracking URL." };
+  }
+  return { ok: true, value: safe };
+}
+
 function parseTrackingNumber(
   value: unknown,
 ): { ok: true; value: string } | { ok: false; error: string } {
@@ -329,7 +414,7 @@ function parseTrackingNumber(
   if (!trackingNumber) {
     return { ok: true, value: "" };
   }
-  if (trackingNumber.includes("://") || /[<>]/.test(trackingNumber)) {
+  if (/[:<>]/.test(trackingNumber)) {
     return { ok: false, error: "Enter a valid tracking number." };
   }
   return { ok: true, value: trackingNumber };

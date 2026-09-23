@@ -8,7 +8,12 @@ import {
   adminOrderSearchReference,
   adminOrderStatusOptions,
   mapAdminDelivery,
+  ADMIN_DISPATCH_BLOCKED_ERROR,
+  ADMIN_DISPATCH_UNPAID_ERROR,
+  DISPATCH_TRACKING_UNAVAILABLE_DESCRIPTION,
+  awaitingFulfilmentListConflict,
   isUnchangedAdminFulfilment,
+  parseAdminDispatchInput,
   parseAdminFulfilmentInput,
   parseAdminOrderStatusInput,
   type AdminFulfilmentInput,
@@ -25,7 +30,15 @@ import {
   isPaymentStatus,
   isShipmentStatus,
 } from "@/contracts/admin/dashboard";
+import {
+  AWAITING_FULFILMENT_ORDER_STATUSES,
+  AWAITING_FULFILMENT_PAYMENT_STATUS,
+  isIdempotentDispatch,
+  legalOrderStatusPath,
+  orderStatusForShipment,
+} from "@/contracts/fulfilment/dispatch";
 import type { ShipmentStatus } from "@/contracts/fulfilment/shipment";
+import type { OrderStatus } from "@/contracts/order/schema";
 import { isUuid } from "@/lib/ids";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -69,6 +82,12 @@ export async function loadAdminOrderList(
   }
   try {
     const supabase = await createSupabaseServerClient();
+    if (awaitingFulfilmentListConflict(query)) {
+      return {
+        status: "ok",
+        data: { orders: [], total: 0, page: query.page, pageCount: 1 },
+      };
+    }
     const range = adminOrderListPeriodRange(query.period);
     const from = (query.page - 1) * ADMIN_ORDERS_PAGE_SIZE;
     const to = from + ADMIN_ORDERS_PAGE_SIZE - 1;
@@ -77,11 +96,18 @@ export async function loadAdminOrderList(
       .select(LIST_COLUMNS, { count: "exact" })
       .order("created_at", { ascending: false })
       .range(from, to);
-    if (query.status) {
-      request = request.eq("status", query.status);
-    }
-    if (query.payment) {
-      request = request.eq("payment_status", query.payment);
+    if (query.fulfilment === "awaiting") {
+      request = request.eq("payment_status", AWAITING_FULFILMENT_PAYMENT_STATUS);
+      request = query.status
+        ? request.eq("status", query.status)
+        : request.in("status", [...AWAITING_FULFILMENT_ORDER_STATUSES]);
+    } else {
+      if (query.status) {
+        request = request.eq("status", query.status);
+      }
+      if (query.payment) {
+        request = request.eq("payment_status", query.payment);
+      }
     }
     if (range) {
       request = request.gte("created_at", range.startIso).lt("created_at", range.endIso);
@@ -279,9 +305,11 @@ export async function updateAdminOrderStatus(input: {
 }
 
 /**
- * Manual fulfilment write. Never updates orders.status — adding tracking
- * must not mark an order delivered. Shipment notes are not selected: the
- * authenticated GRANT omits shipments.notes for client roles, including staff.
+ * Manual fulfilment write. A tracking URL never forces `delivered`.
+ * When payment is captured, shipment status is copied onto the order only
+ * along the existing legal status path. `pending` does not move the order.
+ * Shipment notes are not selected: the authenticated GRANT omits
+ * shipments.notes for client roles, including staff.
  *
  * Integrity: shipment row writes and event inserts are sequential, not a
  * single database transaction. If an event insert fails after a successful
@@ -308,7 +336,11 @@ export async function saveAdminFulfilment(input: {
   }
   try {
     const supabase = await createSupabaseServerClient();
-    const order = await supabase.from("orders").select("id").eq("id", input.orderId).maybeSingle();
+    const order = await supabase
+      .from("orders")
+      .select("id, status, payment_status")
+      .eq("id", input.orderId)
+      .maybeSingle();
     if (order.error) {
       return { status: "error" };
     }
@@ -375,7 +407,7 @@ export async function saveAdminFulfilment(input: {
           return { status: "error" };
         }
       }
-      return { status: "ok" };
+      return syncCapturedOrder(supabase, input.orderId, input.actorId, order.data, parsed.value.status);
     }
     const created = await supabase
       .from("shipments")
@@ -407,7 +439,7 @@ export async function saveAdminFulfilment(input: {
     if (tracking.error) {
       return { status: "error" };
     }
-    return { status: "ok" };
+    return syncCapturedOrder(supabase, input.orderId, input.actorId, order.data, parsed.value.status);
   } catch {
     return { status: "error" };
   }
@@ -448,6 +480,231 @@ function shouldStampShipped(status: ShipmentStatus): boolean {
     status === "out_for_delivery" ||
     status === "delivered"
   );
+}
+
+type ServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+function shipmentIdentity(value: unknown): {
+  id: string;
+  carrierName: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  status: ShipmentStatus;
+} | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== "string" || !isShipmentStatus(row.status)) {
+    return null;
+  }
+  return {
+    id: row.id,
+    carrierName: typeof row.carrier_name === "string" ? row.carrier_name : null,
+    trackingNumber: typeof row.tracking_number === "string" ? row.tracking_number : null,
+    trackingUrl: typeof row.tracking_url === "string" ? safeHttpUrl(row.tracking_url) : null,
+    status: row.status,
+  };
+}
+
+async function syncCapturedOrder(
+  supabase: ServerClient,
+  orderId: string,
+  actorId: string,
+  order: { status?: unknown; payment_status?: unknown },
+  shipmentStatus: ShipmentStatus,
+): Promise<AdminOrderMutationResult> {
+  if (order.payment_status !== AWAITING_FULFILMENT_PAYMENT_STATUS || !isOrderStatus(order.status)) {
+    return { status: "ok" };
+  }
+  const synced = await syncOrderStatusWithShipment(
+    supabase,
+    orderId,
+    actorId,
+    order.status,
+    shipmentStatus,
+  );
+  return synced === "ok" ? { status: "ok" } : { status: "error" };
+}
+
+async function syncOrderStatusWithShipment(
+  supabase: ServerClient,
+  orderId: string,
+  actorId: string,
+  from: OrderStatus,
+  shipmentStatus: ShipmentStatus,
+): Promise<"ok" | "error"> {
+  const target = orderStatusForShipment(shipmentStatus);
+  if (!target || target === from) {
+    return "ok";
+  }
+  const path = legalOrderStatusPath(from, target);
+  if (!path) {
+    return "ok";
+  }
+  let current: OrderStatus = from;
+  for (const next of path) {
+    const updated = await supabase
+      .from("orders")
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .eq("id", orderId)
+      .eq("status", current)
+      .select("id")
+      .maybeSingle();
+    if (updated.error || !updated.data) {
+      return "error";
+    }
+    const event = await supabase.from("order_events").insert({
+      order_id: orderId,
+      event_type: ADMIN_ORDER_EVENT_TYPES.statusChanged,
+      old_status: current,
+      new_status: next,
+      actor_user_id: actorId,
+      customer_visible: false,
+    });
+    if (event.error) {
+      return "error";
+    }
+    current = next;
+  }
+  return "ok";
+}
+
+/**
+ * One shipment per order (`shipments.order_id` unique). A repeated dispatch
+ * with the same carrier and tracking does not insert another row or event.
+ * A shipment already in transit or beyond is left unchanged.
+ */
+export async function dispatchAdminOrder(input: {
+  orderId: string;
+  actorId: string;
+  carrierName: unknown;
+  trackingNumber: unknown;
+  trackingUrl: unknown;
+}): Promise<AdminOrderMutationResult> {
+  if (!isUuid(input.orderId) || !isUuid(input.actorId)) {
+    return { status: "not_found" };
+  }
+  const parsed = parseAdminDispatchInput(input);
+  if (!parsed.ok) {
+    return { status: "invalid", errors: parsed.errors };
+  }
+  if (!isSupabaseConfigured()) {
+    return { status: "error" };
+  }
+  try {
+    const supabase = await createSupabaseServerClient();
+    const order = await supabase
+      .from("orders")
+      .select("id, status, payment_status")
+      .eq("id", input.orderId)
+      .maybeSingle();
+    if (order.error) {
+      return { status: "error" };
+    }
+    if (!order.data) {
+      return { status: "not_found" };
+    }
+    if (order.data.payment_status !== AWAITING_FULFILMENT_PAYMENT_STATUS) {
+      return { status: "invalid", errors: { payment: ADMIN_DISPATCH_UNPAID_ERROR } };
+    }
+    if (!isOrderStatus(order.data.status)) {
+      return { status: "error" };
+    }
+    const existing = await supabase
+      .from("shipments")
+      .select("id, status, shipped_at, delivered_at, carrier_name, tracking_number, tracking_url")
+      .eq("order_id", input.orderId)
+      .maybeSingle();
+    if (existing.error && existing.error.code !== "PGRST116") {
+      return { status: "error" };
+    }
+    const identity = shipmentIdentity(existing.data);
+    if (isIdempotentDispatch(identity, parsed.value)) {
+      return { status: "ok" };
+    }
+    const target = orderStatusForShipment(parsed.value.shipmentStatus);
+    if (!target || legalOrderStatusPath(order.data.status, target) === null) {
+      return { status: "invalid", errors: { status: ADMIN_DISPATCH_BLOCKED_ERROR } };
+    }
+    const fulfilment: AdminFulfilmentInput = {
+      carrierName: parsed.value.carrierName,
+      trackingNumber: parsed.value.trackingNumber,
+      trackingUrl: parsed.value.trackingUrl,
+      status: parsed.value.shipmentStatus,
+    };
+    const payload = shipmentWritePayload(fulfilment, existing.data);
+    let shipmentId = identity?.id ?? null;
+    let created = false;
+    if (shipmentId) {
+      const updated = await supabase.from("shipments").update(payload).eq("id", shipmentId).select("id").maybeSingle();
+      if (updated.error || !updated.data) {
+        return { status: "error" };
+      }
+    } else {
+      const inserted = await supabase
+        .from("shipments")
+        .insert({ order_id: input.orderId, ...payload })
+        .select("id")
+        .maybeSingle();
+      if (inserted.error?.code === "23505") {
+        const again = await supabase
+          .from("shipments")
+          .select("id, status, carrier_name, tracking_number, tracking_url")
+          .eq("order_id", input.orderId)
+          .maybeSingle();
+        const raced = shipmentIdentity(again.data);
+        if (!raced) {
+          return { status: "error" };
+        }
+        if (isIdempotentDispatch(raced, parsed.value)) {
+          return { status: "ok" };
+        }
+        const updated = await supabase.from("shipments").update(payload).eq("id", raced.id).select("id").maybeSingle();
+        if (updated.error || !updated.data) {
+          return { status: "error" };
+        }
+        shipmentId = raced.id;
+      } else if (inserted.error || !inserted.data || typeof inserted.data.id !== "string") {
+        return { status: "error" };
+      } else {
+        shipmentId = inserted.data.id;
+        created = true;
+      }
+    }
+    if (!shipmentId) {
+      return { status: "error" };
+    }
+    const event = await supabase.from("order_events").insert({
+      order_id: input.orderId,
+      event_type: created ? ADMIN_ORDER_EVENT_TYPES.shipmentCreated : ADMIN_ORDER_EVENT_TYPES.shipmentUpdated,
+      actor_user_id: input.actorId,
+      customer_visible: false,
+      metadata: { shipment_status: parsed.value.shipmentStatus },
+    });
+    if (event.error) {
+      return { status: "error" };
+    }
+    const previousStatus = identity?.status ?? null;
+    if (created || previousStatus !== parsed.value.shipmentStatus) {
+      const tracking = await supabase.from("tracking_events").insert({
+        shipment_id: shipmentId,
+        status: parsed.value.shipmentStatus,
+        description:
+          parsed.value.shipmentStatus === "tracking_unavailable"
+            ? DISPATCH_TRACKING_UNAVAILABLE_DESCRIPTION
+            : null,
+        occurred_at: new Date().toISOString(),
+        created_by: input.actorId,
+      });
+      if (tracking.error) {
+        return { status: "error" };
+      }
+    }
+    return syncCapturedOrder(supabase, input.orderId, input.actorId, order.data, parsed.value.shipmentStatus);
+  } catch {
+    return { status: "error" };
+  }
 }
 
 function parseListItem(value: unknown): AdminOrderListItem | null {

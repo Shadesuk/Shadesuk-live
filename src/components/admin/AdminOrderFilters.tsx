@@ -16,7 +16,9 @@ import { Field, FieldSelect } from "@/components/ui/Field";
 import {
   ADMIN_ORDERS_APPLY,
   ADMIN_ORDERS_CLEAR,
+  ADMIN_ORDERS_AWAITING_FULFILMENT,
   ADMIN_ORDERS_FILTER_ALL,
+  ADMIN_ORDERS_FILTER_FULFILMENT,
   ADMIN_ORDERS_FILTER_PAYMENT,
   ADMIN_ORDERS_FILTER_PERIOD,
   ADMIN_ORDERS_FILTER_STATUS,
@@ -63,6 +65,15 @@ export function AdminOrderFilters({ query }: { query: AdminOrderListQuery }) {
               {ADMIN_PAYMENT_STATUS_LABELS[status]}
             </option>
           ))}
+        </FieldSelect>
+        <FieldSelect
+          id="admin-orders-fulfilment"
+          name="fulfilment"
+          label={ADMIN_ORDERS_FILTER_FULFILMENT}
+          defaultValue={query.fulfilment ?? ""}
+        >
+          <option value="">{ADMIN_ORDERS_FILTER_ALL}</option>
+          <option value="awaiting">{ADMIN_ORDERS_AWAITING_FULFILMENT}</option>
         </FieldSelect>
         <FieldSelect
           id="admin-orders-period"
