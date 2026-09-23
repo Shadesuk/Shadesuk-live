@@ -1,15 +1,81 @@
+.media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: var(--color-stone);
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Portrait source. Bias down and toward the seated subject so the face
+     and sunglasses stay in frame; the sunlit wall remains above them. */
+  object-position: 70% 68%;
+}
+
 .copy {
-  padding-top: var(--space-24);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-block: var(--space-24);
 }
 
 .copy h2 {
   margin: 0;
-  text-transform: uppercase;
-  max-width: 18ch;
+  max-width: 9.5em;
+  color: var(--color-near-black);
+  font-weight: 500;
+  font-size: 1.125rem;
+  line-height: 1.4;
+  letter-spacing: 0.1em;
+  text-transform: none;
+}
+
+@media (min-width: 768px) {
+  .media {
+    aspect-ratio: 16 / 9;
+  }
+
+  .image {
+    /* Wide slice of the same portrait: hold hair through chin, leave the
+       upper-left wall clear for the line. */
+    object-position: 62% 56%;
+  }
+
+  .copy {
+    padding-block: var(--space-32);
+  }
+
+  .copy h2 {
+    max-width: 11em;
+    font-size: 1.5rem;
+    letter-spacing: 0.12em;
+  }
 }
 
 @media (min-width: 1200px) {
   .copy {
-    padding-top: var(--space-48);
+    padding-block: var(--space-48);
+  }
+
+  .copy h2 {
+    max-width: 14em;
+    font-size: 1.75rem;
+    letter-spacing: 0.14em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image,
+  .copy h2 {
+    animation: none;
+    transition: none;
   }
 }
