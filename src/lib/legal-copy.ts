@@ -383,7 +383,8 @@ export const TERMS: PolicyDocument = {
       id: "products",
       title: "Products",
       paragraphs: [
-        `Each product page includes this disclosure: ${PRODUCT_DISCLOSURE_COPY}.`,
+        // Temporarily commented out pending founder approval. Original wording preserved:
+        // `Each product page includes this disclosure: ${PRODUCT_DISCLOSURE_COPY}.`,
         "Products are sold as described on their page. We do not claim official designer-house affiliation unless that affiliation is stated on the product page.",
         "Images are of the product where supplied. We do not generate substitute product photographs to fill gaps.",
       ],
