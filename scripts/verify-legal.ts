@@ -140,8 +140,17 @@ if (!legalBundle.includes("cannot take those rights away") && !legalBundle.inclu
   throw new Error("Refund policy must not imply statutory rights can be waived.");
 }
 
-if (!TERMS.sections.some((section) => section.paragraphs.some((p) => p.includes(PRODUCT_DISCLOSURE_COPY)))) {
-  throw new Error("Terms must keep the locked product disclosure.");
+const legalCopySource = readFileSync(resolve(root, "src/lib/legal-copy.ts"), "utf8");
+const termsDisclosureSource =
+  "`Each product page includes this disclosure: ${PRODUCT_DISCLOSURE_COPY}.`";
+if (!legalCopySource.includes(`// ${termsDisclosureSource}`)) {
+  throw new Error("Terms must preserve the locked product disclosure in a comment.");
+}
+if (TERMS.sections.some((section) => section.paragraphs.some((p) => p.includes(PRODUCT_DISCLOSURE_COPY) || /superclone/i.test(p)))) {
+  throw new Error("Terms must not render Superclone language while on founder-approval hold.");
+}
+if (PRIVACY_POLICY.sections.some((section) => section.paragraphs.some((p) => p.includes(PRODUCT_DISCLOSURE_COPY) || /superclone/i.test(p)))) {
+  throw new Error("Privacy must not render Superclone language while on founder-approval hold.");
 }
 if (!FAQ_GROUPS.some((group) => group.items.some((item) => item.paragraphs.some((p) => p.includes(PRODUCT_DISCLOSURE_COPY))))) {
   throw new Error("FAQ must keep the locked product disclosure.");
