@@ -219,7 +219,6 @@ export {
   PAYMENT_ATTEMPT_IDEMPOTENCY,
   PAYMENT_CURRENCY,
   PAYMENT_PROVIDER_PAYPAL,
-  PAYMENT_PROVIDER_RAZORPAY_RETIRED,
 } from "./payment/schema";
 export type { PaymentProviderId, PaymentRow } from "./payment/schema";
 

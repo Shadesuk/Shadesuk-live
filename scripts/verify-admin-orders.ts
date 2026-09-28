@@ -440,7 +440,7 @@ for (const file of sources) {
     }
   }
   if (
-    source.includes("razorpay") ||
+    source.includes("razorpay") || source.includes("checkout.paypal") || source.includes("web-sdk/v6") ||
     source.includes("carrier API") ||
     source.includes("MetricCard") ||
     source.includes("createSupabaseAdminClient")

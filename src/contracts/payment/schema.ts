@@ -11,9 +11,6 @@ import { PAYMENT_STATUSES } from "../order/schema";
 export const PAYMENT_PROVIDER_PAYPAL = "paypal" as const;
 export type PaymentProviderId = typeof PAYMENT_PROVIDER_PAYPAL;
 
-/** @deprecated Removed as active lock. Historical DB rows may still say razorpay. */
-export const PAYMENT_PROVIDER_RAZORPAY_RETIRED = "razorpay" as const;
-
 /** Row shape for `public.payments` (PR #10). No metadata column exists. */
 export type PaymentRow = {
   id: string;

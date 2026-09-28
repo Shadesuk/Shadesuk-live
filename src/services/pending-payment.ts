@@ -65,9 +65,6 @@ export async function initiatePendingPayPalPayment(
   });
 }
 
-/** @deprecated Use `initiatePendingPayPalPayment`. */
-export const initiatePendingRazorpayPayment = initiatePendingPayPalPayment;
-
 async function loadInitiationInputs(options?: InitiatePendingPaymentOptions): Promise<
   | { ok: true; draft: PublicCheckoutDraft; lines: PendingPaymentLine[]; userId: string | null }
   | { ok: false; result: InitiatePendingPaymentResult }

@@ -224,11 +224,6 @@ export async function captureVerifiedPayment(
   };
 }
 
-/** @deprecated Use `captureVerifiedPayment`. */
-export const captureVerifiedRazorpayPayment = captureVerifiedPayment;
-/** @deprecated Use `ServerVerifiedPayment`. */
-export type ServerVerifiedRazorpayPayment = ServerVerifiedPayment;
-
 function isPaymentAlreadyCaptured(record: PaymentCaptureRecord): boolean {
   return record.payment.status === "captured" || Boolean(record.payment.captured_at);
 }

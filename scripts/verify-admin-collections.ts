@@ -335,7 +335,7 @@ for (const file of files) {
     throw new Error(`${file} must not use any.`);
   }
   if (
-    source.includes("razorpay") ||
+    source.includes("razorpay") || source.includes("checkout.paypal") || source.includes("web-sdk/v6") ||
     source.includes("carrier API") ||
     source.includes("MetricCard") ||
     source.includes("coupon") ||

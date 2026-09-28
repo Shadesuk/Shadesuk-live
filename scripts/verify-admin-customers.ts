@@ -259,7 +259,7 @@ for (const file of sources) {
     source.includes("loyalty") ||
     source.includes("churn") ||
     source.includes("segment") ||
-    source.includes("razorpay")
+    source.includes("razorpay") || source.includes("checkout.paypal") || source.includes("web-sdk/v6")
   ) {
     throw new Error(`${file} must not add CRM, payments, or future-phase features.`);
   }

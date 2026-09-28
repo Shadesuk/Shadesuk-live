@@ -145,6 +145,3 @@ export async function commitPendingPayPalPayment(input: {
     return { status: "provider_failed", error: "Could not attach the PayPal order id." };
   }
 }
-
-/** @deprecated Use `commitPendingPayPalPayment`. */
-export const commitPendingRazorpayPayment = commitPendingPayPalPayment;
