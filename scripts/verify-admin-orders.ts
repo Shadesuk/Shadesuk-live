@@ -18,8 +18,10 @@ import {
   parseAdminFulfilmentInput,
   parseAdminOrderListQuery,
   parseAdminOrderStatusInput,
+  reportedAdminOrderStatusLabel,
   sanitizeAdminOrderSearch,
 } from "../src/contracts/admin/orders";
+import { isCommittedPurchase } from "../src/contracts/order/lifecycle";
 import {
   canDispatchOrder,
   isAwaitingFulfilment,
@@ -112,6 +114,27 @@ if (isAwaitingFulfilment({ paymentStatus: "captured", orderStatus: "dispatched" 
 }
 if (isAwaitingFulfilment({ paymentStatus: "created", orderStatus: "placed" })) {
   throw new Error("Unpaid orders must not be listed as awaiting fulfilment.");
+}
+if (isAwaitingFulfilment({ paymentStatus: "created", orderStatus: "checkout" })) {
+  throw new Error("Checkout attempts must not be awaiting fulfilment.");
+}
+if (
+  isCommittedPurchase("created") ||
+  isCommittedPurchase("failed") ||
+  isCommittedPurchase("cancelled") ||
+  !isCommittedPurchase("captured") ||
+  !isCommittedPurchase("refunded")
+) {
+  throw new Error("Only captured and refunded payments are committed purchases.");
+}
+if (reportedAdminOrderStatusLabel("placed", "created") !== "Checkout") {
+  throw new Error("Historical unpaid placed rows must be reported as checkout, not confirmed orders.");
+}
+if (reportedAdminOrderStatusLabel("placed", "captured") !== "Placed") {
+  throw new Error("Captured placed orders stay placed.");
+}
+if (isLegalOrderStatusTransition("checkout", "processing")) {
+  throw new Error("Staff must not move an unpaid checkout into fulfilment.");
 }
 if (!awaitingFulfilmentListConflict(parseAdminOrderListQuery({ fulfilment: "awaiting", status: "delivered" }))) {
   throw new Error("Awaiting fulfilment cannot include delivered orders.");
@@ -338,6 +361,16 @@ if (service.includes(".channel(") || service.includes("realtime")) {
 }
 if (!service.includes("order_events") || !service.includes("tracking_events")) {
   throw new Error("Mutations must write through the existing event model.");
+}
+if (!service.includes("COMMITTED_PURCHASE_PAYMENT_STATUSES")) {
+  throw new Error("The default admin order list must be committed purchases, not every checkout attempt.");
+}
+const lifecycle = read("supabase/migrations/20260928180000_checkout_attempt_lifecycle.sql");
+if (!lifecycle.includes("add value if not exists 'checkout'")) {
+  throw new Error("Checkout attempts need an explicit order status.");
+}
+if (lifecycle.toLowerCase().includes("delete from public.orders") || lifecycle.toLowerCase().includes("truncate")) {
+  throw new Error("Lifecycle migration must not delete existing orders.");
 }
 if (!service.includes("actor_user_id") || !service.includes("created_by")) {
   throw new Error("Events must record the acting admin for RLS and audit.");

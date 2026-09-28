@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { AccountNavigation } from "@/components/account/AccountNavigation";
 import { AccountOverview } from "@/components/account/AccountOverview";
 import { SignInForm } from "@/components/account/SignInForm";
+import { resolveAuthReturnPath } from "@/lib/auth-return";
 import {
   ACCOUNT_UNAVAILABLE,
   GOOGLE_CANCELLED,
@@ -23,6 +25,10 @@ export default async function AccountPage({ searchParams }: PageProps) {
   const next = first(params.next);
   const user = await getOptionalAccountUser();
   if (user) {
+    const destination = next ? resolveAuthReturnPath({ queryNext: next }) : null;
+    if (destination && destination !== routes.account) {
+      redirect(destination);
+    }
     const profile = await loadAccountProfile(user);
     return (
       <>

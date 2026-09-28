@@ -104,3 +104,15 @@
   align-items: stretch;
   gap: var(--space-8);
 }
+
+.paypalSlot {
+  width: 100%;
+  max-width: 24rem;
+  min-height: var(--touch-min);
+}
+
+.paypalSlot paypal-button {
+  --paypal-button-border-radius: var(--radius);
+  display: block;
+  width: 100%;
+}

@@ -75,6 +75,8 @@ export const PAYMENT_NOT_READY = "Continue to payment is unavailable.";
 export const PAYMENT_START_ERROR = "Payment could not be started.";
 export const PAYMENT_CONFIRM_ERROR = "We could not confirm that payment.";
 export const PAYMENT_CANCELLED = "Payment was cancelled.";
+export const PAYMENT_DECLINED = "PayPal declined that payment. You can try again.";
+export const PAYMENT_NETWORK = "The connection dropped. Nothing was captured. Try again.";
 export const PAYMENT_VERIFIED_NEXT =
   "Payment details were confirmed. Final confirmation is next.";
 export const PAYMENT_UNAVAILABLE =

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { COMMITTED_PURCHASE_PAYMENT_STATUSES } from "@/contracts/order/lifecycle";
 import {
   ADMIN_CUSTOMER_ORDERS_PAGE_SIZE,
   ADMIN_CUSTOMERS_PAGE_SIZE,
@@ -301,6 +302,7 @@ async function loadOrderHistory(
   let request = supabase
     .from("orders")
     .select(ORDER_HISTORY_COLUMNS, { count: "exact" })
+    .in("payment_status", [...COMMITTED_PURCHASE_PAYMENT_STATUSES])
     .order("created_at", { ascending: false })
     .range(from, to);
   const email = escapeIlikeExact(input.email);

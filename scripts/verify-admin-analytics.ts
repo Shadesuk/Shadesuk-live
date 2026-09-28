@@ -135,8 +135,8 @@ if (dstEnd.startIso !== "2026-10-24T23:00:00.000Z" || dstEnd.endIso !== "2026-10
 }
 
 const series = groupSalesByDay(mixed, today);
-if (series[0]?.revenueMinor !== 4900 || series[0]?.orderCount !== 3) {
-  throw new Error("Daily grouping must keep unpaid orders out of revenue.");
+if (series[0]?.revenueMinor !== 4900 || series[0]?.orderCount !== 1) {
+  throw new Error("Daily grouping must keep unpaid checkouts out of orders and revenue.");
 }
 if (hasSalesActivity(groupSalesByDay([], today))) {
   throw new Error("An empty series must not invent a trend.");

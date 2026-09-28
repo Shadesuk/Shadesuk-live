@@ -23,7 +23,7 @@ export const ADMIN_KPI_AOV = "AOV";
 export const ADMIN_KPI_PRODUCTS_SOLD = "Products sold";
 export const ADMIN_KPI_AOV_EMPTY = "—";
 export const ADMIN_KPI_HINT =
-  "Revenue, AOV, and products sold count captured payments only.";
+  "Orders count completed purchases. Revenue, AOV, and products sold count captured payments only. Unpaid checkouts are not orders.";
 export const ADMIN_SALES_OVERVIEW_TITLE = "Sales overview";
 export const ADMIN_SALES_CHART_CAPTION = "Revenue and orders by day";
 export const ADMIN_SALES_DAILY_FIGURES = "Daily figures";
@@ -110,6 +110,8 @@ export const ADMIN_ORDER_SHIPPING = "Shipping";
 export const ADMIN_ORDER_TOTAL = "Total";
 export const ADMIN_ORDER_FULFILMENT = "Fulfilment";
 export const ADMIN_ORDER_NO_FULFILMENT_TITLE = "No fulfilment information";
+export const ADMIN_ORDER_CHECKOUT_NOT_COMPLETED =
+  "This checkout was not completed. It is not a paid order.";
 export const ADMIN_ORDER_NO_FULFILMENT_BODY = "Shipment details have not been recorded yet.";
 export const ADMIN_ORDER_CARRIER = "Carrier";
 export const ADMIN_ORDER_TRACKING_NUMBER = "Tracking number";

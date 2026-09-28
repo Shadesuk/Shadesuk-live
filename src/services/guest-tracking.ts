@@ -11,6 +11,7 @@ import {
   toGuestOrderTrackingView,
   type CustomerShipmentView,
 } from "@/contracts";
+import { isCommittedPurchase } from "@/contracts/order/lifecycle";
 import type { OrderItemRow, OrderRow } from "@/contracts/order/schema";
 import type { TrackingEventRow } from "@/contracts/fulfilment/shipment";
 import { NETWORK_ERROR } from "@/lib/account-copy";
@@ -87,7 +88,7 @@ export async function lookupGuestOrder(input: {
       requestEmail: parsed.email,
       orderEmail: order?.customer_email ?? GUEST_TRACKING_DUMMY_EMAIL,
     });
-    if (!order || !matched) {
+    if (!order || !matched || !isCommittedPurchase(order.payment_status)) {
       return { status: "not_found", message: GUEST_TRACKING_GENERIC_ERROR };
     }
 
@@ -134,7 +135,11 @@ export async function lookupGrantedGuestOrder(): Promise<GrantedGuestOrderResult
 
   try {
     const order = await loadOrderByReference(grant.orderReference);
-    if (!order || order.order_reference !== grant.orderReference) {
+    if (
+      !order ||
+      order.order_reference !== grant.orderReference ||
+      !isCommittedPurchase(order.payment_status)
+    ) {
       await clearGuestTrackingGrant();
       return { status: "not_found" };
     }

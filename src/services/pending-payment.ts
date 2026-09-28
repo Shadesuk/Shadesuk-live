@@ -3,7 +3,17 @@ import "server-only";
 import { variantAvailability } from "@/contracts/catalogue/availability";
 import { isUuid } from "@/lib/ids";
 import { checkoutUnavailableBlocked } from "@/lib/checkout-quote";
-import type { PendingPaymentLine } from "@/lib/payment/pending-attempt";
+import {
+  clearPaymentAttemptId,
+  PAYMENT_ATTEMPT_MAX_AGE_SECONDS,
+  readPaymentAttemptId,
+  rememberPaymentAttemptId,
+} from "@/lib/payment/attempt-cookie";
+import { sameCheckoutLines } from "@/lib/payment/checkout-lines";
+import {
+  buildPendingPaymentAttempt,
+  type PendingPaymentLine,
+} from "@/lib/payment/pending-attempt";
 import { commitPendingPayPalPayment } from "@/lib/payment/initiate";
 import {
   createSupabasePendingPaymentStore,
@@ -12,6 +22,7 @@ import {
 import { createPayPalOrder } from "@/lib/paypal/create-order";
 import { getOptionalAccountUser } from "@/lib/account-session";
 import { readGuestCartSessionId } from "@/lib/guest-cart-cookie";
+import { normalizeEmailInput, formatUkPostcode } from "@/lib/checkout-validate";
 import type { PublicCheckoutDraft } from "@/types/checkout";
 import type { PublicCart } from "@/types/cart";
 import { getPublicCart } from "@/services/cart";
@@ -56,13 +67,111 @@ export async function initiatePendingPayPalPayment(
     return loaded.result;
   }
 
-  return commitPendingPayPalPayment({
+  const store = options?.store ?? createSupabasePendingPaymentStore();
+  const reused = await reuseOpenAttempt({
+    store,
     draft: loaded.draft,
     lines: loaded.lines,
     userId: loaded.userId,
-    store: options?.store ?? createSupabasePendingPaymentStore(),
+  });
+  if (reused) {
+    return reused;
+  }
+
+  const committed = await commitPendingPayPalPayment({
+    draft: loaded.draft,
+    lines: loaded.lines,
+    userId: loaded.userId,
+    store,
     createProviderOrder: options?.createProviderOrder,
   });
+  if (committed.status === "ok") {
+    try {
+      await rememberPaymentAttemptId(committed.paymentId);
+    } catch {
+      // The attempt is still payable without the reuse cookie.
+    }
+  }
+  return committed;
+}
+
+async function reuseOpenAttempt(input: {
+  store: PendingPaymentStore;
+  draft: PublicCheckoutDraft;
+  lines: PendingPaymentLine[];
+  userId: string | null;
+}): Promise<InitiatePendingPaymentResult | null> {
+  const built = buildPendingPaymentAttempt({
+    draft: input.draft,
+    lines: input.lines,
+    userId: input.userId,
+  });
+  if (!built.ok) {
+    return null;
+  }
+  let paymentId: string | null = null;
+  try {
+    paymentId = await readPaymentAttemptId();
+  } catch {
+    return null;
+  }
+  if (!paymentId || !input.store.loadOpenAttempt || !input.store.closeOpenAttempt) {
+    return null;
+  }
+  const open = await input.store.loadOpenAttempt(paymentId);
+  if (!open || !open.payment.provider_order_id) {
+    return null;
+  }
+  const ageMs = Date.now() - new Date(open.order.created_at).getTime();
+  const fresh = Number.isFinite(ageMs) && ageMs >= 0 && ageMs < PAYMENT_ATTEMPT_MAX_AGE_SECONDS * 1000;
+  const email = normalizeEmailInput(input.draft.email);
+  const postcode = formatUkPostcode(input.draft.postcode);
+  const storedPostcode =
+    typeof open.order.delivery_address.postcode === "string"
+      ? open.order.delivery_address.postcode
+      : "";
+  const matches =
+    fresh &&
+    open.order.total_minor === built.attempt.quote.totalMinor &&
+    open.payment.amount_minor === built.attempt.quote.totalMinor &&
+    open.order.customer_email === email &&
+    storedPostcode === postcode &&
+    sameCheckoutLines(
+      open.items.map((item) => ({
+        variantId: item.product_variant_id ?? "",
+        quantity: item.quantity,
+      })),
+      input.lines.map((line) => ({
+        variantId: line.productVariantId,
+        quantity: line.quantity,
+      })),
+    );
+  if (matches) {
+    return {
+      status: "ok",
+      orderId: open.order.id,
+      orderReference: open.order.order_reference,
+      paymentId: open.payment.id,
+      providerOrderId: open.payment.provider_order_id,
+      amountMinor: open.payment.amount_minor,
+      currency: "GBP",
+      paymentStatus: "created",
+      orderPaymentStatus: "created",
+      orderStatus: "checkout",
+      quote: built.attempt.quote,
+    };
+  }
+  try {
+    await input.store.closeOpenAttempt(
+      open.payment.id,
+      "cancelled",
+      "Checkout changed before PayPal approval.",
+    );
+    await clearPaymentAttemptId();
+  } catch {
+    // A newer attempt is still created. The old row stays unpaid.
+  }
+  return null;
 }
 
 async function loadInitiationInputs(options?: InitiatePendingPaymentOptions): Promise<
@@ -94,6 +203,23 @@ async function loadInitiationInputs(options?: InitiatePendingPaymentOptions): Pr
   }
 
   return { ok: true, draft, lines, userId };
+}
+
+export async function closeCheckoutPaymentAttempt(
+  paymentId: string,
+  status: "cancelled" | "failed",
+  reason: string,
+): Promise<void> {
+  if (!isUuid(paymentId)) {
+    return;
+  }
+  const store = createSupabasePendingPaymentStore();
+  await store.closeOpenAttempt(paymentId, status, reason);
+  try {
+    await clearPaymentAttemptId();
+  } catch {
+    // Closing the row is what keeps the attempt out of confirmed orders.
+  }
 }
 
 export async function loadLivePendingPaymentLines(

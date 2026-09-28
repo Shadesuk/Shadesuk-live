@@ -10,6 +10,8 @@ import {
   type PaymentCaptureStore,
 } from "@/lib/payment/capture-store";
 import { readGuestCartSessionId } from "@/lib/guest-cart-cookie";
+import { sameCheckoutLines } from "@/lib/payment/checkout-lines";
+import { loadLiveAccountCart, loadLiveGuestCart } from "@/services/cart-live";
 import type { VerifyPayPalClientReturnResult } from "@/lib/paypal/verify-client-return";
 
 export type ServerVerifiedPayment =
@@ -87,7 +89,9 @@ export async function captureVerifiedPayment(
   if (isPaymentAlreadyCaptured(loaded)) {
     if (loaded.order.payment_status !== "captured") {
       try {
-        await store.markOrderPaymentCaptured(loaded.order.id);
+        await store.markOrderPaymentCaptured(loaded.order.id, {
+          fromStatus: loaded.order.status,
+        });
       } catch {
         // Payment is already captured; order heal is retryable.
       }
@@ -170,7 +174,9 @@ export async function captureVerifiedPayment(
   }
 
   try {
-    const capturedOrder = await store.markOrderPaymentCaptured(loaded.order.id);
+    const capturedOrder = await store.markOrderPaymentCaptured(loaded.order.id, {
+      fromStatus: loaded.order.status,
+    });
     if (!capturedOrder && !isPaymentAlreadyCaptured({ ...loaded, payment: capturedPayment })) {
       const reloaded = await store.loadByPaymentId(paymentId);
       if (!reloaded || reloaded.order.payment_status !== "captured") {
@@ -200,13 +206,16 @@ export async function captureVerifiedPayment(
   const sessionId = loaded.order.user_id
     ? null
     : await resolveSessionId(dependencies);
-  try {
-    await store.convertActiveCheckoutCart({
-      userId: loaded.order.user_id,
-      sessionId,
-    });
-  } catch {
-    // Payment is already captured; cart conversion is retry-safe via status=active filter.
+  const cartMatchesQuote = await liveCartMatchesOrder(loaded, sessionId);
+  if (cartMatchesQuote) {
+    try {
+      await store.convertActiveCheckoutCart({
+        userId: loaded.order.user_id,
+        sessionId,
+      });
+    } catch {
+      // Payment is already captured; cart conversion is retry-safe via status=active filter.
+    }
   }
 
   const notify = dependencies?.onVerifiedPaymentCaptured ?? onVerifiedPaymentCaptured;
@@ -276,4 +285,37 @@ async function resolveSessionId(
     return dependencies.resolveCheckoutSessionId();
   }
   return readGuestCartSessionId();
+}
+
+/**
+ * The PayPal quote is the order snapshot. If the live bag changed after that
+ * quote, leave it active so unpaid extras are not marked purchased.
+ * A missing live cart still follows the existing conversion path.
+ */
+async function liveCartMatchesOrder(
+  record: PaymentCaptureRecord,
+  sessionId: string | null,
+): Promise<boolean> {
+  try {
+    const live = record.order.user_id
+      ? await loadLiveAccountCart(record.order.user_id)
+      : sessionId
+        ? await loadLiveGuestCart(sessionId)
+        : null;
+    if (!live) {
+      return true;
+    }
+    return sameCheckoutLines(
+      live.items.map((item) => ({
+        variantId: item.product_variant_id,
+        quantity: item.quantity,
+      })),
+      record.items.map((item) => ({
+        variantId: item.product_variant_id ?? "",
+        quantity: item.quantity,
+      })),
+    );
+  } catch {
+    return true;
+  }
 }

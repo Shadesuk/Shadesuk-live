@@ -46,7 +46,7 @@ export type PendingOrderInsert = {
   customer_email: string;
   customer_first_name: string;
   customer_last_name: string;
-  status: "placed";
+  status: "checkout";
   payment_status: Extract<PaymentStatus, "created">;
   currency: typeof STORE_CURRENCY;
   subtotal_minor: number;
@@ -175,7 +175,7 @@ export function buildPendingPaymentAttempt(input: {
       customer_email: email,
       customer_first_name: firstName,
       customer_last_name: lastName,
-      status: "placed",
+      status: "checkout",
       payment_status: "created",
       currency: STORE_CURRENCY,
       subtotal_minor: quote.subtotalMinor,

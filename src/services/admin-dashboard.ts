@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { COMMITTED_PURCHASE_PAYMENT_STATUSES } from "@/contracts/order/lifecycle";
 import {
   buildDashboardKpis,
   dashboardPeriodRange,
@@ -115,6 +116,7 @@ export const loadDashboardRecentOrders = cache(async function loadDashboardRecen
     const { data, error } = await supabase
       .from("orders")
       .select(RECENT_ORDER_COLUMNS)
+      .in("payment_status", [...COMMITTED_PURCHASE_PAYMENT_STATUSES])
       .order("created_at", { ascending: false })
       .limit(RECENT_ORDERS_LIMIT);
     if (error) {

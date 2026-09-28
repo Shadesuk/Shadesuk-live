@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { AUTH_RETURN_COOKIE, resolveAuthReturnPath } from "@/lib/auth-return";
+import {
+  AUTH_RETURN_COOKIE,
+  readAuthReturnCookieHeader,
+  resolveAuthReturnPath,
+} from "@/lib/auth-return";
 import { guestCartCookieSecure } from "@/lib/guest-cart-cookie-secure";
 import { toAccountUser } from "@/lib/account-session";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -12,7 +16,7 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get("code");
   const next = resolveAuthReturnPath({
     queryNext: requestUrl.searchParams.get("next"),
-    cookieNext: readCookie(request, AUTH_RETURN_COOKIE),
+    cookieNext: readAuthReturnCookieHeader(request.headers.get("cookie"), AUTH_RETURN_COOKIE),
   });
   const errorParam = requestUrl.searchParams.get("error");
 
@@ -43,20 +47,6 @@ export async function GET(request: Request) {
   } catch {
     return redirectWithReturnCleared(request, next, "oauth");
   }
-}
-
-function readCookie(request: Request, name: string): string | null {
-  const header = request.headers.get("cookie");
-  if (!header) {
-    return null;
-  }
-  for (const part of header.split(";")) {
-    const [rawName, ...rest] = part.trim().split("=");
-    if (rawName === name) {
-      return rest.join("=");
-    }
-  }
-  return null;
 }
 
 function redirectWithReturnCleared(request: Request, next: string, error?: string) {

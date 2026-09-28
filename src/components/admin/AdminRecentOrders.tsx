@@ -1,8 +1,6 @@
 import Link from "next/link";
-import {
-  adminOrderStatusLabel,
-  adminPaymentStatusLabel,
-} from "@/contracts/admin/dashboard";
+import { adminPaymentStatusLabel } from "@/contracts/admin/dashboard";
+import { reportedAdminOrderStatusLabel } from "@/contracts/admin/orders";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import {
   ADMIN_NO_ORDERS_BODY,
@@ -88,7 +86,7 @@ export async function AdminRecentOrders({
                     </span>
                     <span className="text-small">
                       <span className="visually-hidden">{ADMIN_ORDER_COL_STATUS} </span>
-                      {adminOrderStatusLabel(order.orderStatus)}
+                      {reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)}
                     </span>
                   </span>
                 </Link>

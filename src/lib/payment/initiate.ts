@@ -20,7 +20,7 @@ export type CommitPendingPaymentResult =
       currency: "GBP";
       paymentStatus: "created";
       orderPaymentStatus: "created";
-      orderStatus: "placed";
+      orderStatus: "checkout";
       quote: CheckoutQuote;
     }
   | { status: "invalid"; errors: CheckoutFieldErrors }
@@ -80,7 +80,7 @@ export async function commitPendingPayPalPayment(input: {
     persisted.order.payment_status !== "created" ||
     persisted.payment.status !== "created" ||
     persisted.payment.captured_at ||
-    persisted.order.status !== "placed"
+    persisted.order.status !== "checkout"
   ) {
     return { status: "error" };
   }
@@ -138,7 +138,7 @@ export async function commitPendingPayPalPayment(input: {
       currency: "GBP",
       paymentStatus: "created",
       orderPaymentStatus: "created",
-      orderStatus: "placed",
+      orderStatus: "checkout",
       quote: attempt.quote,
     };
   } catch {

@@ -595,11 +595,14 @@ const reviewSource = readFileSync(
   resolve("src/components/checkout/CheckoutReview.tsx"),
   "utf8",
 );
-if (!reviewSource.includes("CONTINUE_TO_PAYMENT") || !reviewSource.includes("initiateCheckoutPaymentAction")) {
-  throw new Error("Continue to payment must start the server PayPal initiation action.");
+if (!reviewSource.includes("initiateCheckoutPaymentAction") || !reviewSource.includes("data-paypal-button")) {
+  throw new Error("The official PayPal button must start the server PayPal initiation action.");
 }
-if (!reviewSource.includes("openPayPalButtons") || !reviewSource.includes("verifyCheckoutPaymentAction")) {
-  throw new Error("Checkout review must open PayPal Buttons and send approval to server verification.");
+if (!reviewSource.includes("mountPayPalCheckout") || !reviewSource.includes("verifyCheckoutPaymentAction")) {
+  throw new Error("Checkout review must mount PayPal Buttons and send approval to server verification.");
+}
+if (reviewSource.includes("openRazorpayCheckout") || reviewSource.toLowerCase().includes("checkout.js")) {
+  throw new Error("Checkout review must not wire a Razorpay handler.");
 }
 if (!reviewSource.includes("orderConfirmationPath") || !reviewSource.includes("{ scroll: true }")) {
   throw new Error("Checkout review must redirect to confirmation only after the server capture result, and reset scroll.");

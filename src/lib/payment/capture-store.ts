@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { OrderItemRow, OrderRow } from "@/contracts/order/schema";
+import type { OrderItemRow, OrderRow, OrderStatus } from "@/contracts/order/schema";
 import type { PaymentRow } from "@/contracts/payment/schema";
 import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { parseOrderItemRow, parseOrderRow } from "@/lib/order-rows";
@@ -34,7 +34,10 @@ export type PaymentCaptureStore = {
     providerOrderId: string;
     capturedAt: string;
   }) => Promise<PaymentRow | null>;
-  markOrderPaymentCaptured: (orderId: string) => Promise<OrderRow | null>;
+  markOrderPaymentCaptured: (
+    orderId: string,
+    options?: { fromStatus?: OrderStatus },
+  ) => Promise<OrderRow | null>;
   loadVariantStock: (variantIds: readonly string[]) => Promise<Map<string, number>>;
   decrementVariantStock: (input: {
     variantId: string;
@@ -112,18 +115,22 @@ export function createSupabasePaymentCaptureStore(): PaymentCaptureStore {
       return parsePaymentRow(updated.data);
     },
 
-    async markOrderPaymentCaptured(orderId) {
+    async markOrderPaymentCaptured(orderId, options) {
       if (!isUuid(orderId)) {
         return null;
       }
       const admin = createSupabaseAdminClient();
       const now = new Date().toISOString();
+      const patch: { payment_status: "captured"; updated_at: string; status?: "placed" } = {
+        payment_status: "captured",
+        updated_at: now,
+      };
+      if (options?.fromStatus === "checkout") {
+        patch.status = "placed";
+      }
       const updated = await admin
         .from("orders")
-        .update({
-          payment_status: "captured",
-          updated_at: now,
-        })
+        .update(patch)
         .eq("id", orderId)
         .in("payment_status", ["created", "authorized"])
         .select(ORDER_COLUMNS)

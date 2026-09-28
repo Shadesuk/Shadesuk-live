@@ -2,7 +2,7 @@ import "server-only";
 
 import { parseOrderItemRow, parseOrderRow } from "@/lib/order-rows";
 import type { OrderItemRow, OrderRow } from "@/contracts/order/schema";
-import type { PaymentRow } from "@/contracts/payment/schema";
+import { PAYMENT_PROVIDER_PAYPAL, type PaymentRow } from "@/contracts/payment/schema";
 import { isSchemaPaymentStatus } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
 import { createSupabaseAdminClient, hasSupabaseSecretKey } from "@/lib/supabase/admin";
@@ -36,6 +36,12 @@ export type PendingPaymentStore = {
   }) => Promise<PersistedPendingPayment>;
   attachProviderOrderId: (paymentId: string, providerOrderId: string) => Promise<PaymentRow>;
   markInitiationFailed: (paymentId: string, reason: string) => Promise<void>;
+  loadOpenAttempt: (paymentId: string) => Promise<PersistedPendingPayment | null>;
+  closeOpenAttempt: (
+    paymentId: string,
+    status: "cancelled" | "failed",
+    reason: string,
+  ) => Promise<void>;
 };
 
 export function pendingPaymentWritesAvailable(): boolean {
@@ -64,8 +70,8 @@ export function createSupabasePendingPaymentStore(): PendingPaymentStore {
       if (orderResult.error || !order) {
         throw new Error("Could not create the pending order.");
       }
-      if (order.payment_status !== "created" || order.status !== "placed") {
-        throw new Error("Pending order was not created in the unpaid placed state.");
+      if (order.payment_status !== "created" || order.status !== "checkout") {
+        throw new Error("Pending order was not created as an unpaid checkout attempt.");
       }
 
       const itemResult = await admin
@@ -136,17 +142,94 @@ export function createSupabasePendingPaymentStore(): PendingPaymentStore {
     },
 
     async markInitiationFailed(paymentId, reason) {
+      await this.closeOpenAttempt(paymentId, "failed", reason);
+    },
+
+    async loadOpenAttempt(paymentId) {
+      if (!pendingPaymentWritesAvailable()) {
+        return null;
+      }
       const admin = createSupabaseAdminClient();
-      await admin
+      const paymentResult = await admin
+        .from("payments")
+        .select(PAYMENT_COLUMNS)
+        .eq("id", paymentId)
+        .maybeSingle();
+      const payment = parsePaymentRow(paymentResult.data);
+      if (paymentResult.error || !payment || payment.captured_at) {
+        return null;
+      }
+      if (
+        payment.status !== "created" ||
+        payment.provider !== PAYMENT_PROVIDER_PAYPAL ||
+        !payment.provider_order_id
+      ) {
+        return null;
+      }
+      const orderResult = await admin
+        .from("orders")
+        .select(ORDER_COLUMNS)
+        .eq("id", payment.order_id)
+        .maybeSingle();
+      const order = parseOrderRow(orderResult.data);
+      if (
+        orderResult.error ||
+        !order ||
+        order.id !== payment.order_id ||
+        order.payment_status !== "created" ||
+        (order.status !== "checkout" && order.status !== "placed")
+      ) {
+        return null;
+      }
+      const itemResult = await admin
+        .from("order_items")
+        .select(ORDER_ITEM_COLUMNS)
+        .eq("order_id", order.id);
+      if (itemResult.error || !Array.isArray(itemResult.data)) {
+        return null;
+      }
+      const items = itemResult.data
+        .map(parseOrderItemRow)
+        .filter((row): row is OrderItemRow => row !== null && row.order_id === order.id);
+      return { order, items, payment };
+    },
+
+    async closeOpenAttempt(paymentId, status, reason) {
+      if (!pendingPaymentWritesAvailable()) {
+        return;
+      }
+      const admin = createSupabaseAdminClient();
+      const now = new Date().toISOString();
+      const paymentResult = await admin
         .from("payments")
         .update({
-          status: "failed",
+          status,
           failure_reason: reason.slice(0, 280),
-          updated_at: new Date().toISOString(),
+          updated_at: now,
         })
         .eq("id", paymentId)
-        .eq("status", "created")
-        .is("captured_at", null);
+        .in("status", ["created", "authorized"])
+        .is("captured_at", null)
+        .select("order_id")
+        .maybeSingle();
+      const orderId =
+        paymentResult.data &&
+        typeof paymentResult.data === "object" &&
+        "order_id" in paymentResult.data &&
+        typeof paymentResult.data.order_id === "string"
+          ? paymentResult.data.order_id
+          : null;
+      if (!orderId) {
+        return;
+      }
+      await admin
+        .from("orders")
+        .update({
+          payment_status: status,
+          updated_at: now,
+        })
+        .eq("id", orderId)
+        .in("payment_status", ["created", "authorized"]);
     },
   };
 }

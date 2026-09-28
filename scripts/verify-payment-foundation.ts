@@ -285,10 +285,10 @@ if (built.attempt.quote.totalMinor !== 5365 || built.attempt.quote.currency !== 
 }
 if (
   built.attempt.order.payment_status !== "created" ||
-  built.attempt.order.status !== "placed" ||
+  built.attempt.order.status !== "checkout" ||
   built.attempt.payment.status !== "created"
 ) {
-  throw new Error("Pending order and payment must start as created / placed.");
+  throw new Error("Pending order must start as an unpaid checkout attempt, not a placed order.");
 }
 if (
   built.attempt.payment.amount_minor !== built.attempt.quote.totalMinor ||
@@ -384,6 +384,12 @@ async function verifyInitiationFlow(): Promise<void> {
     async markInitiationFailed() {
       writes.push("fail");
     },
+    async loadOpenAttempt() {
+      return null;
+    },
+    async closeOpenAttempt() {
+      writes.push("fail");
+    },
   };
 
   const initiated = await commitPendingPayPalPayment({
@@ -429,11 +435,11 @@ async function verifyInitiationFlow(): Promise<void> {
   if (
     initiated.paymentStatus !== "created" ||
     initiated.orderPaymentStatus !== "created" ||
-    initiated.orderStatus !== "placed" ||
+    initiated.orderStatus !== "checkout" ||
     initiated.amountMinor !== 5365 ||
     initiated.currency !== "GBP"
   ) {
-    throw new Error("Successful initiation must remain created/placed and uncaptured.");
+    throw new Error("Successful initiation must remain an unpaid checkout attempt.");
   }
   if (writes.includes("fail")) {
     throw new Error("Successful initiation must not capture or mark payment failed.");
