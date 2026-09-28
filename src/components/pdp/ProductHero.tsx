@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MappedStorefrontProduct } from "@/contracts";
 import { Button } from "@/components/ui/Button";
@@ -200,10 +201,17 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
                       });
                     }}
                   >
-                    <span
-                      className={styles.dot}
-                      style={item.hex ? { background: item.hex } : undefined}
-                    />
+                    <span className={styles.dot}>
+                      {item.thumbnail?.src ? (
+                        <Image
+                          src={item.thumbnail.src}
+                          alt=""
+                          width={item.thumbnail.width}
+                          height={item.thumbnail.height}
+                          className={styles.dotImage}
+                        />
+                      ) : null}
+                    </span>
                   </button>
                 </li>
               ))}

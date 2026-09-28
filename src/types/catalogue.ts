@@ -59,12 +59,25 @@ export type Brand = BrandSource & {
   productCount: number;
 };
 
+/** Read-time swatch image. Not a database column. */
+export type ColourThumbnail = {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+};
+
 export type ProductColour = {
   id: string;
   slug: string;
   name: string;
   /** Frame/lens colour only — not a UI accent token. */
   hex?: string;
+  /**
+   * First valid image mapped to this colour via `product_images.variant_id`.
+   * Omitted when that colour has no usable image.
+   */
+  thumbnail?: ColourThumbnail;
   available: boolean;
 };
 

@@ -53,15 +53,28 @@ export function mapProductAggregateToStorefront(
     bestSellerIds: options.bestSellerIds ?? new Set(),
     nowMs: options.nowMs,
   });
-  const colours = deriveColours(variants, {
-    selectableOnly: options.projection === "card",
-  });
   const storefrontVariants = variants
     .filter((variant) => variant.status !== "draft" && variant.status !== "archived")
     .map(toStorefrontVariant);
   const colourIdByVariantId = new Map(
     variants.map((variant) => [variant.id, slugifyToken(variant.colour_name) ?? undefined]),
   );
+  const storefrontImages = toStorefrontImages(images, options.imageDimensions).map((image) => {
+    const row = images.find((item) => item.id === image.id);
+    if (!row?.variant_id) {
+      return image;
+    }
+    const colourId = colourIdByVariantId.get(row.variant_id);
+    return {
+      ...image,
+      variantId: row.variant_id,
+      ...(colourId ? { colourId } : {}),
+    };
+  });
+  const colours = deriveColours(variants, {
+    selectableOnly: options.projection === "card",
+    images: storefrontImages,
+  });
 
   const derivedBrand = deriveBrandSource(product.brand);
   const mapped: MappedStorefrontProduct = {
@@ -79,18 +92,7 @@ export function mapProductAggregateToStorefront(
     availability: productAvailabilityFromVariants(variants),
     isNewArrival: merchandising.isNewArrival,
     isBestSeller: merchandising.isBestSeller,
-    images: toStorefrontImages(images, options.imageDimensions).map((image) => {
-      const row = images.find((item) => item.id === image.id);
-      if (!row?.variant_id) {
-        return image;
-      }
-      const colourId = colourIdByVariantId.get(row.variant_id);
-      return {
-        ...image,
-        variantId: row.variant_id,
-        ...(colourId ? { colourId } : {}),
-      };
-    }),
+    images: storefrontImages,
     isDemo: false,
     variants: storefrontVariants,
   };
