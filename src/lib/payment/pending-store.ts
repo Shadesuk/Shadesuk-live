@@ -130,7 +130,7 @@ export function createSupabasePendingPaymentStore(): PendingPaymentStore {
         .single();
       const payment = parsePaymentRow(updated.data);
       if (updated.error || !payment) {
-        throw new Error("Could not attach the Razorpay order id.");
+        throw new Error("Could not attach the PayPal order id.");
       }
       return payment;
     },

@@ -30,7 +30,7 @@ import {
   UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
 import { formatGbp, formatGbpMinor } from "@/lib/money";
-import { openRazorpayCheckout } from "@/lib/razorpay/open-checkout";
+import { openPayPalButtons } from "@/lib/paypal/open-buttons";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { orderConfirmationPath, routes } from "@/lib/navigation";
 import type { PublicCheckoutDraft } from "@/types/checkout";
@@ -82,27 +82,25 @@ export function CheckoutReview({
         return;
       }
       setPaymentUi("checkout");
-      const opened = await openRazorpayCheckout({
-        publicKeyId: started.publicKeyId,
+      const opened = await openPayPalButtons({
+        clientId: started.clientId,
         providerOrderId: started.providerOrderId,
-        customerName: `${draft.firstName} ${draft.lastName}`.trim(),
-        customerEmail: draft.email,
+        paymentId: started.paymentId,
+        mode: started.mode,
       });
       if (opened.status === "dismissed") {
         setPaymentUi("cancelled");
         return;
       }
-      if (opened.status !== "callback") {
-        setPaymentError(PAYMENT_START_ERROR);
+      if (opened.status !== "approved") {
+        setPaymentError(paypalOpenErrorMessage(opened.reason));
         setPaymentUi("error");
         return;
       }
       setPaymentUi("verifying");
       const verified = await verifyCheckoutPaymentAction({
         paymentId: started.paymentId,
-        razorpayPaymentId: opened.response.razorpay_payment_id,
-        razorpayOrderId: opened.response.razorpay_order_id,
-        razorpaySignature: opened.response.razorpay_signature,
+        paypalOrderId: opened.paypalOrderId,
       });
       if (
         (verified.status === "verified" || verified.status === "already_processed") &&
@@ -230,4 +228,21 @@ export function CheckoutReview({
       </div>
     </div>
   );
+}
+
+function paypalOpenErrorMessage(
+  reason: "missing_input" | "script_failed" | "not_eligible" | "sdk_error" | "order_mismatch",
+): string {
+  switch (reason) {
+    case "not_eligible":
+      return "PayPal is not available for this checkout. Try again or use another device.";
+    case "script_failed":
+      return "Could not load PayPal. Check your connection and try again.";
+    case "order_mismatch":
+      return PAYMENT_CONFIRM_ERROR;
+    case "missing_input":
+    case "sdk_error":
+    default:
+      return PAYMENT_START_ERROR;
+  }
 }

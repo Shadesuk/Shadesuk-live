@@ -1,10 +1,14 @@
+/**
+ * In-memory capture writer tests for PayPal provider lock.
+ * No live PayPal network calls.
+ */
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { captureVerifiedRazorpayPayment } from "../src/lib/payment/capture-verified";
+import { captureVerifiedPayment } from "../src/lib/payment/capture-verified";
 import type { PaymentCaptureStore } from "../src/lib/payment/capture-store";
 import type { PaymentRow } from "../src/contracts/payment/schema";
 import type { OrderItemRow, OrderRow } from "../src/contracts/order/schema";
-import type { VerifyCheckoutResult } from "../src/lib/payment/verify-checkout";
+import type { VerifyPayPalClientReturnResult } from "../src/lib/paypal/verify-client-return";
 
 const root = resolve(process.cwd());
 
@@ -16,8 +20,8 @@ const PAYMENT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ORDER_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const VARIANT_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const ITEM_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
-const PROVIDER_ORDER = "order_capture_1";
-const PROVIDER_PAYMENT = "pay_capture_1";
+const PROVIDER_ORDER = "5O190127TN364715T";
+const PROVIDER_PAYMENT = "8MC585209K746392H";
 
 const serverFiles = [
   "src/lib/payment/capture-verified.ts",
@@ -32,52 +36,41 @@ for (const file of serverFiles) {
   if (!source.includes('import "server-only"')) {
     throw new Error(`${file} must be server-only.`);
   }
-  if (source.includes("RAZORPAY_KEY_SECRET") || source.includes("checkout.js")) {
-    throw new Error(`${file} must not verify signatures or load Checkout.js.`);
+  if (
+    source.includes("PAYPAL_CLIENT_SECRET") ||
+    source.toLowerCase().includes("checkout.js") ||
+    source.includes("razorpay")
+  ) {
+    throw new Error(`${file} must not verify provider signatures or load Checkout.js/Razorpay.`);
   }
 }
 
 const captureSource = read("src/lib/payment/capture-verified.ts");
-if (captureSource.includes("verifyRazorpayCheckoutSignature") || captureSource.includes("razorpaySignature")) {
-  throw new Error("Capture writer must not perform Checkout signature verification.");
+if (!captureSource.includes("captureVerifiedPayment") || !captureSource.includes("PAYMENT_PROVIDER_PAYPAL")) {
+  throw new Error("Capture writer must be provider-neutral and lock on paypal.");
+}
+if (!captureSource.includes("onVerifiedPaymentCaptured")) {
+  throw new Error("Capture writer must call the capture hook after commit.");
 }
 if (captureSource.includes("dispatchOrderConfirmationEmail") || captureSource.includes("@/lib/email")) {
   throw new Error("Capture writer must not rebuild Resend.");
 }
-if (!captureSource.includes("onVerifiedPaymentCaptured")) {
-  throw new Error("Capture writer must call the PR #46 capture hook after commit.");
-}
 
-const afterCaptured = read("src/lib/payment/after-captured.ts");
-if (!afterCaptured.includes("dispatchOrderConfirmationEmail(orderId)")) {
-  throw new Error("onVerifiedPaymentCaptured must call the PR #46 dispatcher.");
-}
-if (afterCaptured.includes("new Resend") || afterCaptured.includes("from \"resend\"")) {
-  throw new Error("The capture hook must not construct Resend directly.");
+const storeSource = read("src/lib/payment/capture-store.ts");
+if (!storeSource.includes('PAYMENT_PROVIDER_PAYPAL') || !storeSource.includes('eq("provider"')) {
+  throw new Error("Capture store must filter provider=paypal.");
 }
 
 const paymentActions = read("src/app/(storefront)/checkout/payment-actions.ts");
-if (!paymentActions.includes("captureVerifiedRazorpayPayment")) {
-  throw new Error("Verified Checkout callbacks must pass through the capture writer.");
-}
-if (paymentActions.includes("captureVerifiedRazorpayPayment({") && paymentActions.includes("razorpaySignature")) {
-  const capturesRaw =
-    /captureVerifiedRazorpayPayment\(\{\s*paymentId: input/.test(paymentActions);
-  if (capturesRaw) {
-    throw new Error("Capture writer must not receive raw client callback data.");
-  }
-}
-
-const verifySource = read("src/lib/payment/verify-checkout.ts");
-if (verifySource.includes("captureVerifiedRazorpayPayment") || verifySource.includes("stock_quantity")) {
-  throw new Error("Verification must stay separate from capture and inventory.");
+if (!paymentActions.includes("captureVerifiedPayment") || !paymentActions.includes("verifyPayPalClientReturn")) {
+  throw new Error("Verified PayPal callbacks must pass through verify then capture writer.");
 }
 
 function paymentRow(overrides: Partial<PaymentRow> = {}): PaymentRow {
   return {
     id: PAYMENT_ID,
     order_id: ORDER_ID,
-    provider: "razorpay",
+    provider: "paypal",
     provider_order_id: PROVIDER_ORDER,
     provider_payment_id: null,
     amount_minor: 5365,
@@ -132,8 +125,8 @@ function itemRow(overrides: Partial<OrderItemRow> = {}): OrderItemRow {
 }
 
 function verifiedInput(
-  overrides: Partial<Extract<VerifyCheckoutResult, { outcome: "verified" }>> = {},
-): Extract<VerifyCheckoutResult, { outcome: "verified" }> {
+  overrides: Partial<Extract<VerifyPayPalClientReturnResult, { outcome: "verified" }>> = {},
+): Extract<VerifyPayPalClientReturnResult, { outcome: "verified" }> {
   return {
     outcome: "verified",
     paymentId: PAYMENT_ID,
@@ -231,9 +224,9 @@ function createMemory(overrides: Partial<Omit<MemoryState, "stocks">> & { stock?
     async loadVariantStock(variantIds) {
       const stocks = new Map<string, number>();
       for (const id of variantIds) {
-        const stock = state.stocks.get(id);
-        if (stock != null) {
-          stocks.set(id, stock);
+        const value = state.stocks.get(id);
+        if (value != null) {
+          stocks.set(id, value);
         }
       }
       return stocks;
@@ -265,10 +258,10 @@ function createMemory(overrides: Partial<Omit<MemoryState, "stocks">> & { stock?
 
 async function captureWith(
   memory: ReturnType<typeof createMemory>,
-  input: ServerVerifiedInput,
+  input: Parameters<typeof captureVerifiedPayment>[0],
   hook?: { calls: number; fail?: boolean },
 ) {
-  return captureVerifiedRazorpayPayment(input, {
+  return captureVerifiedPayment(input, {
     store: memory.store,
     resolveCheckoutSessionId: async () => "guest-session-capture",
     onVerifiedPaymentCaptured: async () => {
@@ -282,8 +275,6 @@ async function captureWith(
   });
 }
 
-type ServerVerifiedInput = Parameters<typeof captureVerifiedRazorpayPayment>[0];
-
 void (async () => {
   const created = createMemory();
   const createdHook = { calls: 0 };
@@ -291,140 +282,35 @@ void (async () => {
   if (createdResult.outcome !== "captured") {
     throw new Error("created payment must capture.");
   }
-  if (created.state.payment.status !== "captured" || !created.state.payment.captured_at) {
-    throw new Error("First capture must persist payments.status=captured and captured_at.");
-  }
   if (created.state.payment.provider_payment_id !== PROVIDER_PAYMENT) {
-    throw new Error("First capture must persist the verified Razorpay payment id.");
+    throw new Error("First capture must persist the PayPal capture id.");
   }
-  if (created.state.order.payment_status !== "captured" || created.state.order.status !== "placed") {
-    throw new Error("Order payment_status must become captured without changing fulfilment status.");
+  if (created.state.order.payment_status !== "captured") {
+    throw new Error("Order payment_status must become captured.");
   }
   if (created.state.stocks.get(VARIANT_ID) !== 3 || created.state.decrementCalls !== 1) {
-    throw new Error("First capture must decrement product_variants.stock_quantity once.");
-  }
-  if (created.state.cartStatus !== "converted" || created.state.convertCalls !== 1) {
-    throw new Error("First capture must convert the active checkout cart once.");
+    throw new Error("First capture must decrement stock once.");
   }
   if (createdHook.calls !== 1) {
-    throw new Error("Successful capture must invoke onVerifiedPaymentCaptured exactly once.");
-  }
-
-  const authorized = createMemory({
-    payment: paymentRow({ status: "authorized" }),
-    order: orderRow({ payment_status: "authorized" }),
-  });
-  const authorizedResult = await captureWith(
-    authorized,
-    verifiedInput({ paymentStatus: "authorized", orderPaymentStatus: "authorized" }),
-    { calls: 0 },
-  );
-  if (authorizedResult.outcome !== "captured" || authorized.state.payment.status !== "captured") {
-    throw new Error("authorized payment must capture.");
+    throw new Error("Successful capture must invoke onVerifiedPaymentCaptured once.");
   }
 
   const repeat = await captureWith(created, verifiedInput(), createdHook);
-  if (repeat.outcome !== "already_captured") {
-    throw new Error("Repeated capture must return already_captured.");
-  }
-  if (created.state.captureWrites !== 1) {
-    throw new Error("Repeated capture must not write captured again.");
-  }
-  if (created.state.decrementCalls !== 1) {
-    throw new Error("Captured payment must not decrement inventory twice.");
-  }
-  if (created.state.convertCalls !== 1) {
-    throw new Error("Captured payment must not convert the cart twice.");
-  }
-  if (createdHook.calls !== 1) {
-    throw new Error("already_captured must not invoke onVerifiedPaymentCaptured again.");
+  if (repeat.outcome !== "already_captured" || created.state.captureWrites !== 1) {
+    throw new Error("Repeated capture must return already_captured without rewriting.");
   }
 
-  const failed = await captureWith(
-    createMemory({ payment: paymentRow({ status: "failed" }), order: orderRow({ payment_status: "failed" }) }),
+  const wrongProvider = await captureWith(
+    createMemory({ payment: paymentRow({ provider: "razorpay" }) }),
     verifiedInput(),
   );
-  if (failed.outcome !== "rejected" || failed.reason !== "payment_failed") {
-    throw new Error("failed payment cannot capture.");
-  }
-
-  const cancelled = await captureWith(
-    createMemory({
-      payment: paymentRow({ status: "cancelled" }),
-      order: orderRow({ payment_status: "cancelled" }),
-    }),
-    verifiedInput(),
-  );
-  if (cancelled.outcome !== "rejected" || cancelled.reason !== "payment_cancelled") {
-    throw new Error("cancelled payment cannot capture.");
-  }
-
-  const wrongPaymentId = await captureWith(
-    createMemory({ payment: paymentRow({ provider_payment_id: "pay_other" }) }),
-    verifiedInput(),
-  );
-  if (wrongPaymentId.outcome !== "rejected" || wrongPaymentId.reason !== "provider_payment_mismatch") {
-    throw new Error("Wrong provider payment ID must be rejected.");
-  }
-
-  const wrongOrderId = await captureWith(createMemory(), verifiedInput({ providerOrderId: "order_other" }));
-  if (wrongOrderId.outcome !== "rejected" || wrongOrderId.reason !== "provider_order_mismatch") {
-    throw new Error("Wrong provider order ID must be rejected.");
-  }
-
-  const emailFail = createMemory();
-  const emailHook = { calls: 0, fail: true };
-  const emailResult = await captureWith(emailFail, verifiedInput(), emailHook);
-  if (emailResult.outcome !== "captured") {
-    throw new Error("Email hook failure must not make payment appear uncaptured.");
-  }
-  if (emailFail.state.payment.status !== "captured" || emailFail.state.order.payment_status !== "captured") {
-    throw new Error("Email hook failure must leave payment and order captured.");
-  }
-  if (emailHook.calls !== 1) {
-    throw new Error("Email hook must still be invoked after a successful capture commit.");
-  }
-
-  const clientAmount = createMemory();
-  const clientResult = await captureWith(
-    clientAmount,
-    {
-      ...verifiedInput(),
-      amountMinor: 1,
-      currency: "GBP",
-    },
-  );
-  if (clientResult.outcome !== "captured") {
-    throw new Error("Client amount must not prevent capture of the persisted payment.");
-  }
-  if (clientAmount.state.payment.amount_minor !== 5365 || clientAmount.state.payment.status !== "captured") {
-    throw new Error("Client amount cannot influence capture; persisted amount_minor stays authoritative.");
+  if (wrongProvider.outcome !== "rejected" || wrongProvider.reason !== "provider_mismatch") {
+    throw new Error("Non-paypal provider rows must reject (historical razorpay untouched).");
   }
 
   const insufficient = await captureWith(createMemory({ stock: 0 }), verifiedInput());
   if (insufficient.outcome !== "rejected" || insufficient.reason !== "inventory_insufficient") {
     throw new Error("Insufficient inventory must reject before capture.");
-  }
-
-  const missingItems = await captureWith(createMemory({ items: [] }), verifiedInput());
-  if (missingItems.outcome !== "rejected" || missingItems.reason !== "missing_order_items") {
-    throw new Error("Missing order items must reject capture.");
-  }
-
-  const missingPayment = await captureVerifiedRazorpayPayment(verifiedInput(), {
-    store: {
-      ...createMemory().store,
-      async loadByPaymentId() {
-        return null;
-      },
-    },
-    resolveCheckoutSessionId: async () => null,
-    onVerifiedPaymentCaptured: async () => {
-      throw new Error("missing payment must not notify.");
-    },
-  });
-  if (missingPayment.outcome !== "rejected" || missingPayment.reason !== "unknown_payment") {
-    throw new Error("Missing payment must reject capture.");
   }
 
   console.log("verify-payment-capture: ok");

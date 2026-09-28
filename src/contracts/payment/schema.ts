@@ -5,10 +5,11 @@ import { PAYMENT_STATUSES } from "../order/schema";
 
 /**
  * Locked production payment provider. Matches `payments.provider`.
- * Do not add a second provider adapter.
+ * Hard cut from Razorpay — do not add a second active provider adapter.
+ * Historical `provider=razorpay` rows remain as-is (no backfill).
  */
-export const PAYMENT_PROVIDER_RAZORPAY = "razorpay" as const;
-export type PaymentProviderId = typeof PAYMENT_PROVIDER_RAZORPAY;
+export const PAYMENT_PROVIDER_PAYPAL = "paypal" as const;
+export type PaymentProviderId = typeof PAYMENT_PROVIDER_PAYPAL;
 
 /** Row shape for `public.payments` (PR #10). No metadata column exists. */
 export type PaymentRow = {
@@ -26,8 +27,8 @@ export type PaymentRow = {
   updated_at: string;
 };
 
-export function isPaymentProviderRazorpay(value: string): value is PaymentProviderId {
-  return value === PAYMENT_PROVIDER_RAZORPAY;
+export function isPaymentProviderPaypal(value: string): value is PaymentProviderId {
+  return value === PAYMENT_PROVIDER_PAYPAL;
 }
 
 export function isSchemaPaymentStatus(value: unknown): value is PaymentStatus {
@@ -39,6 +40,10 @@ export function isSchemaPaymentStatus(value: unknown): value is PaymentStatus {
  * cart_id / session_id. Duplicate initiation is not deduped here.
  * Capture idempotency uses `payments.status` / `captured_at` and unique
  * `provider_payment_id`.
+ *
+ * Known risk (PR review MEDIUM — deferred): double-click / retry can create
+ * multiple unpaid attempts. Inventory decrement remains best-effort after
+ * capture. Do not invent a new idempotency cookie without a product decision.
  */
 export const PAYMENT_ATTEMPT_IDEMPOTENCY = {
   mechanism: "none",

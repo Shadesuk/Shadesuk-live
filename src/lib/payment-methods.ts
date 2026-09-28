@@ -1,8 +1,8 @@
 /**
- * Customer-facing payment method presentation for the intended Razorpay setup.
+ * Customer-facing payment method presentation for checkout.
  * Presentation only. No SDK, charges, or merchant API calls.
  *
- * Enable a reserved method by setting `enabled: true` after Razorpay confirms it.
+ * Enable a reserved method by setting `enabled: true` after PayPal confirms it.
  * Optional `markSrc` is for approved brand artwork later — do not invent logos.
  */
 

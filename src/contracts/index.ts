@@ -214,11 +214,11 @@ export {
 } from "./payment/stub";
 export type { PaymentProviderStub, CustomerPaymentState } from "./payment/stub";
 export {
-  isPaymentProviderRazorpay,
+  isPaymentProviderPaypal,
   isSchemaPaymentStatus,
   PAYMENT_ATTEMPT_IDEMPOTENCY,
   PAYMENT_CURRENCY,
-  PAYMENT_PROVIDER_RAZORPAY,
+  PAYMENT_PROVIDER_PAYPAL,
 } from "./payment/schema";
 export type { PaymentProviderId, PaymentRow } from "./payment/schema";
 

@@ -5,7 +5,7 @@ import {
   type PendingPaymentLine,
 } from "@/lib/payment/pending-attempt";
 import type { PendingPaymentStore } from "@/lib/payment/pending-store";
-import { createRazorpayOrder } from "@/lib/razorpay/create-order";
+import { createPayPalOrder } from "@/lib/paypal/create-order";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import type { CheckoutFieldErrors, PublicCheckoutDraft } from "@/types/checkout";
 
@@ -31,15 +31,15 @@ export type CommitPendingPaymentResult =
   | { status: "error" };
 
 /**
- * Persist unpaid order/payment rows, create the Razorpay order from the
+ * Persist unpaid order/payment rows, create the PayPal order from the
  * same quote, attach `provider_order_id`. Never marks captured.
  */
-export async function commitPendingRazorpayPayment(input: {
+export async function commitPendingPayPalPayment(input: {
   draft: PublicCheckoutDraft;
   lines: readonly PendingPaymentLine[];
   userId?: string | null;
   store: PendingPaymentStore;
-  createProviderOrder?: typeof createRazorpayOrder;
+  createProviderOrder?: typeof createPayPalOrder;
 }): Promise<CommitPendingPaymentResult> {
   const built = buildPendingPaymentAttempt({
     draft: input.draft,
@@ -58,8 +58,8 @@ export async function commitPendingRazorpayPayment(input: {
     attempt.payment.status !== "created" ||
     attempt.order.payment_status !== "created" ||
     attempt.payment.amount_minor !== attempt.quote.totalMinor ||
-    attempt.razorpay.amountMinor !== attempt.quote.totalMinor ||
-    attempt.razorpay.currency !== "GBP" ||
+    attempt.paypal.amountMinor !== attempt.quote.totalMinor ||
+    attempt.paypal.currency !== "GBP" ||
     attempt.payment.currency !== "GBP"
   ) {
     return { status: "error" };
@@ -85,11 +85,12 @@ export async function commitPendingRazorpayPayment(input: {
     return { status: "error" };
   }
 
-  const createProviderOrder = input.createProviderOrder ?? createRazorpayOrder;
+  const createProviderOrder = input.createProviderOrder ?? createPayPalOrder;
   const provider = await createProviderOrder({
     amountMinor: attempt.quote.totalMinor,
     currency: attempt.quote.currency,
-    receipt: attempt.razorpay.receipt,
+    customId: persisted.payment.id,
+    invoiceId: attempt.paypal.invoiceId,
   });
 
   if (!provider.ok) {
@@ -108,14 +109,14 @@ export async function commitPendingRazorpayPayment(input: {
     try {
       await input.store.markInitiationFailed(
         persisted.payment.id,
-        "Razorpay order amount or currency did not match the server quote.",
+        "PayPal order amount or currency did not match the server quote.",
       );
     } catch {
       // Unpaid application rows stay unpaid.
     }
     return {
       status: "provider_failed",
-      error: "Razorpay order amount or currency did not match the server quote.",
+      error: "PayPal order amount or currency did not match the server quote.",
     };
   }
 
@@ -141,6 +142,6 @@ export async function commitPendingRazorpayPayment(input: {
       quote: attempt.quote,
     };
   } catch {
-    return { status: "provider_failed", error: "Could not attach the Razorpay order id." };
+    return { status: "provider_failed", error: "Could not attach the PayPal order id." };
   }
 }

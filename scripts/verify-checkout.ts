@@ -596,19 +596,28 @@ const reviewSource = readFileSync(
   "utf8",
 );
 if (!reviewSource.includes("CONTINUE_TO_PAYMENT") || !reviewSource.includes("initiateCheckoutPaymentAction")) {
-  throw new Error("Continue to payment must start the server Razorpay initiation action.");
+  throw new Error("Continue to payment must start the server PayPal initiation action.");
 }
-if (!reviewSource.includes("openRazorpayCheckout") || !reviewSource.includes("verifyCheckoutPaymentAction")) {
-  throw new Error("Checkout review must open official Checkout.js and send the callback to server verification.");
+if (!reviewSource.includes("openPayPalButtons") || !reviewSource.includes("verifyCheckoutPaymentAction")) {
+  throw new Error("Checkout review must open PayPal Buttons and send approval to server verification.");
 }
 if (!reviewSource.includes("orderConfirmationPath") || !reviewSource.includes("{ scroll: true }")) {
   throw new Error("Checkout review must redirect to confirmation only after the server capture result, and reset scroll.");
 }
-if (reviewSource.includes("RAZORPAY_KEY_SECRET") || reviewSource.includes("RAZORPAY_WEBHOOK_SECRET")) {
-  throw new Error("Checkout review must never contain Razorpay secrets.");
+if (
+  reviewSource.includes("PAYPAL_CLIENT_SECRET") ||
+  reviewSource.includes("PAYPAL_WEBHOOK_ID") ||
+  reviewSource.includes("RAZORPAY_")
+) {
+  throw new Error("Checkout review must never contain payment secrets.");
 }
-if (reviewSource.includes("orders.create") || reviewSource.includes("createRazorpayOrder")) {
-  throw new Error("The browser must not create Razorpay orders.");
+if (
+  reviewSource.includes("orders.create") ||
+  reviewSource.includes("createPayPalOrder") ||
+  reviewSource.includes("openRazorpayCheckout") ||
+  reviewSource.toLowerCase().includes("checkout.js")
+) {
+  throw new Error("The browser must not create PayPal/Razorpay orders or load Checkout.js.");
 }
 if (!reviewSource.includes("PaymentMethods")) {
   throw new Error("Checkout must reuse the payment methods presentation.");
@@ -628,7 +637,7 @@ if (enabledMethods.map((method) => method.id).join(",") !== "visa,mastercard,ame
 for (const reserved of ["apple_pay", "google_pay", "klarna"] as const) {
   const method = PAYMENT_METHODS.find((item) => item.id === reserved);
   if (!method || method.enabled) {
-    throw new Error(`${reserved} must stay reserved until Razorpay enables it.`);
+    throw new Error(`${reserved} must stay reserved until PayPal enables it.`);
   }
 }
 if (enabledMethods.some((method) => !method.markSrc)) {
@@ -652,7 +661,7 @@ const pdpHero = readFileSync(resolve("src/components/pdp/ProductHero.tsx"), "utf
 if (!pdpHero.includes("PaymentMethods")) {
   throw new Error("PDP must reuse the payment methods presentation.");
 }
-if (pdpHero.includes("@razorpay") || pdpHero.toLowerCase().includes("checkout.js")) {
+if (pdpHero.includes("@razorpay") || pdpHero.toLowerCase().includes("checkout.js") || pdpHero.includes("paypal.com/sdk")) {
   throw new Error("PDP must not load a payment SDK.");
 }
 
@@ -696,11 +705,11 @@ for (const file of checkoutFiles) {
   const lower = source.toLowerCase();
   if (lower.includes("stripe") || lower.includes("razorpay") || lower.includes("checkout.js")) {
     throw new Error(
-      `${file} must not host Razorpay/Stripe SDKs, secrets, or Checkout.js. Client Checkout is limited to CheckoutReview; server Razorpay lives in src/lib/razorpay.`,
+      `${file} must not host Razorpay/Stripe SDKs, secrets, or Checkout.js. Client Checkout Buttons live in CheckoutReview; server PayPal lives in src/lib/paypal.`,
     );
   }
-  if (source.includes("RAZORPAY_KEY_SECRET") || source.includes("RAZORPAY_WEBHOOK_SECRET")) {
-    throw new Error(`${file} must never contain Razorpay secrets.`);
+  if (source.includes("PAYPAL_CLIENT_SECRET") || source.includes("RAZORPAY_KEY_SECRET")) {
+    throw new Error(`${file} must never contain payment secrets.`);
   }
 }
 const confirmationPage = readFileSync(
@@ -710,8 +719,12 @@ const confirmationPage = readFileSync(
 if (!confirmationPage.includes("loadCapturedCheckoutConfirmation")) {
   throw new Error("Confirmation page must load authoritative captured order state.");
 }
-if (confirmationPage.includes("razorpay") || confirmationPage.includes("paid=true")) {
-  throw new Error("Confirmation page must not trust Razorpay or a client paid flag.");
+if (
+  confirmationPage.includes("razorpay") ||
+  confirmationPage.includes("paypal") ||
+  confirmationPage.includes("paid=true")
+) {
+  throw new Error("Confirmation page must not trust a payment provider SDK or a client paid flag.");
 }
 
 const paymentActions = readFileSync(resolve("src/app/(storefront)/checkout/payment-actions.ts"), "utf8");
@@ -719,14 +732,18 @@ if (!paymentActions.includes("cartActionOriginAllowed")) {
   throw new Error("Payment Server Actions must keep CSRF/origin checks.");
 }
 if (
-  !paymentActions.includes("initiatePendingRazorpayPayment") ||
-  !paymentActions.includes("verifyRazorpayCheckoutPayment") ||
-  !paymentActions.includes("captureVerifiedRazorpayPayment")
+  !paymentActions.includes("initiatePendingPayPalPayment") ||
+  !paymentActions.includes("verifyPayPalClientReturn") ||
+  !paymentActions.includes("captureVerifiedPayment")
 ) {
-  throw new Error("Payment actions must reuse the existing initiate, verify, and capture services.");
+  throw new Error("Payment actions must reuse the PayPal initiate, verify, and capture services.");
 }
-if (paymentActions.includes("RAZORPAY_KEY_SECRET") || paymentActions.includes("RAZORPAY_WEBHOOK_SECRET")) {
-  throw new Error("Payment actions must not embed Razorpay secret names in client-bound results.");
+if (
+  paymentActions.includes("PAYPAL_CLIENT_SECRET") ||
+  paymentActions.includes("RAZORPAY_KEY_SECRET") ||
+  paymentActions.includes("RAZORPAY_WEBHOOK_SECRET")
+) {
+  throw new Error("Payment actions must not embed payment secret names in client-bound results.");
 }
 if (paymentActions.includes("SUPABASE_SECRET_KEY") || paymentActions.includes("SERVICE_ROLE")) {
   throw new Error("Payment actions must not return service-role credentials.");

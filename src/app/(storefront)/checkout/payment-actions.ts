@@ -3,10 +3,10 @@
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import { isUuid } from "@/lib/ids";
-import { resolveRazorpayServerConfig } from "@/lib/razorpay/config";
-import { initiatePendingRazorpayPayment } from "@/services/pending-payment";
-import { captureVerifiedRazorpayPayment } from "@/lib/payment/capture-verified";
-import { verifyRazorpayCheckoutPayment } from "@/lib/payment/verify-checkout";
+import { resolvePayPalServerConfig } from "@/lib/paypal/config";
+import { initiatePendingPayPalPayment } from "@/services/pending-payment";
+import { captureVerifiedPayment } from "@/lib/payment/capture-verified";
+import { verifyPayPalClientReturn } from "@/lib/paypal/verify-client-return";
 
 export type CheckoutPaymentStartResult =
   | {
@@ -14,7 +14,10 @@ export type CheckoutPaymentStartResult =
       paymentId: string;
       orderReference: string;
       providerOrderId: string;
-      publicKeyId: string;
+      /** Public PayPal Client ID — safe for the browser. Never the secret. */
+      clientId: string;
+      /** Matches server PAYPAL_MODE — selects SDK script host. Never hardcode live on the client. */
+      mode: "sandbox" | "live";
       amountMinor: number;
       currency: "GBP";
     }
@@ -31,7 +34,8 @@ export type CheckoutPaymentVerifyResult =
   | { status: "error" };
 
 /**
- * Starts a pending Razorpay attempt. Accepts no client money fields.
+ * Starts a pending PayPal attempt. Accepts no client money fields.
+ * Returns the public Client ID for Phase 3 Buttons (action-return; not NEXT_PUBLIC_).
  */
 export async function initiateCheckoutPaymentAction(
   input?: Record<string, unknown>,
@@ -43,7 +47,7 @@ export async function initiateCheckoutPaymentAction(
     return { status: "error" };
   }
 
-  const started = await initiatePendingRazorpayPayment();
+  const started = await initiatePendingPayPalPayment();
   if (started.status !== "ok") {
     if (
       started.status === "invalid" ||
@@ -57,7 +61,7 @@ export async function initiateCheckoutPaymentAction(
     return { status: "error" };
   }
 
-  const config = resolveRazorpayServerConfig();
+  const config = resolvePayPalServerConfig();
   if (!config.ok) {
     return { status: "error" };
   }
@@ -67,17 +71,20 @@ export async function initiateCheckoutPaymentAction(
     paymentId: started.paymentId,
     orderReference: started.orderReference,
     providerOrderId: started.providerOrderId,
-    publicKeyId: config.config.keyId,
+    clientId: config.config.clientId,
+    mode: config.config.mode,
     amountMinor: started.amountMinor,
     currency: "GBP",
   };
 }
 
+/**
+ * Client-return verify: server Capture + amount reconcile, then app capture writer.
+ * Never marks captured from browser approval alone.
+ */
 export async function verifyCheckoutPaymentAction(input: {
   paymentId: unknown;
-  razorpayPaymentId: unknown;
-  razorpayOrderId: unknown;
-  razorpaySignature: unknown;
+  paypalOrderId: unknown;
   amountMinor?: unknown;
   currency?: unknown;
   total?: unknown;
@@ -92,18 +99,14 @@ export async function verifyCheckoutPaymentAction(input: {
   if (
     typeof input.paymentId !== "string" ||
     !isUuid(input.paymentId) ||
-    typeof input.razorpayPaymentId !== "string" ||
-    typeof input.razorpayOrderId !== "string" ||
-    typeof input.razorpaySignature !== "string"
+    typeof input.paypalOrderId !== "string"
   ) {
     return { status: "error" };
   }
 
-  const verified = await verifyRazorpayCheckoutPayment({
+  const verified = await verifyPayPalClientReturn({
     paymentId: input.paymentId,
-    razorpayPaymentId: input.razorpayPaymentId,
-    razorpayOrderId: input.razorpayOrderId,
-    razorpaySignature: input.razorpaySignature,
+    paypalOrderId: input.paypalOrderId,
     amountMinor: input.amountMinor,
     currency: input.currency,
     total: input.total,
@@ -114,9 +117,12 @@ export async function verifyCheckoutPaymentAction(input: {
     return { status: "error" };
   }
 
-  const captured = await captureVerifiedRazorpayPayment(verified);
+  const captured = await captureVerifiedPayment(verified);
   if (captured.outcome === "captured" || captured.outcome === "already_captured") {
-    return { status: captured.outcome === "already_captured" ? "already_processed" : "verified", orderReference: captured.orderReference };
+    return {
+      status: captured.outcome === "already_captured" ? "already_processed" : "verified",
+      orderReference: captured.orderReference,
+    };
   }
   return { status: "error" };
 }

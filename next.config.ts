@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { buildStorefrontContentSecurityPolicy, resolvePayPalCspMode } from "./src/lib/paypal/csp";
 
 function supabaseImagePattern(): NonNullable<NextConfig["images"]>["remotePatterns"] {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
@@ -28,6 +29,21 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: supabaseImagePattern(),
+  },
+  async headers() {
+    const mode = resolvePayPalCspMode();
+    const csp = buildStorefrontContentSecurityPolicy({ mode });
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: csp,
+          },
+        ],
+      },
+    ];
   },
 };
 

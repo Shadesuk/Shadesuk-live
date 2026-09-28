@@ -1,6 +1,6 @@
 import "server-only";
 
-import { PAYMENT_PROVIDER_RAZORPAY } from "@/contracts/payment/schema";
+import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
 import { isUuid } from "@/lib/ids";
 import { onVerifiedPaymentCaptured } from "@/lib/payment/after-captured";
@@ -10,11 +10,11 @@ import {
   type PaymentCaptureStore,
 } from "@/lib/payment/capture-store";
 import { readGuestCartSessionId } from "@/lib/guest-cart-cookie";
-import type { VerifyCheckoutResult } from "@/lib/payment/verify-checkout";
+import type { VerifyPayPalClientReturnResult } from "@/lib/paypal/verify-client-return";
 
-export type ServerVerifiedRazorpayPayment =
-  | Extract<VerifyCheckoutResult, { outcome: "verified" }>
-  | Extract<VerifyCheckoutResult, { outcome: "already_captured" }>;
+export type ServerVerifiedPayment =
+  | Extract<VerifyPayPalClientReturnResult, { outcome: "verified" }>
+  | Extract<VerifyPayPalClientReturnResult, { outcome: "already_captured" }>;
 
 export type CaptureRejectReason =
   | "invalid_input"
@@ -55,14 +55,15 @@ export type CaptureVerifiedPaymentDependencies = {
 };
 
 /**
- * Single application-level path that turns a server-verified Razorpay
+ * Single application-level path that turns a server-verified provider
  * payment into a captured SHADESUK order.
  *
- * Accepts only `verifyRazorpayCheckoutPayment` results. Does not verify
- * signatures. Does not roll back if the post-capture email hook fails.
+ * Accepts only server-reconciled verify results (PayPal Capture + amount
+ * check). Does not call provider Capture itself. Does not roll back if the
+ * post-capture email hook fails.
  */
-export async function captureVerifiedRazorpayPayment(
-  verified: ServerVerifiedRazorpayPayment,
+export async function captureVerifiedPayment(
+  verified: ServerVerifiedPayment,
   dependencies?: CaptureVerifiedPaymentDependencies,
 ): Promise<CaptureVerifiedPaymentResult> {
   const paymentId = typeof verified.paymentId === "string" ? verified.paymentId.trim() : "";
@@ -98,7 +99,7 @@ export async function captureVerifiedRazorpayPayment(
   if (eligibility) {
     return eligibility;
   }
-  if (loaded.payment.provider !== PAYMENT_PROVIDER_RAZORPAY) {
+  if (loaded.payment.provider !== PAYMENT_PROVIDER_PAYPAL) {
     return { outcome: "rejected", reason: "provider_mismatch" };
   }
   if (loaded.payment.currency !== STORE_CURRENCY || loaded.order.currency !== STORE_CURRENCY) {

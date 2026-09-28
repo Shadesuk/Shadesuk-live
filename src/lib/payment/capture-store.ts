@@ -2,7 +2,7 @@ import "server-only";
 
 import type { OrderItemRow, OrderRow } from "@/contracts/order/schema";
 import type { PaymentRow } from "@/contracts/payment/schema";
-import { PAYMENT_PROVIDER_RAZORPAY } from "@/contracts/payment/schema";
+import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { parseOrderItemRow, parseOrderRow } from "@/lib/order-rows";
 import { parsePaymentRow } from "@/lib/payment/pending-store";
 import { createSupabaseAdminClient, hasSupabaseSecretKey } from "@/lib/supabase/admin";
@@ -102,7 +102,7 @@ export function createSupabasePaymentCaptureStore(): PaymentCaptureStore {
           updated_at: input.capturedAt,
         })
         .eq("id", input.paymentId)
-        .eq("provider", PAYMENT_PROVIDER_RAZORPAY)
+        .eq("provider", PAYMENT_PROVIDER_PAYPAL)
         .eq("provider_order_id", input.providerOrderId.trim())
         .in("status", ["created", "authorized"])
         .is("captured_at", null)

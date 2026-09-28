@@ -1,65 +1,87 @@
 import "server-only";
 
-import { PAYMENT_PROVIDER_RAZORPAY } from "@/contracts/payment/schema";
+import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
 import {
-  captureVerifiedRazorpayPayment,
+  captureVerifiedPayment,
   type CaptureVerifiedPaymentDependencies,
   type CaptureVerifiedPaymentResult,
-  type ServerVerifiedRazorpayPayment,
+  type ServerVerifiedPayment,
 } from "@/lib/payment/capture-verified";
 import {
-  createSupabaseRazorpayWebhookStore,
-  type RazorpayWebhookStore,
+  createSupabasePaymentWebhookStore,
+  type PaymentWebhookStore,
   type WebhookPaymentRecord,
 } from "@/lib/payment/webhook-store";
-import { resolveRazorpayWebhookSecret } from "@/lib/razorpay/config";
-import { razorpaySubunitToGbpMinor } from "@/lib/razorpay/amount";
-import { verifyRazorpayWebhookSignature } from "@/lib/razorpay/verify-webhook-signature";
+import { payPalValueToGbpMinor } from "@/lib/paypal/amount";
+import { resolvePayPalWebhookId } from "@/lib/paypal/config";
+import {
+  verifyPayPalWebhookSignature,
+  type VerifyPayPalWebhookSignatureResult,
+} from "@/lib/paypal/verify-webhook-signature";
 
-export const RAZORPAY_PAYMENT_CAPTURED_EVENT = "payment.captured";
-export const RAZORPAY_PAYMENT_FAILED_EVENT = "payment.failed";
+/** App-capture only after signature + amount reconcile. */
+export const PAYPAL_PAYMENT_CAPTURE_COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
+export const PAYPAL_PAYMENT_CAPTURE_DECLINED = "PAYMENT.CAPTURE.DECLINED";
+export const PAYPAL_PAYMENT_CAPTURE_DENIED = "PAYMENT.CAPTURE.DENIED";
+/** Buyer approved — funds not necessarily captured. Never app-capture. */
+export const PAYPAL_CHECKOUT_ORDER_APPROVED = "CHECKOUT.ORDER.APPROVED";
+/** Documented uncaptured-after-approve signal — log only. */
+export const PAYPAL_CHECKOUT_PAYMENT_APPROVAL_REVERSED = "CHECKOUT.PAYMENT-APPROVAL.REVERSED";
 
-export type RazorpayWebhookHttpResult = {
+export type PayPalWebhookHttpResult = {
   status: 200 | 400 | 503;
   body: { ok: boolean };
 };
 
-export type HandleRazorpayWebhookInput = {
+export type HandlePayPalWebhookInput = {
   rawBody: string;
-  signature: string;
-  eventIdHeader?: string;
+  transmissionId: string;
+  transmissionTime: string;
+  transmissionSig: string;
+  certUrl: string;
+  authAlgo: string;
 };
 
-export type HandleRazorpayWebhookDependencies = {
-  webhookSecret?: string;
-  store?: RazorpayWebhookStore;
+export type HandlePayPalWebhookDependencies = {
+  webhookId?: string;
+  store?: PaymentWebhookStore;
+  verifySignature?: (
+    input: Parameters<typeof verifyPayPalWebhookSignature>[0],
+  ) => Promise<VerifyPayPalWebhookSignatureResult>;
   capture?: (
-    verified: ServerVerifiedRazorpayPayment,
+    verified: ServerVerifiedPayment,
     dependencies?: CaptureVerifiedPaymentDependencies,
   ) => Promise<CaptureVerifiedPaymentResult>;
   captureDependencies?: CaptureVerifiedPaymentDependencies;
+  log?: (message: string, fields?: Record<string, unknown>) => void;
 };
 
 /**
- * Recovers a Razorpay payment from a signed webhook.
- * Capture still goes through `captureVerifiedRazorpayPayment`.
+ * Recovers a PayPal payment from a postback-verified webhook.
+ * Capture still goes through `captureVerifiedPayment`.
+ * Never skips signature verification on real traffic.
  */
-export async function handleRazorpayWebhook(
-  input: HandleRazorpayWebhookInput,
-  dependencies?: HandleRazorpayWebhookDependencies,
-): Promise<RazorpayWebhookHttpResult> {
-  const secret = resolveWebhookSecret(dependencies);
-  if (!secret) {
+export async function handlePayPalWebhook(
+  input: HandlePayPalWebhookInput,
+  dependencies?: HandlePayPalWebhookDependencies,
+): Promise<PayPalWebhookHttpResult> {
+  const webhookId = resolveWebhookId(dependencies);
+  if (!webhookId) {
     return retryable();
   }
-  if (
-    !verifyRazorpayWebhookSignature({
-      rawBody: input.rawBody,
-      signature: input.signature,
-      webhookSecret: secret,
-    })
-  ) {
+
+  const verify = dependencies?.verifySignature ?? verifyPayPalWebhookSignature;
+  const verified = await verify({
+    rawBody: input.rawBody,
+    transmissionId: input.transmissionId,
+    transmissionTime: input.transmissionTime,
+    transmissionSig: input.transmissionSig,
+    certUrl: input.certUrl,
+    authAlgo: input.authAlgo,
+    webhookId,
+  });
+  if (!verified.ok) {
     return rejected();
   }
 
@@ -68,20 +90,22 @@ export async function handleRazorpayWebhook(
     return rejected();
   }
 
-  const eventType = asNonEmptyString(parsed.event);
-  const paymentEntity = extractPaymentEntity(parsed);
-  const providerEventId = resolveProviderEventId(parsed, input.eventIdHeader, paymentEntity);
+  const eventType = asNonEmptyString(parsed.event_type);
+  const providerEventId = asNonEmptyString(parsed.id);
   if (!eventType || !providerEventId) {
     return rejected();
   }
 
-  const store = dependencies?.store ?? createSupabaseRazorpayWebhookStore();
+  const store = dependencies?.store ?? createSupabasePaymentWebhookStore();
+  const log = dependencies?.log ?? defaultLog;
+  const resource = extractResource(parsed);
+
   let event;
   try {
     event = await store.insertUnprocessedEvent({
       providerEventId,
       eventType,
-      payload: sanitizeWebhookPayload(parsed, paymentEntity),
+      payload: sanitizeWebhookPayload(parsed, resource),
     });
   } catch {
     return retryable();
@@ -91,16 +115,48 @@ export async function handleRazorpayWebhook(
     return acknowledged();
   }
 
-  if (eventType !== RAZORPAY_PAYMENT_CAPTURED_EVENT && eventType !== RAZORPAY_PAYMENT_FAILED_EVENT) {
+  if (eventType === PAYPAL_CHECKOUT_ORDER_APPROVED) {
+    // Buyer approved only — do not app-capture.
     return finishProcessed(store, providerEventId);
   }
-  if (!paymentEntity) {
+
+  if (eventType === PAYPAL_CHECKOUT_PAYMENT_APPROVAL_REVERSED) {
+    log("paypal_checkout_payment_approval_reversed", {
+      providerEventId,
+      eventType,
+      resourceId: resource ? asNonEmptyString(resource.id) : "",
+      orderId: resource ? extractRelatedOrderId(resource) : "",
+    });
+    return finishProcessed(store, providerEventId);
+  }
+
+  if (
+    eventType === PAYPAL_PAYMENT_CAPTURE_DECLINED ||
+    eventType === PAYPAL_PAYMENT_CAPTURE_DENIED
+  ) {
+    return handleFailedCapture(store, resource, providerEventId, eventType);
+  }
+
+  if (eventType !== PAYPAL_PAYMENT_CAPTURE_COMPLETED) {
+    return finishProcessed(store, providerEventId);
+  }
+
+  if (!resource) {
     return rejected();
   }
 
-  const providerPaymentId = asNonEmptyString(paymentEntity.id);
-  const providerOrderId = asNonEmptyString(paymentEntity.order_id);
+  const providerPaymentId = asNonEmptyString(resource.id);
+  const providerOrderId = extractRelatedOrderId(resource);
   if (!providerPaymentId || !providerOrderId) {
+    return rejected();
+  }
+
+  const amount = extractAmount(resource);
+  if (!amount) {
+    return rejected();
+  }
+  const webhookAmountMinor = payPalValueToGbpMinor(amount.value, amount.currency_code);
+  if (webhookAmountMinor == null) {
     return rejected();
   }
 
@@ -111,22 +167,22 @@ export async function handleRazorpayWebhook(
   if (resolved.payment.provider_order_id !== providerOrderId) {
     return rejected();
   }
-  if (resolved.payment.provider !== PAYMENT_PROVIDER_RAZORPAY) {
+  if (resolved.payment.provider !== PAYMENT_PROVIDER_PAYPAL) {
     return rejected();
   }
   if (resolved.payment.currency !== STORE_CURRENCY || resolved.order.currency !== STORE_CURRENCY) {
     return rejected();
   }
-  const webhookAmountMinor = razorpaySubunitToGbpMinor(paymentEntity.amount, paymentEntity.currency);
-  if (webhookAmountMinor == null || webhookAmountMinor !== resolved.payment.amount_minor) {
+  if (webhookAmountMinor !== resolved.payment.amount_minor) {
     return rejected();
   }
 
-  if (eventType === RAZORPAY_PAYMENT_FAILED_EVENT) {
-    return handleFailedPayment(store, resolved, paymentEntity, providerEventId);
+  const customId = asNonEmptyString(resource.custom_id);
+  if (customId && customId !== resolved.payment.id) {
+    return rejected();
   }
 
-  return handleCapturedPayment(
+  return handleCompletedCapture(
     store,
     resolved,
     providerPaymentId,
@@ -136,19 +192,19 @@ export async function handleRazorpayWebhook(
   );
 }
 
-async function handleCapturedPayment(
-  store: RazorpayWebhookStore,
+async function handleCompletedCapture(
+  store: PaymentWebhookStore,
   resolved: WebhookPaymentRecord,
   providerPaymentId: string,
   providerOrderId: string,
   providerEventId: string,
-  dependencies?: HandleRazorpayWebhookDependencies,
-): Promise<RazorpayWebhookHttpResult> {
+  dependencies?: HandlePayPalWebhookDependencies,
+): Promise<PayPalWebhookHttpResult> {
   if (resolved.payment.status === "failed" || resolved.payment.status === "cancelled") {
     return retryable();
   }
 
-  const verified: ServerVerifiedRazorpayPayment =
+  const verified: ServerVerifiedPayment =
     resolved.payment.status === "captured" || resolved.order.payment_status === "captured"
       ? {
           outcome: "already_captured",
@@ -169,7 +225,7 @@ async function handleCapturedPayment(
             resolved.order.payment_status === "authorized" ? "authorized" : "created",
         };
 
-  const capture = dependencies?.capture ?? captureVerifiedRazorpayPayment;
+  const capture = dependencies?.capture ?? captureVerifiedPayment;
   let captured: CaptureVerifiedPaymentResult;
   try {
     captured = await capture(verified, {
@@ -187,19 +243,35 @@ async function handleCapturedPayment(
   return retryable();
 }
 
-async function handleFailedPayment(
-  store: RazorpayWebhookStore,
-  resolved: WebhookPaymentRecord,
-  paymentEntity: Record<string, unknown>,
+async function handleFailedCapture(
+  store: PaymentWebhookStore,
+  resource: Record<string, unknown> | null,
   providerEventId: string,
-): Promise<RazorpayWebhookHttpResult> {
+  eventType: string,
+): Promise<PayPalWebhookHttpResult> {
+  if (!resource) {
+    return finishProcessed(store, providerEventId);
+  }
+  const providerPaymentId = asNonEmptyString(resource.id);
+  const providerOrderId = extractRelatedOrderId(resource);
+  if (!providerPaymentId && !providerOrderId) {
+    return finishProcessed(store, providerEventId);
+  }
+
+  const resolved = providerOrderId
+    ? await store.loadPaymentByProviderOrderId(providerOrderId)
+    : await store.loadPaymentByProviderPaymentId(providerPaymentId);
+  if (!resolved) {
+    // Unknown payment — ack to stop retries; nothing to fail.
+    return finishProcessed(store, providerEventId);
+  }
   if (resolved.payment.status === "captured" || resolved.payment.captured_at) {
     return finishProcessed(store, providerEventId);
   }
   try {
     await store.markPaymentFailed({
       paymentId: resolved.payment.id,
-      reason: safeFailureReason(paymentEntity),
+      reason: `PayPal ${eventType}`,
     });
   } catch {
     return retryable();
@@ -208,9 +280,9 @@ async function handleFailedPayment(
 }
 
 async function finishProcessed(
-  store: RazorpayWebhookStore,
+  store: PaymentWebhookStore,
   providerEventId: string,
-): Promise<RazorpayWebhookHttpResult> {
+): Promise<PayPalWebhookHttpResult> {
   try {
     const processed = await store.markEventProcessed(providerEventId);
     if (!processed?.processed) {
@@ -223,7 +295,7 @@ async function finishProcessed(
 }
 
 async function resolveInternalPayment(
-  store: RazorpayWebhookStore,
+  store: PaymentWebhookStore,
   providerOrderId: string,
   providerPaymentId: string,
 ): Promise<WebhookPaymentRecord | null> {
@@ -240,12 +312,12 @@ async function resolveInternalPayment(
   return store.loadPaymentByProviderPaymentId(providerPaymentId);
 }
 
-function resolveWebhookSecret(dependencies?: HandleRazorpayWebhookDependencies): string {
-  if (typeof dependencies?.webhookSecret === "string" && dependencies.webhookSecret) {
-    return dependencies.webhookSecret;
+function resolveWebhookId(dependencies?: HandlePayPalWebhookDependencies): string {
+  if (typeof dependencies?.webhookId === "string" && dependencies.webhookId.trim()) {
+    return dependencies.webhookId.trim();
   }
-  const resolved = resolveRazorpayWebhookSecret();
-  return resolved.ok ? resolved.webhookSecret : "";
+  const resolved = resolvePayPalWebhookId();
+  return resolved.ok ? resolved.webhookId : "";
 }
 
 function parseWebhookJson(rawBody: string): Record<string, unknown> | null {
@@ -260,89 +332,84 @@ function parseWebhookJson(rawBody: string): Record<string, unknown> | null {
   }
 }
 
-function extractPaymentEntity(parsed: Record<string, unknown>): Record<string, unknown> | null {
-  const payload = parsed.payload;
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+function extractResource(parsed: Record<string, unknown>): Record<string, unknown> | null {
+  const resource = parsed.resource;
+  if (!resource || typeof resource !== "object" || Array.isArray(resource)) {
     return null;
   }
-  const payment = (payload as Record<string, unknown>).payment;
-  if (!payment || typeof payment !== "object" || Array.isArray(payment)) {
-    return null;
-  }
-  const entity = (payment as Record<string, unknown>).entity;
-  if (entity && typeof entity === "object" && !Array.isArray(entity)) {
-    return entity as Record<string, unknown>;
-  }
-  return payment as Record<string, unknown>;
+  return resource as Record<string, unknown>;
 }
 
-function resolveProviderEventId(
-  parsed: Record<string, unknown>,
-  header: string | undefined,
-  paymentEntity: Record<string, unknown> | null,
-): string {
-  const fromHeader = header?.trim() ?? "";
-  if (fromHeader) {
-    return fromHeader;
+function extractRelatedOrderId(resource: Record<string, unknown>): string {
+  const supplementary = resource.supplementary_data;
+  if (supplementary && typeof supplementary === "object" && !Array.isArray(supplementary)) {
+    const related = (supplementary as Record<string, unknown>).related_ids;
+    if (related && typeof related === "object" && !Array.isArray(related)) {
+      const orderId = asNonEmptyString((related as Record<string, unknown>).order_id);
+      if (orderId) {
+        return orderId;
+      }
+    }
   }
-  const fromBody = asNonEmptyString(parsed.id);
-  if (fromBody) {
-    return fromBody;
+  // Some payloads expose order id via HATEOAS "up" link path — not used; require related_ids.
+  return "";
+}
+
+function extractAmount(
+  resource: Record<string, unknown>,
+): { value: unknown; currency_code: unknown } | null {
+  const amount = resource.amount;
+  if (!amount || typeof amount !== "object" || Array.isArray(amount)) {
+    return null;
   }
-  const eventType = asNonEmptyString(parsed.event) ?? "unknown";
-  const paymentId = paymentEntity ? asNonEmptyString(paymentEntity.id) : "";
-  const createdAt =
-    typeof parsed.created_at === "number" || typeof parsed.created_at === "string"
-      ? String(parsed.created_at)
-      : "";
-  if (!paymentId || !createdAt) {
-    return "";
-  }
-  return `razorpay:${eventType}:${paymentId}:${createdAt}`;
+  const row = amount as Record<string, unknown>;
+  return { value: row.value, currency_code: row.currency_code };
 }
 
 function sanitizeWebhookPayload(
   parsed: Record<string, unknown>,
-  paymentEntity: Record<string, unknown> | null,
+  resource: Record<string, unknown> | null,
 ): Record<string, unknown> {
+  const amount = resource ? extractAmount(resource) : null;
   return {
-    event: asNonEmptyString(parsed.event),
-    created_at: parsed.created_at ?? null,
-    payment: paymentEntity
+    id: asNonEmptyString(parsed.id),
+    event_type: asNonEmptyString(parsed.event_type),
+    create_time: asNonEmptyString(parsed.create_time) || null,
+    resource_type: asNonEmptyString(parsed.resource_type) || null,
+    resource: resource
       ? {
-          id: asNonEmptyString(paymentEntity.id),
-          order_id: asNonEmptyString(paymentEntity.order_id),
-          amount: paymentEntity.amount ?? null,
-          currency: asNonEmptyString(paymentEntity.currency),
-          status: asNonEmptyString(paymentEntity.status),
-          error_code: asNonEmptyString(paymentEntity.error_code),
-          error_description: asNonEmptyString(paymentEntity.error_description),
+          id: asNonEmptyString(resource.id),
+          status: asNonEmptyString(resource.status),
+          custom_id: asNonEmptyString(resource.custom_id) || null,
+          order_id: extractRelatedOrderId(resource) || null,
+          amount: amount
+            ? {
+                value: typeof amount.value === "string" ? amount.value : null,
+                currency_code:
+                  typeof amount.currency_code === "string" ? amount.currency_code : null,
+              }
+            : null,
         }
       : null,
   };
-}
-
-function safeFailureReason(paymentEntity: Record<string, unknown>): string {
-  return (
-    asNonEmptyString(paymentEntity.error_description) ||
-    asNonEmptyString(paymentEntity.error_reason) ||
-    asNonEmptyString(paymentEntity.error_code) ||
-    "Razorpay payment failed"
-  );
 }
 
 function asNonEmptyString(value: unknown): string {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
-function acknowledged(): RazorpayWebhookHttpResult {
+function defaultLog(message: string, fields?: Record<string, unknown>): void {
+  console.info(message, fields ?? {});
+}
+
+function acknowledged(): PayPalWebhookHttpResult {
   return { status: 200, body: { ok: true } };
 }
 
-function rejected(): RazorpayWebhookHttpResult {
+function rejected(): PayPalWebhookHttpResult {
   return { status: 400, body: { ok: false } };
 }
 
-function retryable(): RazorpayWebhookHttpResult {
+function retryable(): PayPalWebhookHttpResult {
   return { status: 503, body: { ok: false } };
 }

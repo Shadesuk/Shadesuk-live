@@ -4,10 +4,14 @@ import { orderConfirmationIdempotencyKey } from "../src/lib/email/idempotency";
 import { createMemoryEmailEventStore } from "../src/lib/email/memory-store";
 import { dispatchOrderConfirmationEmail } from "../src/lib/email/order-confirmation";
 import { onVerifiedPaymentCaptured } from "../src/lib/payment/after-captured";
-import { captureVerifiedRazorpayPayment } from "../src/lib/payment/capture-verified";
+import { captureVerifiedPayment } from "../src/lib/payment/capture-verified";
 import { loadCapturedCheckoutConfirmation } from "../src/services/checkout-confirmation";
-import { resetPurchaseDedupeForTests, trackPurchaseOnce, registerAnalyticsProvider } from "../src/lib/analytics";
-import { PAYMENT_PROVIDER_RAZORPAY } from "../src/contracts/payment/schema";
+import {
+  resetPurchaseDedupeForTests,
+  trackPurchaseOnce,
+  registerAnalyticsProvider,
+} from "../src/lib/analytics";
+import { PAYMENT_PROVIDER_PAYPAL } from "../src/contracts/payment/schema";
 import { STORE_CURRENCY } from "../src/contracts/money";
 import { orderConfirmationPath, routes } from "../src/lib/navigation";
 import type { OrderRow } from "../src/contracts/order/schema";
@@ -19,8 +23,29 @@ function read(path: string): string {
   return readFileSync(resolve(root, path), "utf8");
 }
 
-if (PAYMENT_PROVIDER_RAZORPAY !== "razorpay" || STORE_CURRENCY !== "GBP") {
-  throw new Error("Production payment must stay Razorpay + GBP.");
+/** Real secret reads/assignments — not prose that says "never CLIENT_SECRET". */
+function embedsPayPalSecret(source: string): boolean {
+  return (
+    /\bprocess\.env\.PAYPAL_CLIENT_SECRET\b/.test(source) ||
+    /\bprocess\.env\.PAYPAL_WEBHOOK_ID\b/.test(source) ||
+    /\bNEXT_PUBLIC_PAYPAL_CLIENT_SECRET\b/.test(source) ||
+    /\bNEXT_PUBLIC_PAYPAL_WEBHOOK_ID\b/.test(source) ||
+    /\bPAYPAL_CLIENT_SECRET\s*=/.test(source)
+  );
+}
+
+if (PAYMENT_PROVIDER_PAYPAL !== "paypal" || STORE_CURRENCY !== "GBP") {
+  throw new Error("Production payment must stay PayPal + GBP.");
+}
+
+if (existsSync(resolve(root, "src/lib/razorpay"))) {
+  throw new Error("src/lib/razorpay must be deleted.");
+}
+if (existsSync(resolve(root, "src/app/api/webhooks/razorpay"))) {
+  throw new Error("Razorpay webhook route must be absent (no ghost archive).");
+}
+if (read("package.json").includes('"razorpay"')) {
+  throw new Error("npm razorpay dependency must be removed.");
 }
 
 if (routes.checkoutConfirmation !== "/checkout/confirmation") {
@@ -32,9 +57,10 @@ if (!orderConfirmationPath("SHU-ABCDEFGHJKMN").includes("/checkout/confirmation"
 
 const envExample = read(".env.example");
 for (const name of [
-  "RAZORPAY_KEY_ID",
-  "RAZORPAY_KEY_SECRET",
-  "RAZORPAY_WEBHOOK_SECRET",
+  "PAYPAL_CLIENT_ID",
+  "PAYPAL_CLIENT_SECRET",
+  "PAYPAL_WEBHOOK_ID",
+  "PAYPAL_MODE",
   "RESEND_API_KEY",
   "RESEND_FROM_EMAIL",
   "RESEND_ORDER_CONFIRMATION_TEMPLATE_ID",
@@ -44,43 +70,61 @@ for (const name of [
     throw new Error(`.env.example must document ${name}.`);
   }
 }
-if (envExample.includes("NEXT_PUBLIC_RAZORPAY_KEY_ID=") || envExample.includes("NEXT_PUBLIC_RAZORPAY_KEY_SECRET=")) {
-  throw new Error("Razorpay Checkout must not use a NEXT_PUBLIC_ key.");
+if (
+  envExample.includes("NEXT_PUBLIC_PAYPAL_CLIENT_SECRET=") ||
+  envExample.includes("NEXT_PUBLIC_PAYPAL_WEBHOOK_ID=")
+) {
+  throw new Error("PayPal secrets must never use NEXT_PUBLIC_.");
 }
 
-const route = read("src/app/api/webhooks/razorpay/route.ts");
-if (!route.includes("export async function POST") || route.includes("export async function GET")) {
-  throw new Error("Razorpay webhook must remain POST /api/webhooks/razorpay.");
+const route = read("src/app/api/webhooks/paypal/route.ts");
+if (!route.includes("export async function POST") || !route.includes("handlePayPalWebhook")) {
+  throw new Error("PayPal webhook must remain POST /api/webhooks/paypal.");
 }
 
-const captureWrites = [
-  "src/lib/payment/capture-store.ts",
-];
+const captureWrites = ["src/lib/payment/capture-store.ts"];
 const forbiddenCaptureWrites = [
-  "src/lib/payment/verify-checkout.ts",
+  "src/lib/paypal/verify-client-return.ts",
   "src/lib/payment/handle-webhook.ts",
-  "src/app/api/webhooks/razorpay/route.ts",
+  "src/app/api/webhooks/paypal/route.ts",
   "src/components/checkout/CheckoutReview.tsx",
   "src/app/(storefront)/checkout/confirmation/page.tsx",
 ];
 for (const file of forbiddenCaptureWrites) {
   const source = read(file);
-  if (source.includes('status: "captured"') && file.includes("capture-store") === false) {
-    if (file.includes("verify-checkout") || file.includes("handle-webhook") || file.includes("CheckoutReview") || file.includes("confirmation")) {
-      throw new Error(`${file} must not write captured payment state.`);
-    }
-  }
   if (source.includes("dispatchOrderConfirmationEmail")) {
     throw new Error(`${file} must not dispatch email directly.`);
   }
 }
-if (!read(captureWrites[0]).includes('status: "captured"') || !read(captureWrites[0]).includes('payment_status: "captured"')) {
-  throw new Error("Capture store must remain the only captured-state writer.");
+if (
+  !read(captureWrites[0]).includes('status: "captured"') ||
+  !read(captureWrites[0]).includes('payment_status: "captured"')
+) {
+  throw new Error("Capture store must remain the captured-state writer.");
+}
+if (!read(captureWrites[0]).includes("PAYMENT_PROVIDER_PAYPAL")) {
+  throw new Error("Capture store must filter provider=paypal.");
 }
 
 const afterCaptured = read("src/lib/payment/after-captured.ts");
 if (!afterCaptured.includes("dispatchOrderConfirmationEmail(orderId)")) {
-  throw new Error("Capture hook must reach the PR #46 dispatcher.");
+  throw new Error("Capture hook must reach the order confirmation dispatcher.");
+}
+
+const openButtons = read("src/lib/paypal/open-buttons.ts");
+if (embedsPayPalSecret(openButtons)) {
+  throw new Error("Client Buttons helper must not embed secrets.");
+}
+
+const clientSurfaces = [
+  "src/components/checkout/CheckoutReview.tsx",
+  "src/lib/paypal/open-buttons.ts",
+];
+for (const file of clientSurfaces) {
+  const source = read(file);
+  if (embedsPayPalSecret(source) || source.toLowerCase().includes("checkout.js")) {
+    throw new Error(`${file} must not contain secrets or Checkout.js.`);
+  }
 }
 
 const ORDER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -126,7 +170,7 @@ void (async () => {
   const emailed = await dispatchOrderConfirmationEmail(ORDER_ID, emailDeps);
   const emailedAgain = await dispatchOrderConfirmationEmail(ORDER_ID, emailDeps);
   if (emailed.outcome !== "sent" || emailedAgain.outcome !== "skipped" || emailCalls !== 1) {
-    throw new Error("Captured order must reach the PR #46 dispatcher once per order.");
+    throw new Error("Captured order must reach the dispatcher once per order.");
   }
 
   const unpaid = await dispatchOrderConfirmationEmail(ORDER_ID, {
@@ -238,17 +282,14 @@ void (async () => {
   registerAnalyticsProvider(null);
 
   const captureSource = read("src/lib/payment/capture-verified.ts");
-  if (!captureSource.includes("onVerifiedPaymentCaptured") || captureSource.includes("from \"resend\"")) {
+  if (!captureSource.includes("onVerifiedPaymentCaptured") || captureSource.includes('from "resend"')) {
     throw new Error("Capture writer must remain the email boundary.");
   }
   if (!existsSync(resolve(root, "src/app/(storefront)/checkout/confirmation/page.tsx"))) {
     throw new Error("Missing confirmation page.");
   }
-  if (read("src/lib/razorpay/open-checkout.ts").includes("RAZORPAY_KEY_SECRET")) {
-    throw new Error("Checkout.js must receive only the public key.");
-  }
 
-  void captureVerifiedRazorpayPayment;
+  void captureVerifiedPayment;
 
   console.log("verify-payment-final: ok");
 })().catch((error: unknown) => {

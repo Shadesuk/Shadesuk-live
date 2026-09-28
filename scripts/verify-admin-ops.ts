@@ -233,7 +233,7 @@ for (const file of opsSources) {
   if (
     source.includes("createSupabaseAdminClient") ||
     source.includes("SUPABASE_SECRET_KEY") ||
-    source.includes("razorpay") ||
+    source.includes("razorpay") || source.includes("checkout.paypal") || source.includes("web-sdk/v6") ||
     source.includes("£12,345") ||
     source.includes("demo metric")
   ) {

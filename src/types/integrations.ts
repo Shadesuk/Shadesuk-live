@@ -24,9 +24,9 @@ export type AddressLookupProvider = {
 export type PaymentProvider = {
   /**
    * Locked production provider. Charge/order writes live in
-   * `src/lib/razorpay` and `src/services/pending-payment.ts`.
+   * `src/lib/paypal` and `src/services/pending-payment.ts`.
    */
-  id: "razorpay";
+  id: "paypal";
 };
 
 export type AuthProvider = {
