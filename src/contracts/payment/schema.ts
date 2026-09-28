@@ -40,6 +40,10 @@ export function isSchemaPaymentStatus(value: unknown): value is PaymentStatus {
  * cart_id / session_id. Duplicate initiation is not deduped here.
  * Capture idempotency uses `payments.status` / `captured_at` and unique
  * `provider_payment_id`.
+ *
+ * Known risk (PR review MEDIUM — deferred): double-click / retry can create
+ * multiple unpaid attempts. Inventory decrement remains best-effort after
+ * capture. Do not invent a new idempotency cookie without a product decision.
  */
 export const PAYMENT_ATTEMPT_IDEMPOTENCY = {
   mechanism: "none",

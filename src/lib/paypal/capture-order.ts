@@ -39,7 +39,7 @@ export async function capturePayPalOrder(
   });
 
   if (!result.ok) {
-    const alreadyCaptured = isAlreadyCapturedError(result.status, result.body);
+    const alreadyCaptured = isAlreadyCapturedError(result.body);
     return {
       ok: false,
       error: result.error,
@@ -88,33 +88,34 @@ export function fromFetchedOrder(order: FetchedPayPalOrder): CapturePayPalOrderR
   };
 }
 
-function isAlreadyCapturedError(status: number | undefined, body: unknown): boolean {
-  if (status === 422 || status === 409) {
-    return true;
-  }
+/**
+ * True only when PayPal returns the documented Orders v2 issue
+ * `ORDER_ALREADY_CAPTURED` in `details[].issue`.
+ *
+ * @see https://developer.paypal.com/api/errors/overview
+ * @see https://developer.paypal.com/api/rest/troubleshooting/rest_unprocessable_entity
+ *
+ * Do **not** treat bare HTTP 422/409 or other `UNPROCESSABLE_ENTITY` issues
+ * (e.g. `CARD_EXPIRED`, `ORDER_NOT_APPROVED`) as already-captured — those must
+ * not take the GET-reconcile path.
+ */
+export function isAlreadyCapturedError(body: unknown): boolean {
   if (!body || typeof body !== "object") {
     return false;
   }
-  const row = body as Record<string, unknown>;
-  const name = typeof row.name === "string" ? row.name.toUpperCase() : "";
-  if (
-    name.includes("ORDER_ALREADY_CAPTURED") ||
-    name.includes("CAPTURED") ||
-    name === "UNPROCESSABLE_ENTITY"
-  ) {
-    const details = row.details;
-    if (Array.isArray(details)) {
-      for (const detail of details) {
-        if (!detail || typeof detail !== "object") {
-          continue;
-        }
-        const issue = (detail as Record<string, unknown>).issue;
-        if (typeof issue === "string" && issue.toUpperCase().includes("CAPTURED")) {
-          return true;
-        }
-      }
+  const details = (body as Record<string, unknown>).details;
+  if (!Array.isArray(details)) {
+    return false;
+  }
+  for (const detail of details) {
+    if (!detail || typeof detail !== "object") {
+      continue;
     }
-    if (name.includes("ORDER_ALREADY_CAPTURED")) {
+    const issue = (detail as Record<string, unknown>).issue;
+    if (
+      typeof issue === "string" &&
+      issue.trim().toUpperCase() === "ORDER_ALREADY_CAPTURED"
+    ) {
       return true;
     }
   }

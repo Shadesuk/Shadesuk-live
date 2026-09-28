@@ -48,3 +48,14 @@
 - Merge to main / prod deploy / live credential activation
 - Historical `payments.provider=razorpay` backfill (rows stay as-is)
 - Specialist reviews (CoS dispatches after this phase)
+
+## PR Review follow-ups
+
+### HIGH — addressed
+
+`isAlreadyCapturedError` in `src/lib/paypal/capture-order.ts` no longer treats bare HTTP **422/409** as already-captured. It matches only the documented Orders v2 issue code **`ORDER_ALREADY_CAPTURED`** in `details[].issue` ([PayPal errors overview](https://developer.paypal.com/api/errors/overview)). Other 422 issues (e.g. `CARD_EXPIRED`, `ORDER_NOT_APPROVED`) fail closed without GET-reconcile.
+
+### MEDIUM — deferred (known risks)
+
+- Initiation idempotency remains `PAYMENT_ATTEMPT_IDEMPOTENCY.mechanism = "none"` (no draft/session payment-attempt key).
+- Inventory decrement after capture stays best-effort.

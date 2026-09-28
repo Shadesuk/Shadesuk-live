@@ -9,6 +9,7 @@ import type { PaymentVerificationStore } from "../src/lib/payment/verification-s
 import type { PaymentRow } from "../src/contracts/payment/schema";
 import type { OrderRow } from "../src/contracts/order/schema";
 import { gbpMinorToPayPalValue, payPalValueToGbpMinor } from "../src/lib/paypal/amount";
+import { isAlreadyCapturedError } from "../src/lib/paypal/capture-order";
 
 const root = resolve(process.cwd());
 
@@ -27,6 +28,38 @@ if (payPalValueToGbpMinor(53.65, "GBP") !== null) {
 }
 if (payPalValueToGbpMinor("53.65", "USD") !== null) {
   throw new Error("Non-GBP PayPal amounts must be rejected.");
+}
+
+// PR Review HIGH: only documented issue ORDER_ALREADY_CAPTURED — never bare 422/409.
+if (
+  !isAlreadyCapturedError({
+    name: "UNPROCESSABLE_ENTITY",
+    details: [{ issue: "ORDER_ALREADY_CAPTURED", description: "Order already captured." }],
+  })
+) {
+  throw new Error("ORDER_ALREADY_CAPTURED details.issue must mark already-captured.");
+}
+if (
+  isAlreadyCapturedError({
+    name: "UNPROCESSABLE_ENTITY",
+    details: [{ issue: "CARD_EXPIRED", description: "The card is expired." }],
+  }) ||
+  isAlreadyCapturedError({
+    name: "UNPROCESSABLE_ENTITY",
+    details: [{ issue: "ORDER_NOT_APPROVED" }],
+  }) ||
+  isAlreadyCapturedError({ name: "UNPROCESSABLE_ENTITY", details: [] }) ||
+  isAlreadyCapturedError(null)
+) {
+  throw new Error("Non-capture 422 bodies must not take the already-captured GET path.");
+}
+const captureSource = read("src/lib/paypal/capture-order.ts");
+if (
+  captureSource.includes("status === 422") ||
+  captureSource.includes("status === 409") ||
+  /status\s*===\s*422/.test(captureSource)
+) {
+  throw new Error("isAlreadyCapturedError must not blanket-match HTTP 422/409.");
 }
 
 const serverFiles = [
