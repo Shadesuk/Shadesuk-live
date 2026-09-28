@@ -2,7 +2,8 @@
 
 **Status:** Phase 0 inventory complete.  
 **Phase 1 architecture:** [PAYPAL_MIGRATION_ARCHITECTURE.md](./PAYPAL_MIGRATION_ARCHITECTURE.md)  
-**Phase 2 adapter/contracts:** [PAYPAL_MIGRATION_PHASE2.md](./PAYPAL_MIGRATION_PHASE2.md) (PayPal runtime adapter + hard cut; Buttons/webhook deferred).  
+**Phase 2 adapter/contracts:** [PAYPAL_MIGRATION_PHASE2.md](./PAYPAL_MIGRATION_PHASE2.md)  
+**Phase 3 Buttons UI:** [PAYPAL_MIGRATION_PHASE3.md](./PAYPAL_MIGRATION_PHASE3.md)  
 **Base commit:** `35e71531061360ebd15dc39852f3f5e25c0b4c39`  
 **Branch:** `cursor/paypal-replace-razorpay`  
 **Rollback tag:** `pre-paypal-35e7153` (annotated)

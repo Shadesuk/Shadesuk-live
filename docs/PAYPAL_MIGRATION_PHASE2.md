@@ -26,10 +26,18 @@
 9. Env placeholders only in `.env.example`  
 10. Id map: order id → `provider_order_id`; capture id → `provider_payment_id`
 
-## Intentional temporary gap (until Phase 3)
+## Intentional temporary gap (until Phase 3) — closed
 
-CheckoutReview calls `openPayPalButtons`, which **fails closed** with “PayPal checkout UI is not available yet.” Server-side initiate → PayPal order create works when sandbox env is set. Full Buttons UI is Phase 3. Webhook is Phase 4.
+Phase 3 wires real PayPal JS SDK v6 Buttons (`openPayPalButtons`). See [PAYPAL_MIGRATION_PHASE3.md](./PAYPAL_MIGRATION_PHASE3.md).
 
 ## Typecheck note
 
 `scripts/` is excluded from `tsconfig.json` until Phase 5 rewrites `verify-payment-*.ts` for PayPal. App/`src` typecheck and `next build` must pass without those scripts. Do not treat exclusion as permanent.
+
+## Not in Phase 2
+
+- PayPal Buttons UI wiring → Phase 3  
+- `POST /api/webhooks/paypal` → Phase 4  
+- Deleting `src/lib/razorpay` / npm `razorpay` / Checkout.js helper → Phase 5  
+- Live credentials / prod deploy  
+- Verify-script rewrites (Phase 5)

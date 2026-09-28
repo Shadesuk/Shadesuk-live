@@ -16,6 +16,8 @@ export type CheckoutPaymentStartResult =
       providerOrderId: string;
       /** Public PayPal Client ID — safe for the browser. Never the secret. */
       clientId: string;
+      /** Matches server PAYPAL_MODE — selects SDK script host. Never hardcode live on the client. */
+      mode: "sandbox" | "live";
       amountMinor: number;
       currency: "GBP";
     }
@@ -70,6 +72,7 @@ export async function initiateCheckoutPaymentAction(
     orderReference: started.orderReference,
     providerOrderId: started.providerOrderId,
     clientId: config.config.clientId,
+    mode: config.config.mode,
     amountMinor: started.amountMinor,
     currency: "GBP",
   };

@@ -82,22 +82,18 @@ export function CheckoutReview({
         return;
       }
       setPaymentUi("checkout");
-      // Phase 2: Buttons UI deferred to Phase 3. Fail closed — do not use Checkout.js.
       const opened = await openPayPalButtons({
         clientId: started.clientId,
         providerOrderId: started.providerOrderId,
         paymentId: started.paymentId,
+        mode: started.mode,
       });
       if (opened.status === "dismissed") {
         setPaymentUi("cancelled");
         return;
       }
       if (opened.status !== "approved") {
-        setPaymentError(
-          opened.reason === "phase3_pending"
-            ? "PayPal checkout UI is not available yet. Payment Buttons land in Phase 3."
-            : PAYMENT_START_ERROR,
-        );
+        setPaymentError(paypalOpenErrorMessage(opened.reason));
         setPaymentUi("error");
         return;
       }
@@ -232,4 +228,21 @@ export function CheckoutReview({
       </div>
     </div>
   );
+}
+
+function paypalOpenErrorMessage(
+  reason: "missing_input" | "script_failed" | "not_eligible" | "sdk_error" | "order_mismatch",
+): string {
+  switch (reason) {
+    case "not_eligible":
+      return "PayPal is not available for this checkout. Try again or use another device.";
+    case "script_failed":
+      return "Could not load PayPal. Check your connection and try again.";
+    case "order_mismatch":
+      return PAYMENT_CONFIRM_ERROR;
+    case "missing_input":
+    case "sdk_error":
+    default:
+      return PAYMENT_START_ERROR;
+  }
 }
