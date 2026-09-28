@@ -59,3 +59,9 @@
 
 - Initiation idempotency remains `PAYMENT_ATTEMPT_IDEMPOTENCY.mechanism = "none"` (no draft/session payment-attempt key).
 - Inventory decrement after capture stays best-effort.
+
+### Audit polish N2 / N5 (non-blocking)
+
+- **N2:** Architecture doc locks webhook verify to **postback** `verify-webhook-signature`; self-verify / cert-download marked out of scope (no SSRF cert-fetch).
+- **N5:** `.env.example` no longer suggests optional `NEXT_PUBLIC_PAYPAL_CLIENT_ID` — Client ID is initiation Server Action return only.
+- Skipped N1 / N3 / N4 (deferred).

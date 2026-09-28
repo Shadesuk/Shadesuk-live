@@ -12,7 +12,7 @@
 | Currency codes (GBP supported; not zero-digit) | https://developer.paypal.com/reference/currency-codes |
 | OAuth client credentials | https://developer.paypal.com/api/rest/authentication |
 | JS SDK v6 setup (Client ID vs client token) | https://developer.paypal.com/sdk/js/set-up |
-| Webhook verify (self + postback) | https://developer.paypal.com/api/rest/webhooks/rest |
+| Webhook verify (postback primary) | https://developer.paypal.com/api/rest/webhooks/rest |
 | Webhook event names | https://developer.paypal.com/api/rest/webhooks/event-names |
 | `custom_id` / `invoice_id` on purchase units | https://developer.paypal.com/api/orders/v2/definitions/purchase_unit_request |
 
@@ -46,7 +46,7 @@ Mirror `src/lib/razorpay/*` under a future `src/lib/paypal/` (implementation = l
 | `fetch-order.ts` | `razorpay/fetch-payment.ts` | `GET /v2/checkout/orders/{id}` for reconcile |
 | `capture-order.ts` | *(new — PayPal money capture)* | `POST /v2/checkout/orders/{id}/capture` — **provider** capture, not app finalization |
 | `verify-client-return.ts` | `razorpay/verify-signature.ts` | Server-side reconcile after Buttons `onApprove` (no Razorpay-style HMAC on callback) |
-| `verify-webhook-signature.ts` | `razorpay/verify-webhook-signature.ts` | Raw-body webhook crypto or postback verify |
+| `verify-webhook-signature.ts` | `razorpay/verify-webhook-signature.ts` | Postback `POST /v1/notifications/verify-webhook-signature` (primary; no cert-download self-verify) |
 | `amount.ts` | `razorpay/amount.ts` | Pence ↔ PayPal Money `value` string (integer math only) |
 | `errors.ts` | `razorpay/errors.ts` | Redact secrets from logs |
 | `open-buttons.ts` (client) | `razorpay/open-checkout.ts` | Load JS SDK v6 core script; start one-time payment session |
@@ -103,12 +103,12 @@ Reject non-GBP `currency_code`. Never trust browser-supplied totals.
 | --- | --- | --- |
 | `PAYPAL_CLIENT_ID` | **Public** (may reach browser / initiation action return) | REST app Client ID; JS SDK `createInstance({ clientId })` |
 | `PAYPAL_CLIENT_SECRET` | Server only | OAuth token exchange; never `NEXT_PUBLIC_` |
-| `PAYPAL_WEBHOOK_ID` | Server only | Webhook subscription id required for signature verification (self or postback). **Not** a Razorpay-style shared HMAC secret |
+| `PAYPAL_WEBHOOK_ID` | Server only | Webhook subscription id required for **postback** signature verification. **Not** a Razorpay-style shared HMAC secret |
 | `PAYPAL_MODE` | Server (and indirectly which SDK script URL) | `sandbox` \| `live`. Selects API host + JS SDK script host |
 
 **Placeholders only** for live in `.env.example` comments. Sandbox values may be used in local/preview later; **live not activated** in this migration work.
 
-**Explicit non-names:** Do not add `NEXT_PUBLIC_PAYPAL_CLIENT_SECRET`. Prefer returning Client ID from the initiation Server Action (same pattern as Razorpay `publicKeyId`) rather than baking `NEXT_PUBLIC_PAYPAL_CLIENT_ID` unless a later UI reason appears — either is public; action-return matches existing checkout security posture.
+**Explicit non-names:** Do not add `NEXT_PUBLIC_PAYPAL_CLIENT_SECRET` or `NEXT_PUBLIC_PAYPAL_CLIENT_ID`. Client ID reaches the browser only via the initiation Server Action return (same pattern as Razorpay `publicKeyId`).
 
 **JS SDK script hosts (documented):**
 
@@ -164,9 +164,9 @@ Do **not** store PayPal payer ids or access tokens on `payments`.
 | Item | Plan |
 | --- | --- |
 | New route | `POST /api/webhooks/paypal` → `src/app/api/webhooks/paypal/route.ts` |
-| Raw body | `request.text()` before JSON parse (required for CRC32 / postback fidelity) |
-| Headers | Documented: `paypal-transmission-id`, `paypal-transmission-time`, `paypal-transmission-sig`, `paypal-cert-url`, `paypal-auth-algo` |
-| Verify | Prefer **self** verification (`transmissionId\|timeStamp\|webhookId\|crc32` + cert from `paypal-cert-url`) per Integrate webhooks; postback to `/v1/notifications/verify-webhook-signature` as alternative |
+| Raw body | `request.text()` before JSON parse (required for postback `webhook_event` fidelity) |
+| Headers | Documented: `paypal-transmission-id`, `paypal-transmission-time`, `paypal-transmission-sig`, `paypal-cert-url`, `paypal-auth-algo` (passed through to postback verify) |
+| Verify | **Locked to postback:** OAuth → `POST /v1/notifications/verify-webhook-signature` with `PAYPAL_WEBHOOK_ID` + transmission headers + raw `webhook_event`. Cert-download / CRC32 **self-verify is out of scope / not used** (avoids reintroducing SSRF via `paypal-cert-url` fetch). |
 | Config | `PAYPAL_WEBHOOK_ID` from subscription in Application management |
 | Primary event | `PAYMENT.CAPTURE.COMPLETED` → resolve payment → amount check → `captureVerifiedPayment` |
 | Decline / fail | `PAYMENT.CAPTURE.DECLINED` (and similar) → mark failed paths if already modeled; do not capture |
@@ -266,9 +266,9 @@ PayPal “capture” (REST) ≠ SHADESUK “captured” row — always: provider
 
 Do **not** implement until reviewed:
 
-1. **Webhook verify method:** self-verify (cert URL + CRC32) vs postback `verify-webhook-signature` — latency, cert-URL allowlist, and mock-event testing constraints.
-2. **`paypal-cert-url` allowlist:** Restrict downloads to PayPal-owned hosts only; caching / rotation policy.
-3. **Client ID delivery:** Initiation Server Action return vs `NEXT_PUBLIC_PAYPAL_CLIENT_ID` — prefer action-return; confirm CSP `script-src` for `www.sandbox.paypal.com` / `www.paypal.com` / `web-sdk`.
+1. **Webhook verify method:** **Resolved — postback locked.** Primary path is `POST /v1/notifications/verify-webhook-signature`. Self-verify (cert URL + CRC32) is **out of scope / not used** so SSRF cert-fetch is not reintroduced. Mock simulator events cannot use postback verify — use real sandbox Dashboard events.
+2. **`paypal-cert-url`:** Header is forwarded to postback only; no app-side cert download / allowlist needed while self-verify stays unused.
+3. **Client ID delivery:** **Resolved — action-return only.** Do not add `NEXT_PUBLIC_PAYPAL_CLIENT_ID`. Confirm CSP `script-src` for `www.sandbox.paypal.com` / `www.paypal.com` / `web-sdk`.
 4. **`invoice_id` = `order_reference`:** Confirm length ≤ 127 and merchant uniqueness vs existing reference format; else use opaque unique invoice and keep reference only in `custom_id` / metadata-less columns.
 5. **Capture race policy:** Always call Capture from client-return path even if webhook may win; confirm double-Capture API behavior is treated as reconcile-via-GET, not error storm.
 6. **Pending unpaid rows:** Retention / customer-visible behaviour for abandoned PayPal approvals (already unpaid `placed` orders today).
