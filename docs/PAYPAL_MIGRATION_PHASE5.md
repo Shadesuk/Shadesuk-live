@@ -24,7 +24,7 @@
 | `npm run verify:checkout` | ok |
 | `npm run verify:admin-orders` / `products` / `collections` / `customers` / `ops` | ok |
 | `npx tsc --noEmit` | ok |
-| `npm run build` | ok (run after commit) |
+| `npm run build` | ok (`/api/webhooks/paypal` only; Razorpay route absent) |
 
 `verify:payment-webhook` injects `verifySignature` — it does **not** call PayPal’s postback network API.
 
