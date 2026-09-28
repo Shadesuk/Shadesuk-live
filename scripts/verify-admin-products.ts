@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { adminProductImageFiles } from "../src/lib/admin-product-image-files";
 import {
   canArchiveProduct,
   canDeleteProduct,
@@ -432,6 +433,47 @@ if (!images.includes("ADMIN_PRODUCT_IMAGE_MOVE_UP") || !images.includes("ADMIN_P
 }
 if (images.includes("<form")) {
   throw new Error("Image upload/reorder must not nest forms inside the product editor.");
+}
+if (!images.includes("multiple") || !images.includes('data.append("image"')) {
+  throw new Error("Gallery upload must accept multiple files on the existing control.");
+}
+if (images.includes("variants[0]") || images.includes("colourVariantId")) {
+  throw new Error("Colour image upload must use the selected variant, not the first saved variant.");
+}
+if (!images.includes("ADMIN_PRODUCT_IMAGE_NONE")) {
+  throw new Error("Image upload must allow a product-level association when no variant is selected.");
+}
+
+const imageActions = read("src/app/admin/products/actions.ts");
+if (!imageActions.includes("adminProductImageFiles") || !imageActions.includes("uploadAdminProductImage")) {
+  throw new Error("Each gallery file must go through uploadAdminProductImage.");
+}
+const imageFiles = read("src/lib/admin-product-image-files.ts");
+if (!imageFiles.includes('getAll("image")')) {
+  throw new Error("Image upload action must process every selected file.");
+}
+const batch = new FormData();
+batch.append("image", new File([new Uint8Array([1])], "hero.webp", { type: "image/webp" }));
+batch.append("image", new File([], "empty.webp", { type: "image/webp" }));
+batch.append("image", new File([new Uint8Array([2])], "side.webp", { type: "image/webp" }));
+const chosen = adminProductImageFiles(batch);
+if (chosen.map((file) => file.name).join(",") !== "hero.webp,side.webp") {
+  throw new Error("Multi-file upload must keep every non-empty file, in picker order.");
+}
+
+const imageService = read("src/services/admin-products.ts");
+if (
+  !imageService.includes("processAdminProductImage") ||
+  !imageService.includes("PRODUCT_IMAGES_BUCKET") ||
+  !imageService.includes("variant_id: input.variantId")
+) {
+  throw new Error("Upload must keep validate → WebP → product-images bucket → variant_id.");
+}
+if (!imageService.includes('!input.variantId && !hasProductPrimary ? "primary" : "secondary"')) {
+  throw new Error("Product-level hero stays primary; extra and variant shots stay secondary.");
+}
+if (!imageService.includes("sort_order: rows.length")) {
+  throw new Error("New images must append by sort_order.");
 }
 
 const imageLib = read("src/lib/admin-product-image.ts");

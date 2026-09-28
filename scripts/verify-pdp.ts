@@ -8,6 +8,8 @@ import {
   toPublicAddToBagResult,
 } from "../src/lib/add-to-bag";
 import { guestCartCookieSecure } from "../src/lib/guest-cart-cookie-secure";
+import { selectPdpGalleryImages } from "../src/lib/product-display";
+import type { ProductImage } from "../src/types/catalogue";
 import { productPath } from "../src/lib/navigation";
 import {
   CART_MEDIATION_RULES,
@@ -192,6 +194,30 @@ const layoutSource = readFileSync(
 const fullBleedBlock = layoutSource.match(/\.full-bleed\s*\{[^}]+\}/);
 if (!fullBleedBlock || fullBleedBlock[0].includes("100vw")) {
   throw new Error("Full-bleed must not use 100vw (horizontal scrollbar on About).");
+}
+
+function galleryShot(id: string, extra: Partial<ProductImage> = {}): ProductImage {
+  return { id, role: "side", alt: id, width: 800, height: 800, ...extra };
+}
+
+const hero = galleryShot("hero", { role: "front" });
+const blackSmall = galleryShot("small", { variantId: "variant-small", colourId: "black" });
+const blackLarge = galleryShot("large", { variantId: "variant-large", colourId: "black" });
+const gallery = [hero, blackSmall, blackLarge];
+const exact = selectPdpGalleryImages(gallery, { colourId: "black", variantId: "variant-small" });
+if (exact.map((image) => image.id).join(",") !== "small") {
+  throw new Error("PDP gallery must show the selected variant's images in sort order.");
+}
+const sharedFallback = selectPdpGalleryImages(gallery, {
+  colourId: "black",
+  variantId: "variant-missing",
+});
+if (sharedFallback.map((image) => image.id).join(",") !== "hero") {
+  throw new Error("PDP gallery must fall back to product-level images when the variant has none.");
+}
+const colourGallery = selectPdpGalleryImages(gallery, { colourId: "black" });
+if (colourGallery.map((image) => image.id).join(",") !== "small,large") {
+  throw new Error("Unresolved variants must keep the colour gallery, with product-level images as fallback.");
 }
 
 console.log("PDP OK: demo slugs resolve, disclosure locked, add-to-bag ready to persist");

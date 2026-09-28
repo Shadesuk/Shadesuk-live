@@ -11,6 +11,7 @@ import {
   ADMIN_PRODUCT_SAVE_FAILED_BODY,
   ADMIN_PRODUCT_STALE,
 } from "@/lib/admin-copy";
+import { adminProductImageFiles } from "@/lib/admin-product-image-files";
 import { getAdminGate } from "@/lib/admin-session";
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { adminProductPath, productPath, routes } from "@/lib/navigation";
@@ -92,17 +93,29 @@ export async function uploadAdminProductImageAction(
   }
   const productId = String(formData.get("productId") ?? "");
   const altText = String(formData.get("altText") ?? "");
-  const variantIdRaw = String(formData.get("variantId") ?? "");
-  const file = formData.get("image");
-  if (!(file instanceof File)) {
+  const variantId = String(formData.get("variantId") ?? "").trim() || null;
+  const files = adminProductImageFiles(formData);
+  if (files.length === 0) {
     return { status: "invalid", errors: { images: "Choose an image to upload." } };
   }
-  const result = await uploadAdminProductImage({
-    productId,
-    file,
-    altText,
-    variantId: variantIdRaw || null,
-  });
+  let saved = false;
+  let result: AdminProductMutationResult = { status: "error" };
+  for (const file of files) {
+    result = await uploadAdminProductImage({
+      productId,
+      file,
+      altText,
+      variantId,
+    });
+    if (result.status !== "ok") {
+      if (saved) {
+        revalidateProduct(productId);
+        return { ...finish(result, productId), productId };
+      }
+      return finish(result, productId);
+    }
+    saved = true;
+  }
   return finish(result, productId);
 }
 
