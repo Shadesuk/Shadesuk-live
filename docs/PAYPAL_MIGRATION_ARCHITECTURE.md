@@ -279,14 +279,14 @@ Do **not** implement until reviewed:
 
 ---
 
-## Implementation phase map (docs only; not started)
+## Implementation phase map
 
 | Phase | Work |
 | --- | --- |
 | **0** | Inventory + branch/tag — done |
-| **1** | This architecture — done (docs only) |
-| **2** | Adapter + contracts + env example + capture rename (still sandbox) |
-| **3** | CheckoutReview Buttons + verify Server Action |
+| **1** | Architecture — done (docs) |
+| **2** | Adapter + contracts + env example + capture rename — **done** (see [PAYPAL_MIGRATION_PHASE2.md](./PAYPAL_MIGRATION_PHASE2.md)); Checkout Buttons stub fail-closed; Razorpay webhook route 503 until Phase 4 |
+| **3** | CheckoutReview Buttons UI + wire `openPayPalButtons` for real |
 | **4** | PayPal webhook + delete Razorpay webhook route |
 | **5** | Verify scripts + remove `razorpay` package / `src/lib/razorpay` |
 | **STOP** | Audit + human prod gate |

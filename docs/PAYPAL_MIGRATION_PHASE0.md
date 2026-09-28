@@ -1,6 +1,8 @@
 # PayPal replace Razorpay — Phase 0 inventory
 
-**Status:** Phase 0 inventory complete. Phase 1 architecture: [PAYPAL_MIGRATION_ARCHITECTURE.md](./PAYPAL_MIGRATION_ARCHITECTURE.md) (docs only — still no PayPal runtime).  
+**Status:** Phase 0 inventory complete.  
+**Phase 1 architecture:** [PAYPAL_MIGRATION_ARCHITECTURE.md](./PAYPAL_MIGRATION_ARCHITECTURE.md)  
+**Phase 2 adapter/contracts:** [PAYPAL_MIGRATION_PHASE2.md](./PAYPAL_MIGRATION_PHASE2.md) (PayPal runtime adapter + hard cut; Buttons/webhook deferred).  
 **Base commit:** `35e71531061360ebd15dc39852f3f5e25c0b4c39`  
 **Branch:** `cursor/paypal-replace-razorpay`  
 **Rollback tag:** `pre-paypal-35e7153` (annotated)
@@ -92,10 +94,10 @@ npm dep: `razorpay` in `package.json`.
 
 ## Plan stub (later phases)
 
-1. **Phase 1** — Architecture — **done** (see [PAYPAL_MIGRATION_ARCHITECTURE.md](./PAYPAL_MIGRATION_ARCHITECTURE.md)). Hard cut recommended; one capture writer seam.
-2. **Phase 2** — Adapter + contracts + env example placeholders + rename capture entry (sandbox only).
-3. **Phase 3** — Replace Checkout.js with PayPal JS SDK v6 Buttons in CheckoutReview; map ids into existing columns.
-4. **Phase 4** — `POST /api/webhooks/paypal`; delete `/api/webhooks/razorpay` after cutover (no ghost archive).
+1. **Phase 1** — Architecture — **done** ([PAYPAL_MIGRATION_ARCHITECTURE.md](./PAYPAL_MIGRATION_ARCHITECTURE.md)).
+2. **Phase 2** — Adapter + contracts + env + capture rename — **done** ([PAYPAL_MIGRATION_PHASE2.md](./PAYPAL_MIGRATION_PHASE2.md)).
+3. **Phase 3** — Replace Checkout.js path with PayPal JS SDK v6 Buttons in CheckoutReview.
+4. **Phase 4** — `POST /api/webhooks/paypal`; delete `/api/webhooks/razorpay` (no ghost archive).
 5. **Phase 5** — Update verify scripts; remove `razorpay` npm dep + `src/lib/razorpay`.
 6. **Out of scope until STOP gate** — prod env / live credentials / production DB activation.
 

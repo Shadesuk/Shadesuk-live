@@ -1,6 +1,6 @@
 import { createOrderReference } from "@/contracts/order/reference";
 import type { PaymentStatus } from "@/contracts/order/schema";
-import { PAYMENT_PROVIDER_RAZORPAY } from "@/contracts/payment/schema";
+import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
 import {
   authoritativeCheckoutQuote,
@@ -69,7 +69,7 @@ export type PendingOrderItemInsert = {
 };
 
 export type PendingPaymentInsert = {
-  provider: typeof PAYMENT_PROVIDER_RAZORPAY;
+  provider: typeof PAYMENT_PROVIDER_PAYPAL;
   amount_minor: number;
   currency: typeof STORE_CURRENCY;
   status: Extract<PaymentStatus, "created">;
@@ -80,10 +80,11 @@ export type PendingPaymentAttempt = {
   order: PendingOrderInsert;
   items: PendingOrderItemInsert[];
   payment: PendingPaymentInsert;
-  razorpay: {
+  paypal: {
     amountMinor: number;
     currency: typeof STORE_CURRENCY;
-    receipt: string;
+    /** Mapped to purchase_units[].invoice_id when length ≤ 127. */
+    invoiceId: string;
   };
 };
 
@@ -211,15 +212,15 @@ export function buildPendingPaymentAttempt(input: {
       },
     })),
     payment: {
-      provider: PAYMENT_PROVIDER_RAZORPAY,
+      provider: PAYMENT_PROVIDER_PAYPAL,
       amount_minor: quote.totalMinor,
       currency: STORE_CURRENCY,
       status: "created",
     },
-    razorpay: {
+    paypal: {
       amountMinor: quote.totalMinor,
       currency: STORE_CURRENCY,
-      receipt: reference,
+      invoiceId: reference,
     },
   };
 

@@ -4,12 +4,12 @@ import { variantAvailability } from "@/contracts/catalogue/availability";
 import { isUuid } from "@/lib/ids";
 import { checkoutUnavailableBlocked } from "@/lib/checkout-quote";
 import type { PendingPaymentLine } from "@/lib/payment/pending-attempt";
-import { commitPendingRazorpayPayment } from "@/lib/payment/initiate";
+import { commitPendingPayPalPayment } from "@/lib/payment/initiate";
 import {
   createSupabasePendingPaymentStore,
   type PendingPaymentStore,
 } from "@/lib/payment/pending-store";
-import { createRazorpayOrder } from "@/lib/razorpay/create-order";
+import { createPayPalOrder } from "@/lib/paypal/create-order";
 import { getOptionalAccountUser } from "@/lib/account-session";
 import { readGuestCartSessionId } from "@/lib/guest-cart-cookie";
 import type { PublicCheckoutDraft } from "@/types/checkout";
@@ -33,22 +33,22 @@ export type InitiatePendingPaymentOptions = {
   userId?: string | null;
   loadLines?: () => Promise<PendingPaymentLine[] | null>;
   store?: PendingPaymentStore;
-  createProviderOrder?: typeof createRazorpayOrder;
+  createProviderOrder?: typeof createPayPalOrder;
 };
 
 /**
  * Creates a pending `orders` + `order_items` + `payments` attempt and a
- * Razorpay order from the same server-authoritative quote.
+ * PayPal order from the same server-authoritative quote.
  *
  * Not a capture writer. Does not decrement stock, convert the cart, send
  * email, or trust a frontend success flag.
  *
  * Persistence is sequential (no existing multi-table transaction helper).
- * A Razorpay failure leaves the application order unpaid (`created`).
+ * A PayPal failure leaves the application order unpaid (`created`).
  *
  * Duplicate initiation is not prevented (`PAYMENT_ATTEMPT_IDEMPOTENCY`).
  */
-export async function initiatePendingRazorpayPayment(
+export async function initiatePendingPayPalPayment(
   options?: InitiatePendingPaymentOptions,
 ): Promise<InitiatePendingPaymentResult> {
   const loaded = await loadInitiationInputs(options);
@@ -56,7 +56,7 @@ export async function initiatePendingRazorpayPayment(
     return loaded.result;
   }
 
-  return commitPendingRazorpayPayment({
+  return commitPendingPayPalPayment({
     draft: loaded.draft,
     lines: loaded.lines,
     userId: loaded.userId,
@@ -64,6 +64,9 @@ export async function initiatePendingRazorpayPayment(
     createProviderOrder: options?.createProviderOrder,
   });
 }
+
+/** @deprecated Use `initiatePendingPayPalPayment`. */
+export const initiatePendingRazorpayPayment = initiatePendingPayPalPayment;
 
 async function loadInitiationInputs(options?: InitiatePendingPaymentOptions): Promise<
   | { ok: true; draft: PublicCheckoutDraft; lines: PendingPaymentLine[]; userId: string | null }

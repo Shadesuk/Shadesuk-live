@@ -2,7 +2,7 @@ import type { PaymentStatus } from "../order/schema";
 
 /**
  * Customer-facing payment-state mapping only. Not the charge/order writer.
- * Production provider lock is `PAYMENT_PROVIDER_RAZORPAY` in `./schema.ts`.
+ * Production provider lock is `PAYMENT_PROVIDER_PAYPAL` in `./schema.ts`.
  * Do not implement paid-state webhooks or capture from this file.
  */
 

@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { OrderRow } from "@/contracts/order/schema";
-import { PAYMENT_PROVIDER_RAZORPAY, type PaymentRow } from "@/contracts/payment/schema";
+import { PAYMENT_PROVIDER_PAYPAL, type PaymentRow } from "@/contracts/payment/schema";
 import { parseOrderRow } from "@/lib/order-rows";
 import { parsePaymentRow } from "@/lib/payment/pending-store";
 import { createSupabaseAdminClient, hasSupabaseSecretKey } from "@/lib/supabase/admin";
@@ -58,7 +58,7 @@ export function createSupabaseRazorpayWebhookStore(): RazorpayWebhookStore {
       const inserted = await admin
         .from("payment_webhook_events")
         .insert({
-          provider: PAYMENT_PROVIDER_RAZORPAY,
+          provider: PAYMENT_PROVIDER_PAYPAL,
           provider_event_id: input.providerEventId,
           event_type: input.eventType,
           payload: input.payload,
@@ -88,7 +88,7 @@ export function createSupabaseRazorpayWebhookStore(): RazorpayWebhookStore {
       const result = await admin
         .from("payment_webhook_events")
         .select(WEBHOOK_EVENT_COLUMNS)
-        .eq("provider", PAYMENT_PROVIDER_RAZORPAY)
+        .eq("provider", PAYMENT_PROVIDER_PAYPAL)
         .eq("provider_event_id", providerEventId.trim())
         .maybeSingle();
       return parseWebhookEventRow(result.data);
@@ -106,7 +106,7 @@ export function createSupabaseRazorpayWebhookStore(): RazorpayWebhookStore {
           processed: true,
           processed_at: processedAt,
         })
-        .eq("provider", PAYMENT_PROVIDER_RAZORPAY)
+        .eq("provider", PAYMENT_PROVIDER_PAYPAL)
         .eq("provider_event_id", providerEventId.trim())
         .eq("processed", false)
         .select(WEBHOOK_EVENT_COLUMNS)
@@ -139,7 +139,7 @@ export function createSupabaseRazorpayWebhookStore(): RazorpayWebhookStore {
           updated_at: new Date().toISOString(),
         })
         .eq("id", input.paymentId)
-        .eq("provider", PAYMENT_PROVIDER_RAZORPAY)
+        .eq("provider", PAYMENT_PROVIDER_PAYPAL)
         .in("status", ["created", "authorized"])
         .is("captured_at", null)
         .select(PAYMENT_COLUMNS)
@@ -165,7 +165,7 @@ async function loadPaymentByColumn(
   const paymentResult = await admin
     .from("payments")
     .select(PAYMENT_COLUMNS)
-    .eq("provider", PAYMENT_PROVIDER_RAZORPAY)
+    .eq("provider", PAYMENT_PROVIDER_PAYPAL)
     .eq(column, identifier)
     .maybeSingle();
   const payment = parsePaymentRow(paymentResult.data);

@@ -30,7 +30,7 @@ import {
   UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
 import { formatGbp, formatGbpMinor } from "@/lib/money";
-import { openRazorpayCheckout } from "@/lib/razorpay/open-checkout";
+import { openPayPalButtons } from "@/lib/paypal/open-buttons";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { orderConfirmationPath, routes } from "@/lib/navigation";
 import type { PublicCheckoutDraft } from "@/types/checkout";
@@ -82,27 +82,29 @@ export function CheckoutReview({
         return;
       }
       setPaymentUi("checkout");
-      const opened = await openRazorpayCheckout({
-        publicKeyId: started.publicKeyId,
+      // Phase 2: Buttons UI deferred to Phase 3. Fail closed — do not use Checkout.js.
+      const opened = await openPayPalButtons({
+        clientId: started.clientId,
         providerOrderId: started.providerOrderId,
-        customerName: `${draft.firstName} ${draft.lastName}`.trim(),
-        customerEmail: draft.email,
+        paymentId: started.paymentId,
       });
       if (opened.status === "dismissed") {
         setPaymentUi("cancelled");
         return;
       }
-      if (opened.status !== "callback") {
-        setPaymentError(PAYMENT_START_ERROR);
+      if (opened.status !== "approved") {
+        setPaymentError(
+          opened.reason === "phase3_pending"
+            ? "PayPal checkout UI is not available yet. Payment Buttons land in Phase 3."
+            : PAYMENT_START_ERROR,
+        );
         setPaymentUi("error");
         return;
       }
       setPaymentUi("verifying");
       const verified = await verifyCheckoutPaymentAction({
         paymentId: started.paymentId,
-        razorpayPaymentId: opened.response.razorpay_payment_id,
-        razorpayOrderId: opened.response.razorpay_order_id,
-        razorpaySignature: opened.response.razorpay_signature,
+        paypalOrderId: opened.paypalOrderId,
       });
       if (
         (verified.status === "verified" || verified.status === "already_processed") &&

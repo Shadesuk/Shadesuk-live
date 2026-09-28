@@ -5,10 +5,14 @@ import { PAYMENT_STATUSES } from "../order/schema";
 
 /**
  * Locked production payment provider. Matches `payments.provider`.
- * Do not add a second provider adapter.
+ * Hard cut from Razorpay — do not add a second active provider adapter.
+ * Historical `provider=razorpay` rows remain as-is (no backfill).
  */
-export const PAYMENT_PROVIDER_RAZORPAY = "razorpay" as const;
-export type PaymentProviderId = typeof PAYMENT_PROVIDER_RAZORPAY;
+export const PAYMENT_PROVIDER_PAYPAL = "paypal" as const;
+export type PaymentProviderId = typeof PAYMENT_PROVIDER_PAYPAL;
+
+/** @deprecated Removed as active lock. Historical DB rows may still say razorpay. */
+export const PAYMENT_PROVIDER_RAZORPAY_RETIRED = "razorpay" as const;
 
 /** Row shape for `public.payments` (PR #10). No metadata column exists. */
 export type PaymentRow = {
@@ -26,8 +30,8 @@ export type PaymentRow = {
   updated_at: string;
 };
 
-export function isPaymentProviderRazorpay(value: string): value is PaymentProviderId {
-  return value === PAYMENT_PROVIDER_RAZORPAY;
+export function isPaymentProviderPaypal(value: string): value is PaymentProviderId {
+  return value === PAYMENT_PROVIDER_PAYPAL;
 }
 
 export function isSchemaPaymentStatus(value: unknown): value is PaymentStatus {

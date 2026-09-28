@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 const NO_STORE = { "Cache-Control": "no-store" } as const;
 
 /**
- * Razorpay payment recovery. Signature is verified against the raw body.
- * Does not expose GET. Capture still goes through captureVerifiedRazorpayPayment.
+ * Razorpay payment recovery route — hard-cut stub until Phase 4 deletes it.
+ * Does not expose GET. Never marks captured. PayPal webhook replaces this.
  */
 export async function POST(request: Request) {
   const rawBody = await request.text();
