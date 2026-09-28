@@ -201,6 +201,91 @@ if (pdp.pdp?.materials !== "Acetate" || pdp.pdp?.fit !== "medium") {
 if (pdp.measurements?.lensMm !== 52) {
   throw new Error("Shared measurements must map when variants agree.");
 }
+if (pdp.colours.some((colour) => colour.thumbnail)) {
+  throw new Error("Unmapped product images must not invent colour thumbnails.");
+}
+
+const blackImageId = "55555555-5555-5555-5555-555555555555";
+const greenImageId = "66666666-6666-6666-6666-666666666666";
+const greenLaterId = "77777777-7777-7777-7777-777777777777";
+const withColourImages = mapProductAggregateToStorefront(
+  {
+    ...aggregate,
+    images: [
+      {
+        id: blackImageId,
+        product_id: productId,
+        variant_id: blackId,
+        storage_path: "https://cdn.example/black-front.webp",
+        alt_text: "Black front",
+        sort_order: 1,
+        image_type: "primary",
+        is_primary: true,
+        width: 800,
+        height: 800,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: greenLaterId,
+        product_id: productId,
+        variant_id: greenId,
+        storage_path: "https://cdn.example/green-detail.webp",
+        alt_text: "Green detail",
+        sort_order: 2,
+        image_type: "detail",
+        is_primary: false,
+        width: 800,
+        height: 800,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: greenImageId,
+        product_id: productId,
+        variant_id: greenId,
+        storage_path: "https://cdn.example/green-front.webp",
+        alt_text: "Green front",
+        sort_order: 0,
+        image_type: "primary",
+        is_primary: true,
+        width: 800,
+        height: 800,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: "88888888-8888-8888-8888-888888888888",
+        product_id: productId,
+        variant_id: null,
+        storage_path: "https://cdn.example/shared.webp",
+        alt_text: "Shared",
+        sort_order: -1,
+        image_type: "lifestyle",
+        is_primary: false,
+        width: 800,
+        height: 800,
+        created_at: now,
+        updated_at: now,
+      },
+    ],
+  },
+  { projection: "pdp" },
+);
+if (!withColourImages) {
+  throw new Error("Colour-mapped images must still map the product.");
+}
+const blackColour = withColourImages.colours.find((colour) => colour.id === "black");
+const greenColour = withColourImages.colours.find((colour) => colour.id === "green");
+if (blackColour?.thumbnail?.src !== "https://cdn.example/black-front.webp") {
+  throw new Error("Black swatch must use the first valid image mapped to that colour.");
+}
+if (greenColour?.thumbnail?.src !== "https://cdn.example/green-front.webp") {
+  throw new Error("Colour swatch must pick the first mapped image by sort order.");
+}
+if (withColourImages.images.some((image) => image.colourId === "black" && !image.variantId)) {
+  throw new Error("Colour association must keep variant_id on mapped images.");
+}
 
 const draft = mapProductAggregateToStorefront(
   { ...aggregate, product: { ...aggregate.product, status: "draft" } },

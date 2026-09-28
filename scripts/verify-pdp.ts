@@ -186,6 +186,20 @@ if (
 ) {
   throw new Error("Sticky add-to-bag must mount only when it replaces the in-page CTA.");
 }
+if (!heroSource.includes("item.thumbnail?.src") || !heroSource.includes("styles.dotImage")) {
+  throw new Error("PDP colour swatches must render mapped image thumbnails.");
+}
+if (heroSource.includes("item.hex ? { background: item.hex }")) {
+  throw new Error("PDP colour swatches must not rely on invented hex fills.");
+}
+
+const pageCss = readFileSync(
+  resolve(process.cwd(), "src/components/pdp/ProductPage.module.css"),
+  "utf8",
+);
+if (!pageCss.includes("background: var(--color-stone)") || !pageCss.includes(".dotImage")) {
+  throw new Error("Colour swatch Soft Stone fallback and thumbnail styles must remain.");
+}
 
 const layoutSource = readFileSync(
   resolve(process.cwd(), "src/styles/layout.css"),
