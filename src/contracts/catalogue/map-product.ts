@@ -19,14 +19,15 @@ export type MapProductOptions = {
 };
 
 /**
- * PDP-only fields from PR #10 that the card type does not use.
- * `disclosure` is intentionally absent: the PDP component is global, not CMS copy.
+ * PDP-only fields from the catalogue row that the card type does not use.
+ * Blank `disclosure` is omitted so the PDP can fall back to the locked copy.
  */
 export type PdpCatalogueFields = {
   materials?: string;
   whatsIncluded?: string;
   fit?: string;
   sku?: string;
+  disclosure?: string;
 };
 
 export type MappedStorefrontProduct = Product & {
@@ -53,15 +54,28 @@ export function mapProductAggregateToStorefront(
     bestSellerIds: options.bestSellerIds ?? new Set(),
     nowMs: options.nowMs,
   });
-  const colours = deriveColours(variants, {
-    selectableOnly: options.projection === "card",
-  });
   const storefrontVariants = variants
     .filter((variant) => variant.status !== "draft" && variant.status !== "archived")
     .map(toStorefrontVariant);
   const colourIdByVariantId = new Map(
     variants.map((variant) => [variant.id, slugifyToken(variant.colour_name) ?? undefined]),
   );
+  const storefrontImages = toStorefrontImages(images, options.imageDimensions).map((image) => {
+    const row = images.find((item) => item.id === image.id);
+    if (!row?.variant_id) {
+      return image;
+    }
+    const colourId = colourIdByVariantId.get(row.variant_id);
+    return {
+      ...image,
+      variantId: row.variant_id,
+      ...(colourId ? { colourId } : {}),
+    };
+  });
+  const colours = deriveColours(variants, {
+    selectableOnly: options.projection === "card",
+    images: storefrontImages,
+  });
 
   const derivedBrand = deriveBrandSource(product.brand);
   const mapped: MappedStorefrontProduct = {
@@ -79,18 +93,7 @@ export function mapProductAggregateToStorefront(
     availability: productAvailabilityFromVariants(variants),
     isNewArrival: merchandising.isNewArrival,
     isBestSeller: merchandising.isBestSeller,
-    images: toStorefrontImages(images, options.imageDimensions).map((image) => {
-      const row = images.find((item) => item.id === image.id);
-      if (!row?.variant_id) {
-        return image;
-      }
-      const colourId = colourIdByVariantId.get(row.variant_id);
-      return {
-        ...image,
-        variantId: row.variant_id,
-        ...(colourId ? { colourId } : {}),
-      };
-    }),
+    images: storefrontImages,
     isDemo: false,
     variants: storefrontVariants,
   };
@@ -230,6 +233,7 @@ function pdpFields(
   const included = blankToUndefined(product.whats_included);
   const fit = blankToUndefined(product.fit);
   const sku = blankToUndefined(variant.sku);
+  const disclosure = blankToUndefined(product.disclosure);
   if (materials) {
     fields.materials = materials;
   }
@@ -241,6 +245,9 @@ function pdpFields(
   }
   if (sku) {
     fields.sku = sku;
+  }
+  if (disclosure) {
+    fields.disclosure = disclosure;
   }
   return fields;
 }

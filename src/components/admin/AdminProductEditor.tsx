@@ -391,6 +391,11 @@ export function AdminProductEditor({
               error={state.errors?.disclosure}
             />
           </section>
+          <AdminProductImages
+            productId={product?.id ?? null}
+            images={images.filter((image) => !image.variantId)}
+            variants={product?.variants ?? []}
+          />
           <section className={styles.section} aria-labelledby="product-colours-heading">
             <h2 id="product-colours-heading" className={styles.sectionTitle}>
               {ADMIN_PRODUCT_COLOURS}
