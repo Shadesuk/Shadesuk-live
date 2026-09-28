@@ -1,6 +1,6 @@
 # PayPal replace Razorpay — Phase 0 inventory
 
-**Status:** Phase 0 only (inspect + branch setup). No PayPal SDK, capture, or webhooks.  
+**Status:** Phase 0 inventory complete. Phase 1 architecture: [PAYPAL_MIGRATION_ARCHITECTURE.md](./PAYPAL_MIGRATION_ARCHITECTURE.md) (docs only — still no PayPal runtime).  
 **Base commit:** `35e71531061360ebd15dc39852f3f5e25c0b4c39`  
 **Branch:** `cursor/paypal-replace-razorpay`  
 **Rollback tag:** `pre-paypal-35e7153` (annotated)
@@ -90,13 +90,14 @@ npm dep: `razorpay` in `package.json`.
 - `supabase/migrations/20260914230750_initial_production_schema.sql` — `payments.provider_order_id` / `provider_payment_id` unique text columns
 - `SHADESUK_Database_Schema_RLS.md` — documents `razorpay` as provider
 
-## Plan stub (later phases — not started)
+## Plan stub (later phases)
 
-1. **Phase 1** — PayPal provider adapter + env; keep capture writer interface; dual-run or cutover flag TBD.
-2. **Phase 2** — Replace Checkout.js with PayPal JS SDK in CheckoutReview; map provider order/payment ids into existing columns.
-3. **Phase 3** — PayPal webhook route; retire `/api/webhooks/razorpay` after cutover (no ghost archive routes).
-4. **Phase 4** — Update contracts (`PAYMENT_PROVIDER_*`), verify scripts, remove `razorpay` npm dep + `src/lib/razorpay`.
-5. **Out of scope for migration PRs** — prod env changes, production DB writes, broad UI redesign.
+1. **Phase 1** — Architecture — **done** (see [PAYPAL_MIGRATION_ARCHITECTURE.md](./PAYPAL_MIGRATION_ARCHITECTURE.md)). Hard cut recommended; one capture writer seam.
+2. **Phase 2** — Adapter + contracts + env example placeholders + rename capture entry (sandbox only).
+3. **Phase 3** — Replace Checkout.js with PayPal JS SDK v6 Buttons in CheckoutReview; map ids into existing columns.
+4. **Phase 4** — `POST /api/webhooks/paypal`; delete `/api/webhooks/razorpay` after cutover (no ghost archive).
+5. **Phase 5** — Update verify scripts; remove `razorpay` npm dep + `src/lib/razorpay`.
+6. **Out of scope until STOP gate** — prod env / live credentials / production DB activation.
 
 ## Explicit non-goals (this PR)
 
