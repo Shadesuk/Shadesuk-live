@@ -36,8 +36,12 @@ Also allows `'self'`, Next-friendly `'unsafe-inline'` / `'unsafe-eval'` (nonce h
 5. Cancel PayPal UI → stay on review with cancelled copy; order remains unpaid
 6. Confirm Network tab: script from `www.sandbox.paypal.com/web-sdk/v6/core`; no `checkout.razorpay.com`; no `CLIENT_SECRET` in any client payload
 
+## Temporary gaps (closed in Phase 4)
+
+Razorpay webhook route deleted; PayPal webhook is `POST /api/webhooks/paypal`. See [PAYPAL_MIGRATION_PHASE4.md](./PAYPAL_MIGRATION_PHASE4.md).
+
 ## Not in Phase 3
 
-- `POST /api/webhooks/paypal` / delete Razorpay webhook (Phase 4)
+- `POST /api/webhooks/paypal` / delete Razorpay webhook → Phase 4 (done)
 - Full `verify-payment-*` rewrites (Phase 5)
 - Live credentials / prod deploy / merge to main

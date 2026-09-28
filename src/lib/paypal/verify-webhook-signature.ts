@@ -20,14 +20,14 @@ export type VerifyPayPalWebhookSignatureResult =
   | { ok: false; error: string };
 
 /**
- * Phase 2 stub oriented at PayPal's documented postback verifier:
+ * Postback webhook signature verifier:
  * `POST /v1/notifications/verify-webhook-signature`.
  *
- * Does **not** download `paypal-cert-url` (SSRF risk) as the primary path.
- * Phase 4 webhook route will call this with the raw body + headers.
+ * Primary path for Phase 4 — uses PAYPAL_WEBHOOK_ID. Does **not** download
+ * `paypal-cert-url` (SSRF risk) as the verification method.
  *
- * Note: mock webhook simulator events do not support postback verification
- * per PayPal docs — use sandbox app events for end-to-end tests.
+ * Note: PayPal mock webhook simulator events do not support postback
+ * verification — use sandbox app events for end-to-end tests.
  */
 export async function verifyPayPalWebhookSignature(
   input: VerifyPayPalWebhookSignatureInput,

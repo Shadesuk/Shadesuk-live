@@ -286,7 +286,7 @@ Do **not** implement until reviewed:
 | **0** | Inventory + branch/tag — done |
 | **1** | Architecture — done (docs) |
 | **2** | Adapter + contracts + env example + capture rename — done ([PAYPAL_MIGRATION_PHASE2.md](./PAYPAL_MIGRATION_PHASE2.md)) |
-| **3** | CheckoutReview Buttons UI — **done** ([PAYPAL_MIGRATION_PHASE3.md](./PAYPAL_MIGRATION_PHASE3.md)); mode-aware CSP |
-| **4** | PayPal webhook + delete Razorpay webhook route |
+| **3** | CheckoutReview Buttons UI — done ([PAYPAL_MIGRATION_PHASE3.md](./PAYPAL_MIGRATION_PHASE3.md)); mode-aware CSP |
+| **4** | PayPal webhook + delete Razorpay webhook route — **done** ([PAYPAL_MIGRATION_PHASE4.md](./PAYPAL_MIGRATION_PHASE4.md)) |
 | **5** | Verify scripts + remove `razorpay` package / `src/lib/razorpay` |
 | **STOP** | Audit + human prod gate |

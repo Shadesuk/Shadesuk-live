@@ -33,7 +33,7 @@ export type WebhookPaymentRecord = {
   order: OrderRow;
 };
 
-export type RazorpayWebhookStore = {
+export type PaymentWebhookStore = {
   insertUnprocessedEvent: (input: {
     providerEventId: string;
     eventType: string;
@@ -48,7 +48,7 @@ export type RazorpayWebhookStore = {
   markPaymentFailed: (input: { paymentId: string; reason: string }) => Promise<PaymentRow | null>;
 };
 
-export function createSupabaseRazorpayWebhookStore(): RazorpayWebhookStore {
+export function createSupabasePaymentWebhookStore(): PaymentWebhookStore {
   return {
     async insertUnprocessedEvent(input) {
       if (!webhookWritesAvailable()) {
