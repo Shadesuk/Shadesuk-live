@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { PRODUCT_DISCLOSURE_COPY } from "../src/components/pdp/ProductDisclosure";
+import {
+  PRODUCT_DISCLOSURE_COPY,
+  productDisclosureCopy,
+} from "../src/components/pdp/ProductDisclosure";
 import { FACE_GUIDE } from "../src/components/pdp/face-guide";
 import {
   evaluateAddToBag,
@@ -49,6 +52,23 @@ if (related.some((product) => product.slug === "frame-01")) {
 
 if (PRODUCT_DISCLOSURE_COPY !== "High-quality 1:1 Superclone") {
   throw new Error("PDP disclosure copy must stay locked.");
+}
+if (productDisclosureCopy("  Studio sample  ") !== "Studio sample") {
+  throw new Error("PDP must render the product disclosure.");
+}
+if (
+  productDisclosureCopy("   ") !== PRODUCT_DISCLOSURE_COPY ||
+  productDisclosureCopy(undefined) !== PRODUCT_DISCLOSURE_COPY ||
+  productDisclosureCopy(null) !== PRODUCT_DISCLOSURE_COPY
+) {
+  throw new Error("Empty disclosure must fall back to the locked copy.");
+}
+const pageSource = readFileSync(
+  resolve(process.cwd(), "src/components/pdp/ProductPage.tsx"),
+  "utf8",
+);
+if (!pageSource.includes("disclosure={product.pdp?.disclosure}")) {
+  throw new Error("PDP must render the mapped product disclosure.");
 }
 
 const round = FACE_GUIDE.find((face) => face.id === "round");

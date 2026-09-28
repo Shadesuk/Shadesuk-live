@@ -19,14 +19,15 @@ export type MapProductOptions = {
 };
 
 /**
- * PDP-only fields from PR #10 that the card type does not use.
- * `disclosure` is intentionally absent: the PDP component is global, not CMS copy.
+ * PDP-only fields from the catalogue row that the card type does not use.
+ * Blank `disclosure` is omitted so the PDP can fall back to the locked copy.
  */
 export type PdpCatalogueFields = {
   materials?: string;
   whatsIncluded?: string;
   fit?: string;
   sku?: string;
+  disclosure?: string;
 };
 
 export type MappedStorefrontProduct = Product & {
@@ -230,6 +231,7 @@ function pdpFields(
   const included = blankToUndefined(product.whats_included);
   const fit = blankToUndefined(product.fit);
   const sku = blankToUndefined(variant.sku);
+  const disclosure = blankToUndefined(product.disclosure);
   if (materials) {
     fields.materials = materials;
   }
@@ -241,6 +243,9 @@ function pdpFields(
   }
   if (sku) {
     fields.sku = sku;
+  }
+  if (disclosure) {
+    fields.disclosure = disclosure;
   }
   return fields;
 }

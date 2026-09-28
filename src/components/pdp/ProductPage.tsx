@@ -32,7 +32,7 @@ export function ProductPage({ record }: ProductPageProps) {
             currency={product.currency}
           />
           <ProductHero product={product} brandName={brandName} />
-          <ProductDisclosure />
+          <ProductDisclosure disclosure={product.pdp?.disclosure} />
           {related.length > 0 ? (
             <section className={styles.related} aria-labelledby="you-may-also-like">
               <h2 id="you-may-also-like" className="text-micro">
