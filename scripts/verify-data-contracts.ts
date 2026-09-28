@@ -198,6 +198,29 @@ if (!pdp || pdp.colours.length !== 2) {
 if (pdp.pdp?.materials !== "Acetate" || pdp.pdp?.fit !== "medium") {
   throw new Error("PDP extras mapping failed.");
 }
+if (pdp.pdp?.disclosure !== "High-quality 1:1 Superclone") {
+  throw new Error("PDP disclosure must map from products.disclosure.");
+}
+const customDisclosure = mapProductAggregateToStorefront(
+  {
+    ...aggregate,
+    product: { ...aggregate.product, disclosure: "  Studio sample  " },
+  },
+  { projection: "pdp" },
+);
+if (customDisclosure?.pdp?.disclosure !== "Studio sample") {
+  throw new Error("PDP disclosure must pass through trimmed products.disclosure.");
+}
+const blankDisclosure = mapProductAggregateToStorefront(
+  {
+    ...aggregate,
+    product: { ...aggregate.product, disclosure: "   " },
+  },
+  { projection: "pdp" },
+);
+if (blankDisclosure?.pdp?.disclosure) {
+  throw new Error("Blank disclosure must stay unset for the PDP fallback.");
+}
 if (pdp.measurements?.lensMm !== 52) {
   throw new Error("Shared measurements must map when variants agree.");
 }
