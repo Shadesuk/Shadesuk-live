@@ -15,6 +15,12 @@ export type PayPalJsonResult =
   | { ok: true; status: number; body: unknown }
   | { ok: false; error: string; status?: number; body?: unknown };
 
+/**
+ * Orders create may return 201 without purchase_units unless this Prefer is set.
+ * Applied on all `paypalFetchJson` callers (create / GET / capture) intentionally.
+ */
+export const PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION = "return=representation";
+
 type TokenCache = {
   clientId: string;
   clientSecret: string;
@@ -104,6 +110,8 @@ export async function paypalFetchJson(input: {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${auth.accessToken}`,
     Accept: "application/json",
+    // Orders API may omit purchase_units without this Prefer (create returns 201 id-only).
+    Prefer: PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION,
   };
   if (input.body !== undefined) {
     headers["Content-Type"] = "application/json";

@@ -94,7 +94,7 @@ export async function createPayPalOrder(
   }
 }
 
-function parseCreatedOrder(
+export function parseCreatedOrder(
   value: unknown,
   expected: CreatePayPalOrderInput,
 ): CreatePayPalOrderResult {

@@ -15,6 +15,8 @@ import {
 } from "../src/lib/payment/pending-attempt";
 import { commitPendingPayPalPayment } from "../src/lib/payment/initiate";
 import { gbpMinorToPayPalValue, payPalValueToGbpMinor } from "../src/lib/paypal/amount";
+import { PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION } from "../src/lib/paypal/client";
+import { parseCreatedOrder } from "../src/lib/paypal/create-order";
 import { redactPayPalSecrets } from "../src/lib/paypal/errors";
 import { emptyCheckoutDraft, type PublicCheckoutDraft } from "../src/types/checkout";
 import type { PaymentRow } from "../src/contracts/payment/schema";
@@ -47,6 +49,56 @@ if (PAYMENT_CURRENCY !== STORE_CURRENCY || STORE_CURRENCY !== "GBP") {
 }
 if (PAYMENT_ATTEMPT_IDEMPOTENCY.mechanism !== "none") {
   throw new Error("Do not invent a payment-attempt idempotency cookie in this foundation.");
+}
+
+// Prefer return=representation on paypalFetchJson (create + GET + capture via shared client).
+if (PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION !== "return=representation") {
+  throw new Error("PayPal Orders Prefer must be return=representation.");
+}
+const clientSource = read("src/lib/paypal/client.ts");
+if (
+  !clientSource.includes("Prefer: PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION") ||
+  !clientSource.includes('PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION = "return=representation"')
+) {
+  throw new Error("paypalFetchJson must send Prefer: return=representation.");
+}
+
+const parseExpected = {
+  amountMinor: 5365,
+  currency: "GBP" as const,
+  customId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  invoiceId: "SHU-TESTREF0001",
+};
+const parsedFull = parseCreatedOrder(
+  {
+    id: "5O190127TN364715T",
+    status: "CREATED",
+    purchase_units: [
+      {
+        amount: { currency_code: "GBP", value: "53.65" },
+        custom_id: parseExpected.customId,
+        invoice_id: parseExpected.invoiceId,
+      },
+    ],
+  },
+  parseExpected,
+);
+if (!parsedFull.ok || parsedFull.order.amountMinor !== 5365) {
+  throw new Error("parseCreatedOrder must accept a full Orders representation.");
+}
+const parsedMissing = parseCreatedOrder(
+  { id: "5O190127TN364715T", status: "CREATED" },
+  parseExpected,
+);
+if (parsedMissing.ok || parsedMissing.error !== "PayPal order is missing purchase_units.") {
+  throw new Error("parseCreatedOrder must reject responses without purchase_units.");
+}
+const paymentActions = read("src/app/(storefront)/checkout/payment-actions.ts");
+if (
+  !paymentActions.includes("verifyPayPalClientReturn") ||
+  !paymentActions.includes("captureVerifiedPayment")
+) {
+  throw new Error("Checkout must still verify then captureVerifiedPayment (no Prefer bypass).");
 }
 
 const envExample = read(".env.example");
