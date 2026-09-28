@@ -4,6 +4,10 @@ import { variantAvailability } from "@/contracts/catalogue/availability";
 import { isUuid } from "@/lib/ids";
 import { checkoutUnavailableBlocked } from "@/lib/checkout-quote";
 import {
+  checkoutAttemptOwnerMatches,
+  paymentAttemptBoundToCookie,
+} from "@/lib/payment/attempt-binding";
+import {
   clearPaymentAttemptId,
   PAYMENT_ATTEMPT_MAX_AGE_SECONDS,
   readPaymentAttemptId,
@@ -45,6 +49,8 @@ export type InitiatePendingPaymentOptions = {
   loadLines?: () => Promise<PendingPaymentLine[] | null>;
   store?: PendingPaymentStore;
   createProviderOrder?: typeof createPayPalOrder;
+  /** Test seam. Production reads the httpOnly attempt cookie. */
+  readAttemptId?: () => Promise<string | null>;
 };
 
 /**
@@ -73,6 +79,7 @@ export async function initiatePendingPayPalPayment(
     draft: loaded.draft,
     lines: loaded.lines,
     userId: loaded.userId,
+    readAttemptId: options?.readAttemptId,
   });
   if (reused) {
     return reused;
@@ -100,6 +107,7 @@ async function reuseOpenAttempt(input: {
   draft: PublicCheckoutDraft;
   lines: PendingPaymentLine[];
   userId: string | null;
+  readAttemptId?: () => Promise<string | null>;
 }): Promise<InitiatePendingPaymentResult | null> {
   const built = buildPendingPaymentAttempt({
     draft: input.draft,
@@ -111,7 +119,7 @@ async function reuseOpenAttempt(input: {
   }
   let paymentId: string | null = null;
   try {
-    paymentId = await readPaymentAttemptId();
+    paymentId = input.readAttemptId ? await input.readAttemptId() : await readPaymentAttemptId();
   } catch {
     return null;
   }
@@ -120,6 +128,14 @@ async function reuseOpenAttempt(input: {
   }
   const open = await input.store.loadOpenAttempt(paymentId);
   if (!open || !open.payment.provider_order_id) {
+    return null;
+  }
+  if (!checkoutAttemptOwnerMatches(open.order.user_id, input.userId)) {
+    try {
+      await clearPaymentAttemptId();
+    } catch {
+      // The cookie is local. The other shopper's attempt stays open.
+    }
     return null;
   }
   const ageMs = Date.now() - new Date(open.order.created_at).getTime();
@@ -209,17 +225,33 @@ export async function closeCheckoutPaymentAttempt(
   paymentId: string,
   status: "cancelled" | "failed",
   reason: string,
-): Promise<void> {
+  options?: {
+    store?: PendingPaymentStore;
+    /**
+     * Test seam for the httpOnly attempt cookie.
+     * Omit it in production so the server reads the cookie itself.
+     */
+    boundPaymentId?: string | null;
+  },
+): Promise<boolean> {
   if (!isUuid(paymentId)) {
-    return;
+    return false;
   }
-  const store = createSupabasePendingPaymentStore();
+  const bound =
+    options && "boundPaymentId" in options
+      ? (options.boundPaymentId ?? null)
+      : await readPaymentAttemptId();
+  if (!paymentAttemptBoundToCookie(paymentId, bound)) {
+    return false;
+  }
+  const store = options?.store ?? createSupabasePendingPaymentStore();
   await store.closeOpenAttempt(paymentId, status, reason);
   try {
     await clearPaymentAttemptId();
   } catch {
     // Closing the row is what keeps the attempt out of confirmed orders.
   }
+  return true;
 }
 
 export async function loadLivePendingPaymentLines(

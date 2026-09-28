@@ -63,12 +63,14 @@ export async function loadPayPalCheckoutConfigAction(): Promise<PayPalCheckoutCo
 }
 
 /**
- * Buyer cancelled the PayPal button. Leaves the row unpaid and not a purchase.
- * Network failures must not call this — the same attempt can be retried.
+ * Buyer cancelled or the instrument was declined.
+ * Closes only the attempt stored in this browser's httpOnly cookie.
  */
-export async function cancelCheckoutPaymentAction(input: {
-  paymentId: unknown;
-}): Promise<{ status: "ok" } | { status: "error" }> {
+async function closeBoundCheckoutAttempt(
+  input: { paymentId: unknown },
+  status: "cancelled" | "failed",
+  reason: string,
+): Promise<{ status: "ok" } | { status: "error" }> {
   if (hasForbiddenOwnershipKey(input) || !(await cartActionOriginAllowed())) {
     return { status: "error" };
   }
@@ -76,33 +78,32 @@ export async function cancelCheckoutPaymentAction(input: {
     return { status: "error" };
   }
   try {
-    await closeCheckoutPaymentAttempt(input.paymentId, "cancelled", "Buyer cancelled PayPal.");
+    const closed = await closeCheckoutPaymentAttempt(input.paymentId, status, reason);
+    if (!closed) {
+      return { status: "error" };
+    }
   } catch {
     return { status: "error" };
   }
   return { status: "ok" };
 }
 
+/**
+ * Buyer cancelled the PayPal button. Leaves the row unpaid and not a purchase.
+ * Network failures must not call this — the same attempt can be retried.
+ * A payment id that is not this browser's attempt cookie is rejected.
+ */
+export async function cancelCheckoutPaymentAction(input: {
+  paymentId: unknown;
+}): Promise<{ status: "ok" } | { status: "error" }> {
+  return closeBoundCheckoutAttempt(input, "cancelled", "Buyer cancelled PayPal.");
+}
+
 /** Instrument declined. Does not mark a purchase. A later click starts a new attempt. */
 export async function declineCheckoutPaymentAction(input: {
   paymentId: unknown;
 }): Promise<{ status: "ok" } | { status: "error" }> {
-  if (hasForbiddenOwnershipKey(input) || !(await cartActionOriginAllowed())) {
-    return { status: "error" };
-  }
-  if (typeof input.paymentId !== "string" || !isUuid(input.paymentId)) {
-    return { status: "error" };
-  }
-  try {
-    await closeCheckoutPaymentAttempt(
-      input.paymentId,
-      "failed",
-      "PayPal declined the instrument.",
-    );
-  } catch {
-    return { status: "error" };
-  }
-  return { status: "ok" };
+  return closeBoundCheckoutAttempt(input, "failed", "PayPal declined the instrument.");
 }
 
 /**

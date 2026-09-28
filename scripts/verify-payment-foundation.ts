@@ -13,7 +13,16 @@ import {
   quotePendingPaymentLines,
   type PendingPaymentLine,
 } from "../src/lib/payment/pending-attempt";
+import {
+  checkoutAttemptOwnerMatches,
+  paymentAttemptBoundToCookie,
+} from "../src/lib/payment/attempt-binding";
 import { commitPendingPayPalPayment } from "../src/lib/payment/initiate";
+import {
+  closeCheckoutPaymentAttempt,
+  initiatePendingPayPalPayment,
+} from "../src/services/pending-payment";
+import type { PublicCart } from "../src/types/cart";
 import { gbpMinorToPayPalValue, payPalValueToGbpMinor } from "../src/lib/paypal/amount";
 import { PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION } from "../src/lib/paypal/client";
 import { parseCreatedOrder } from "../src/lib/paypal/create-order";
@@ -460,7 +469,296 @@ async function verifyInitiationFlow(): Promise<void> {
   }
 }
 
+const USER_A = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const USER_B = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const ATTEMPT_PAYMENT_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const OTHER_PAYMENT_ID = "abababab-abab-4aba-8aba-abababababab";
+
+if (!paymentAttemptBoundToCookie(ATTEMPT_PAYMENT_ID, ATTEMPT_PAYMENT_ID)) {
+  throw new Error("A payment id must match the attempt cookie to be bound.");
+}
+if (
+  paymentAttemptBoundToCookie(OTHER_PAYMENT_ID, ATTEMPT_PAYMENT_ID) ||
+  paymentAttemptBoundToCookie(ATTEMPT_PAYMENT_ID, null) ||
+  paymentAttemptBoundToCookie(ATTEMPT_PAYMENT_ID, "") ||
+  paymentAttemptBoundToCookie("not-a-uuid", ATTEMPT_PAYMENT_ID)
+) {
+  throw new Error("Cancel must reject a payment id that is not the attempt cookie.");
+}
+if (
+  !checkoutAttemptOwnerMatches(null, null) ||
+  !checkoutAttemptOwnerMatches(USER_A, USER_A)
+) {
+  throw new Error("Reuse must allow a guest guest-attempt and the signed-in owner.");
+}
+if (
+  checkoutAttemptOwnerMatches(USER_A, null) ||
+  checkoutAttemptOwnerMatches(null, USER_A) ||
+  checkoutAttemptOwnerMatches(USER_B, USER_A) ||
+  checkoutAttemptOwnerMatches(USER_A, "")
+) {
+  throw new Error("Reuse must reject another user's attempt, including guest versus account.");
+}
+
+function openAttempt(userId: string | null, totalMinor = 5365): {
+  order: OrderRow;
+  items: OrderItemRow[];
+  payment: PaymentRow;
+} {
+  const now = new Date().toISOString();
+  return {
+    order: {
+      id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      order_reference: "SHU-OPENATTEMPT1",
+      user_id: userId,
+      customer_email: "ada@shadesuk.example",
+      customer_first_name: "Ada",
+      customer_last_name: "Lovelace",
+      status: "checkout",
+      payment_status: "created",
+      currency: "GBP",
+      subtotal_minor: 4900,
+      shipping_minor: UK_STANDARD_DELIVERY_MINOR,
+      total_minor: totalMinor,
+      delivery_address: { postcode: "E1 6AN" },
+      created_at: now,
+      updated_at: now,
+    },
+    items: [
+      {
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb0",
+        order_id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        product_id: lines[0].productId,
+        product_variant_id: lines[0].productVariantId,
+        sku: lines[0].sku,
+        product_name: lines[0].productName,
+        colour_name: lines[0].colourName,
+        variant_name: lines[0].variantName,
+        quantity: lines[0].quantity,
+        unit_price_minor: lines[0].unitPriceMinor,
+        line_total_minor: lines[0].lineTotalMinor,
+        product_snapshot: {},
+        created_at: now,
+      },
+    ],
+    payment: {
+      id: ATTEMPT_PAYMENT_ID,
+      order_id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      provider: "paypal",
+      provider_order_id: "5O190127TN364715T",
+      provider_payment_id: null,
+      amount_minor: totalMinor,
+      currency: "GBP",
+      status: "created",
+      failure_reason: null,
+      captured_at: null,
+      created_at: now,
+      updated_at: now,
+    },
+  };
+}
+
+const bindingCart: PublicCart = {
+  items: [
+    {
+      id: "item-1",
+      productId: lines[0].productId,
+      slug: "frame-01",
+      name: "Frame 01",
+      href: "/products/frame-01",
+      colourName: "Black",
+      quantity: 1,
+      unitPrice: 49,
+      lineTotal: 49,
+      currency: "GBP",
+    },
+  ],
+  itemCount: 1,
+  subtotal: 49,
+  currency: "GBP",
+  issues: [],
+};
+
+async function verifyAttemptBinding(): Promise<void> {
+  const closed: Array<{ paymentId: string; status: string }> = [];
+  const closingStore: PendingPaymentStore = {
+    async insertAttempt() {
+      throw new Error("Cancel must not insert.");
+    },
+    async attachProviderOrderId() {
+      throw new Error("Cancel must not attach.");
+    },
+    async markInitiationFailed() {
+      throw new Error("Cancel must not mark initiation failed.");
+    },
+    async loadOpenAttempt() {
+      return null;
+    },
+    async closeOpenAttempt(paymentId, status) {
+      closed.push({ paymentId, status });
+    },
+  };
+
+  const foreign = await closeCheckoutPaymentAttempt(
+    OTHER_PAYMENT_ID,
+    "cancelled",
+    "Buyer cancelled PayPal.",
+    { store: closingStore, boundPaymentId: ATTEMPT_PAYMENT_ID },
+  );
+  const missingCookie = await closeCheckoutPaymentAttempt(
+    ATTEMPT_PAYMENT_ID,
+    "failed",
+    "PayPal declined the instrument.",
+    { store: closingStore, boundPaymentId: null },
+  );
+  if (foreign || missingCookie || closed.length !== 0) {
+    throw new Error("Cancel and decline must not close an attempt the cookie does not name.");
+  }
+  const boundCloses: Array<{ paymentId: string; status: string }> = [];
+  closingStore.closeOpenAttempt = async (paymentId, status) => {
+    boundCloses.push({ paymentId, status });
+  };
+  const cancelled = await closeCheckoutPaymentAttempt(
+    ATTEMPT_PAYMENT_ID,
+    "cancelled",
+    "Buyer cancelled PayPal.",
+    { store: closingStore, boundPaymentId: ATTEMPT_PAYMENT_ID },
+  );
+  const declined = await closeCheckoutPaymentAttempt(
+    ATTEMPT_PAYMENT_ID,
+    "failed",
+    "PayPal declined the instrument.",
+    { store: closingStore, boundPaymentId: ATTEMPT_PAYMENT_ID },
+  );
+  if (
+    !cancelled ||
+    !declined ||
+    boundCloses.length !== 2 ||
+    boundCloses[0]?.status !== "cancelled" ||
+    boundCloses[1]?.status !== "failed" ||
+    boundCloses.some((row) => row.paymentId !== ATTEMPT_PAYMENT_ID)
+  ) {
+    throw new Error("Cancel and decline must close only the cookie-bound attempt.");
+  }
+
+  async function reuse(userId: string | null, ownerId: string | null, totalMinor = 5365) {
+    const closes: string[] = [];
+    let created = false;
+    const open = openAttempt(ownerId, totalMinor);
+    const store: PendingPaymentStore = {
+      async insertAttempt(input) {
+        created = true;
+        const now = new Date().toISOString();
+        return {
+          order: {
+            ...open.order,
+            id: "11111111-1111-4111-8111-111111111112",
+            user_id: input.order.user_id,
+            order_reference: input.order.order_reference,
+            total_minor: input.order.total_minor,
+            created_at: now,
+            updated_at: now,
+          },
+          items: open.items,
+          payment: {
+            ...open.payment,
+            id: "12121212-1212-4121-8121-121212121212",
+            provider_order_id: null,
+            amount_minor: input.payment.amount_minor,
+            created_at: now,
+            updated_at: now,
+          },
+        };
+      },
+      async attachProviderOrderId(paymentId, providerOrderId) {
+        return {
+          ...open.payment,
+          id: paymentId,
+          provider_order_id: providerOrderId,
+        };
+      },
+      async markInitiationFailed() {
+        throw new Error("Owner mismatch must not fail the other attempt.");
+      },
+      async loadOpenAttempt() {
+        return open;
+      },
+      async closeOpenAttempt(paymentId) {
+        closes.push(paymentId);
+      },
+    };
+    const result = await initiatePendingPayPalPayment({
+      cart: bindingCart,
+      draft,
+      userId,
+      loadLines: async () => lines,
+      store,
+      readAttemptId: async () => ATTEMPT_PAYMENT_ID,
+      createProviderOrder: async (input) => ({
+        ok: true,
+        order: {
+          providerOrderId: "NEWPAYPALORDERID01",
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          providerStatus: "CREATED",
+          customId: input.customId,
+          invoiceId: input.invoiceId,
+        },
+      }),
+    });
+    return { result, closes, created };
+  }
+
+  const sameGuest = await reuse(null, null);
+  if (
+    sameGuest.result.status !== "ok" ||
+    sameGuest.result.paymentId !== ATTEMPT_PAYMENT_ID ||
+    sameGuest.created ||
+    sameGuest.closes.length !== 0
+  ) {
+    throw new Error("A guest must reuse their own guest attempt.");
+  }
+
+  const sameUser = await reuse(USER_A, USER_A);
+  if (
+    sameUser.result.status !== "ok" ||
+    sameUser.result.paymentId !== ATTEMPT_PAYMENT_ID ||
+    sameUser.created ||
+    sameUser.closes.length !== 0
+  ) {
+    throw new Error("A signed-in shopper must reuse only their own attempt.");
+  }
+
+  const guestOnUser = await reuse(null, USER_A);
+  const userOnGuest = await reuse(USER_A, null);
+  const userOnOther = await reuse(USER_A, USER_B);
+  for (const crossed of [guestOnUser, userOnGuest, userOnOther]) {
+    if (
+      crossed.result.status !== "ok" ||
+      crossed.result.paymentId === ATTEMPT_PAYMENT_ID ||
+      !crossed.created ||
+      crossed.closes.length !== 0
+    ) {
+      throw new Error("A shopper must not reuse or close another user's open attempt.");
+    }
+  }
+
+  const changedQuote = await reuse(USER_A, USER_A, 1);
+  if (
+    changedQuote.closes.length !== 1 ||
+    changedQuote.closes[0] !== ATTEMPT_PAYMENT_ID ||
+    !changedQuote.created
+  ) {
+    throw new Error("A changed quote may close only the same shopper's open attempt.");
+  }
+
+  if (!read("src/app/(storefront)/checkout/payment-actions.ts").includes("if (!closed)")) {
+    throw new Error("Cancel and decline actions must reject an unbound payment id.");
+  }
+}
+
 void verifyInitiationFlow()
+  .then(() => verifyAttemptBinding())
   .then(() => {
     console.log("verify-payment-foundation: ok");
   })
