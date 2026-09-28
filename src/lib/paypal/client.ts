@@ -104,6 +104,8 @@ export async function paypalFetchJson(input: {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${auth.accessToken}`,
     Accept: "application/json",
+    // Orders API may omit purchase_units without this Prefer (create returns 201 id-only).
+    Prefer: "return=representation",
   };
   if (input.body !== undefined) {
     headers["Content-Type"] = "application/json";
