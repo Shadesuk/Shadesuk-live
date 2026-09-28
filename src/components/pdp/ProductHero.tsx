@@ -10,6 +10,7 @@ import {
   getAvailabilityLabel,
   getColourCount,
   isProductAvailable,
+  selectPdpGalleryImages,
 } from "@/lib/product-display";
 import { ADD_TO_BAG_QUANTITY_MAX, resolveSelectedVariant } from "@/lib/add-to-bag";
 import { addToBagAction } from "@/app/(storefront)/product/actions";
@@ -77,20 +78,20 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
     };
   }, []);
   const colour = colours.find((item) => item.id === colourId);
-  const galleryImages = useMemo(() => {
-    const colourImages = product.images.filter((image) => image.colourId && image.colourId === colourId);
-    if (colourImages.length > 0) {
-      return colourImages;
-    }
-    const shared = product.images.filter((image) => !image.colourId);
-    return shared.length > 0 ? shared : product.images;
-  }, [product.images, colourId]);
-  const colourCount = getColourCount(product);
-  const available = isProductAvailable(product) && Boolean(colour?.available);
   const variant = resolveSelectedVariant(product, {
     colourId: colour?.id,
     size: size || undefined,
   });
+  const galleryImages = useMemo(
+    () =>
+      selectPdpGalleryImages(product.images, {
+        colourId,
+        ...(variant?.id ? { variantId: variant.id } : {}),
+      }),
+    [product.images, colourId, variant?.id],
+  );
+  const colourCount = getColourCount(product);
+  const available = isProductAvailable(product) && Boolean(colour?.available);
   const needsVariant = (product.variants?.length ?? 0) > 0;
   const variantBlocked = variant ? variant.availability !== "in_stock" : needsVariant;
   const canPurchase = available && !variantBlocked;

@@ -84,3 +84,22 @@ export function getSecondaryImage(product: Product): ProductImage | undefined {
 export function getImageFallbackLabel(role: ProductImageRole = "front"): string {
   return IMAGE_FALLBACK[role];
 }
+
+/** Exact variant shots, then product-level images. Order follows the catalogue sort. */
+export function selectPdpGalleryImages(
+  images: ProductImage[],
+  selection: { colourId?: string; variantId?: string },
+): ProductImage[] {
+  const shared = images.filter((image) => !image.variantId && !image.colourId);
+  if (selection.variantId) {
+    const exact = images.filter((image) => image.variantId === selection.variantId);
+    return exact.length > 0 ? exact : shared;
+  }
+  const colourImages = images.filter(
+    (image) => Boolean(image.colourId) && image.colourId === selection.colourId,
+  );
+  if (colourImages.length > 0) {
+    return colourImages;
+  }
+  return shared.length > 0 ? shared : images;
+}
