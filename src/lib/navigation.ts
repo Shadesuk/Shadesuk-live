@@ -113,6 +113,17 @@ export const footerNav = {
   ],
 } as const;
 
+export const footerSocialNote =
+  "Official channels will be listed here when they are active.";
+
+/** Shop, Help, Company, and Social. Rendered expanded from 768px and as accordions below that. */
+export const footerSections = [
+  { id: "shop", label: "Shop", links: footerNav.shop },
+  { id: "help", label: "Help", links: footerNav.help },
+  { id: "company", label: "Company", links: footerNav.company },
+  { id: "social", label: "Social", note: footerSocialNote },
+] as const;
+
 export function productPath(slug: string): string {
   return `/product/${slug}`;
 }
