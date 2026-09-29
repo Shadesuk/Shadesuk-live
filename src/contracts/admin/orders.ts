@@ -1,4 +1,5 @@
 import {
+  adminOrderStatusLabel,
   dashboardPeriodRange,
   isOrderStatus,
   isPaymentStatus,
@@ -7,6 +8,7 @@ import {
 import { toGuestDeliveryAddress, type GuestDeliveryAddressView } from "../order/dto";
 import { isOrderReference, parseOrderReferenceInput } from "../order/reference";
 import { isLegalOrderStatusTransition, legalOrderStatusTargets } from "../order/status";
+import { isCommittedPurchase, COMMITTED_PURCHASE_PAYMENT_STATUSES } from "../order/lifecycle";
 import {
   ORDER_STATUSES,
   PAYMENT_STATUSES,
@@ -355,6 +357,22 @@ export function parseAdminOrderStatusInput(
 
 export function adminOrderStatusOptions(from: OrderStatus): OrderStatus[] {
   return legalOrderStatusTargets(from);
+}
+
+export { COMMITTED_PURCHASE_PAYMENT_STATUSES, isCommittedPurchase };
+
+/** Unpaid historical `placed` rows and new `checkout` rows are not confirmed orders. */
+export function reportedAdminOrderStatusLabel(
+  orderStatus: OrderStatus,
+  paymentStatus: PaymentStatus,
+): string {
+  if (
+    !isCommittedPurchase(paymentStatus) &&
+    (orderStatus === "placed" || orderStatus === "checkout")
+  ) {
+    return adminOrderStatusLabel("checkout");
+  }
+  return adminOrderStatusLabel(orderStatus);
 }
 
 export function adminOrderCustomerLabel(

@@ -10,6 +10,7 @@ export const CUSTOMER_ORDER_STATUS_LABELS = {
   delivered: "DELIVERED",
   exception: "EXCEPTION",
   tracking_unavailable: "TRACKING NOT AVAILABLE",
+  checkout: "CHECKOUT NOT COMPLETED",
 } as const satisfies Record<OrderStatus, string>;
 
 export type CustomerOrderStatusLabel =

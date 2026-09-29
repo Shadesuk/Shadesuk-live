@@ -2,16 +2,19 @@ import {
   adminOrderStatusLabel,
   adminPaymentStatusLabel,
 } from "@/contracts/admin/dashboard";
+import { isCommittedPurchase } from "@/contracts/order/lifecycle";
 import { isAwaitingFulfilment } from "@/contracts/fulfilment/dispatch";
 import {
   adminOrderCustomerLabel,
   adminShipmentStatusLabel,
+  reportedAdminOrderStatusLabel,
   type AdminOrderDetailView,
 } from "@/contracts/admin/orders";
 import { formatOrderHeading } from "@/contracts/order/dto";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import {
   ADMIN_ORDER_BACK,
+  ADMIN_ORDER_CHECKOUT_NOT_COMPLETED,
   ADMIN_ORDERS_AWAITING_FULFILMENT,
   ADMIN_ORDER_CARRIER,
   ADMIN_ORDER_COL_DATE,
@@ -69,19 +72,25 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
   const variantLabel = (colour: string, variant: string | null) =>
     [colour, variant].filter(Boolean).join(" · ");
   const trackingUrl = safeHttpUrl(order.shipment?.trackingUrl);
+  const provisional = !isCommittedPurchase(order.paymentStatus);
 
   return (
     <div data-admin-order-detail data-order-id={order.id}>
       <AdminPageHeader
         kicker="Orders"
         title={formatOrderHeading(order.orderReference)}
-        description={`${formatAdminDateTime(order.createdAt)} · ${adminOrderStatusLabel(order.orderStatus)} · ${adminPaymentStatusLabel(order.paymentStatus)}`}
+        description={`${formatAdminDateTime(order.createdAt)} · ${reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)} · ${adminPaymentStatusLabel(order.paymentStatus)}`}
         action={
           <ButtonLink href={routes.adminOrders} variant="tertiary">
             {ADMIN_ORDER_BACK}
           </ButtonLink>
         }
       />
+      {provisional ? (
+        <p className="text-small" role="status">
+          {ADMIN_ORDER_CHECKOUT_NOT_COMPLETED}
+        </p>
+      ) : null}
       <div className={styles.detailGrid}>
         <div className={styles.stack}>
           <section className={styles.section} aria-labelledby="order-customer-heading">
@@ -223,18 +232,22 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
               </div>
               <div>
                 <dt>{ADMIN_ORDER_COL_STATUS}</dt>
-                <dd className="text-body">{adminOrderStatusLabel(order.orderStatus)}</dd>
+                <dd className="text-body">
+                  {reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)}
+                </dd>
               </div>
               <div>
                 <dt>{ADMIN_ORDER_COL_PAYMENT}</dt>
                 <dd className="text-body">{adminPaymentStatusLabel(order.paymentStatus)}</dd>
               </div>
             </dl>
-            <AdminOrderStatusForm
-              orderId={order.id}
-              current={order.orderStatus}
-              targets={order.statusTargets}
-            />
+            {provisional ? null : (
+              <AdminOrderStatusForm
+                orderId={order.id}
+                current={order.orderStatus}
+                targets={order.statusTargets}
+              />
+            )}
           </section>
           <section className={styles.section} aria-labelledby="order-fulfilment-heading">
             <h2 id="order-fulfilment-heading" className={styles.sectionTitle}>
@@ -292,12 +305,14 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
                 )}
               </div>
             ) : null}
-            <AdminFulfilmentForm
-              orderId={order.id}
-              shipment={order.shipment}
-              paymentStatus={order.paymentStatus}
-              orderStatus={order.orderStatus}
-            />
+            {provisional ? null : (
+              <AdminFulfilmentForm
+                orderId={order.id}
+                shipment={order.shipment}
+                paymentStatus={order.paymentStatus}
+                orderStatus={order.orderStatus}
+              />
+            )}
           </section>
         </div>
       </div>

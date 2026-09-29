@@ -1,5 +1,6 @@
 import "server-only";
 
+import { COMMITTED_PURCHASE_PAYMENT_STATUSES, isCommittedPurchase } from "@/contracts/order/lifecycle";
 import {
   ADMIN_ORDER_EVENT_TYPES,
   ADMIN_ORDERS_PAGE_SIZE,
@@ -102,12 +103,17 @@ export async function loadAdminOrderList(
       request = query.status
         ? request.eq("status", query.status)
         : request.in("status", [...AWAITING_FULFILMENT_ORDER_STATUSES]);
-    } else {
+    } else if (query.payment) {
+      request = request.eq("payment_status", query.payment);
       if (query.status) {
         request = request.eq("status", query.status);
       }
-      if (query.payment) {
-        request = request.eq("payment_status", query.payment);
+    } else if (query.status === "checkout") {
+      request = request.eq("status", "checkout");
+    } else {
+      request = request.in("payment_status", [...COMMITTED_PURCHASE_PAYMENT_STATUSES]);
+      if (query.status) {
+        request = request.eq("status", query.status);
       }
     }
     if (range) {
@@ -262,7 +268,7 @@ export async function updateAdminOrderStatus(input: {
     const supabase = await createSupabaseServerClient();
     const current = await supabase
       .from("orders")
-      .select("id, status")
+      .select("id, status, payment_status")
       .eq("id", input.orderId)
       .maybeSingle();
     if (current.error) {
@@ -270,6 +276,9 @@ export async function updateAdminOrderStatus(input: {
     }
     if (!current.data || !isOrderStatus(current.data.status)) {
       return { status: "not_found" };
+    }
+    if (!isCommittedPurchase(current.data.payment_status)) {
+      return { status: "invalid", errors: { status: "Unpaid checkouts can’t be updated as orders." } };
     }
     const parsed = parseAdminOrderStatusInput(current.data.status, input.nextStatus);
     if (!parsed.ok) {

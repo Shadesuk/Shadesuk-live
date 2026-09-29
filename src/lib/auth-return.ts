@@ -30,7 +30,7 @@ export function resolveAuthReturnPath(input: {
   if (fromQuery) {
     return fromQuery;
   }
-  const fromCookie = safeReturnPath(decodeReturnCookie(input.cookieNext));
+  const fromCookie = decodeAuthReturnCookieValue(input.cookieNext);
   if (fromCookie) {
     return fromCookie;
   }
@@ -42,14 +42,60 @@ export function encodeAuthReturnCookie(path: string): string {
 }
 
 export function decodeReturnCookie(value: string | null | undefined): string | null {
+  return decodeAuthReturnCookieValue(value);
+}
+
+/**
+ * Cookie writers may store the path raw (the Set-Cookie layer percent-encodes
+ * once) or pre-encoded. Decode until a safe storefront path appears, at most
+ * twice, so a double-encoded checkout return still resolves.
+ * `/` is not a return path — that is the homepage dump this cookie exists to avoid.
+ */
+export function decodeAuthReturnCookieValue(value: string | null | undefined): string | null {
   if (!value) {
     return null;
   }
-  try {
-    return decodeURIComponent(value);
-  } catch {
+  let current = value.trim();
+  if (current.startsWith('"') && current.endsWith('"') && current.length >= 2) {
+    current = current.slice(1, -1);
+  }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const safe = safeReturnPath(current);
+    if (safe) {
+      return safe;
+    }
+    try {
+      const decoded = decodeURIComponent(current);
+      if (decoded === current) {
+        break;
+      }
+      current = decoded;
+    } catch {
+      break;
+    }
+  }
+  return safeReturnPath(current);
+}
+
+export function readAuthReturnCookieHeader(
+  header: string | null | undefined,
+  name: string,
+): string | null {
+  if (!header) {
     return null;
   }
+  for (const part of header.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator <= 0) {
+      continue;
+    }
+    const rawName = part.slice(0, separator).trim();
+    if (rawName !== name) {
+      continue;
+    }
+    return part.slice(separator + 1).trim();
+  }
+  return null;
 }
 
 /**
@@ -92,7 +138,7 @@ function safeReturnPath(value: string | null | undefined): string | null {
   if (!value || value.length > MAX_RETURN_PATH_LENGTH) {
     return null;
   }
-  if (!isSafeNextPath(value) || isAdminAppPath(value)) {
+  if (!isSafeNextPath(value) || isAdminAppPath(value) || value === routes.home) {
     return null;
   }
   return value;

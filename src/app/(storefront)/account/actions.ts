@@ -28,7 +28,6 @@ import {
 import {
   AUTH_RETURN_COOKIE,
   AUTH_RETURN_MAX_AGE_SECONDS,
-  encodeAuthReturnCookie,
   isFrameworkRedirect,
   resolveAuthReturnPath,
 } from "@/lib/auth-return";
@@ -420,7 +419,7 @@ async function rememberAuthReturnPath(next: string): Promise<void> {
   const store = await cookies();
   store.set({
     name: AUTH_RETURN_COOKIE,
-    value: encodeAuthReturnCookie(next),
+    value: next,
     httpOnly: true,
     path: "/",
     sameSite: "lax",

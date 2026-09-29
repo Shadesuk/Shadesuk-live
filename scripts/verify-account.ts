@@ -38,6 +38,7 @@ import {
   resolveAuthReturnPath,
 } from "../src/lib/auth-return";
 import { hasForbiddenOwnershipKey } from "../src/lib/ownership-keys";
+import { oauthCallbackRecoveryPath } from "../src/lib/auth-recovery";
 import { resolveActionOrigin } from "../src/lib/request-origin";
 import { isSupabaseAuthCookieName } from "../src/lib/supabase/cookie-options";
 
@@ -302,6 +303,30 @@ if (resolveAuthReturnPath({ queryNext: "https://evil.test/phish", cookieNext: nu
 }
 if (resolveAuthReturnPath({ queryNext: null, cookieNext: null }) !== "/account") {
   throw new Error("A missing Google return path must not fall through to the homepage.");
+}
+if (resolveAuthReturnPath({ queryNext: "/", cookieNext: encodeAuthReturnCookie("/checkout") }) !== "/checkout") {
+  throw new Error("Homepage is not a checkout return path.");
+}
+if (resolveAuthReturnPath({ queryNext: null, cookieNext: "%252Fcheckout" }) !== "/checkout") {
+  throw new Error("A double-encoded checkout return cookie must still restore checkout.");
+}
+if (
+  oauthCallbackRecoveryPath(new URL("https://shop.example/?code=abcdefghijklmnopqrst")) !==
+  "/auth/callback?code=abcdefghijklmnopqrst"
+) {
+  throw new Error("An OAuth code on the homepage must be forwarded to the callback.");
+}
+if (oauthCallbackRecoveryPath(new URL("https://shop.example/?code=SHORT")) !== null) {
+  throw new Error("Short homepage codes must not be treated as OAuth.");
+}
+if (oauthCallbackRecoveryPath(new URL("https://shop.example/checkout?code=abcdefghijklmnopqrst")) !== null) {
+  throw new Error("OAuth recovery must not hijack checkout query strings.");
+}
+if (
+  oauthCallbackRecoveryPath(new URL("https://shop.example/?error=access_denied")) !==
+  "/auth/callback?error=access_denied"
+) {
+  throw new Error("A Google cancel landing on the homepage must reach the callback.");
 }
 if (resolveAuthReturnPath({ queryNext: "/admin", cookieNext: encodeAuthReturnCookie("/checkout") }) !== "/checkout") {
   throw new Error("Admin paths must not be used as a storefront return path.");

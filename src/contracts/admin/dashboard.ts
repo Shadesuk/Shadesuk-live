@@ -1,3 +1,4 @@
+import { isCommittedPurchase } from "../order/lifecycle";
 import type { OrderStatus, PaymentStatus } from "../order/schema";
 import { ORDER_STATUSES, PAYMENT_STATUSES } from "../order/schema";
 import { SHIPMENT_STATUSES, type ShipmentStatus } from "../fulfilment/shipment";
@@ -73,6 +74,7 @@ export const ADMIN_ORDER_STATUS_LABELS = {
   delivered: "Delivered",
   exception: "Exception",
   tracking_unavailable: "Tracking unavailable",
+  checkout: "Checkout",
 } as const satisfies Record<OrderStatus, string>;
 
 export const ADMIN_PAYMENT_STATUS_LABELS = {
@@ -131,6 +133,16 @@ export function sumRevenueMinor(rows: readonly DashboardOrderMetricRow[]): numbe
   return total;
 }
 
+export function countCommittedOrders(rows: readonly DashboardOrderMetricRow[]): number {
+  let count = 0;
+  for (const row of rows) {
+    if (isCommittedPurchase(row.payment_status)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 export function countQualifyingOrders(rows: readonly DashboardOrderMetricRow[]): number {
   let count = 0;
   for (const row of rows) {
@@ -152,7 +164,7 @@ export function buildDashboardKpis(input: {
   const qualifyingOrderCount = countQualifyingOrders(input.orders);
   return {
     revenueMinor,
-    orderCount: input.orders.length,
+    orderCount: countCommittedOrders(input.orders),
     qualifyingOrderCount,
     aovMinor: averageOrderValueMinor(revenueMinor, qualifyingOrderCount),
     productsSold: input.productsSold,
@@ -198,7 +210,9 @@ export function groupSalesByDay(
     if (!bucket) {
       continue;
     }
-    bucket.orderCount += 1;
+    if (isCommittedPurchase(row.payment_status)) {
+      bucket.orderCount += 1;
+    }
     if (isQualifyingRevenuePayment(row.payment_status)) {
       bucket.revenueMinor += row.total_minor;
       bucket.qualifyingOrderCount += 1;

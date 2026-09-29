@@ -111,8 +111,8 @@ const populated = buildDashboardKpis({
   ],
   productsSold: 3,
 });
-if (populated.revenueMinor !== 8000 || populated.orderCount !== 5 || populated.qualifyingOrderCount !== 2) {
-  throw new Error("Orders KPI counts all orders; revenue uses captured rows only.");
+if (populated.revenueMinor !== 8000 || populated.orderCount !== 3 || populated.qualifyingOrderCount !== 2) {
+  throw new Error("Orders KPI counts committed purchases; revenue uses captured rows only.");
 }
 if (populated.aovMinor !== 4000 || populated.productsSold !== 3) {
   throw new Error("AOV must be integer minor-unit average of captured orders.");
@@ -160,8 +160,8 @@ const series = groupSalesByDay(
   ],
   today,
 );
-if (series.length !== 1 || series[0]?.revenueMinor !== 1000 || series[0]?.orderCount !== 2) {
-  throw new Error("Daily grouping must keep unpaid orders out of revenue.");
+if (series.length !== 1 || series[0]?.revenueMinor !== 1000 || series[0]?.orderCount !== 1) {
+  throw new Error("Daily grouping must keep unpaid checkouts out of orders and revenue.");
 }
 if (!hasSalesActivity(series)) {
   throw new Error("Captured revenue must count as sales activity.");

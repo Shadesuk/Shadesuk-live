@@ -1,11 +1,9 @@
 import Link from "next/link";
-import {
-  adminOrderStatusLabel,
-  adminPaymentStatusLabel,
-} from "@/contracts/admin/dashboard";
+import { adminPaymentStatusLabel } from "@/contracts/admin/dashboard";
 import { isAwaitingFulfilment } from "@/contracts/fulfilment/dispatch";
 import {
   adminOrderCustomerLabel,
+  reportedAdminOrderStatusLabel,
   type AdminOrderListItem,
   type AdminOrderListQuery,
 } from "@/contracts/admin/orders";
@@ -114,7 +112,7 @@ export function AdminOrdersTable({
                 </span>
                 <span className="text-small">
                   <span className="visually-hidden">{ADMIN_ORDER_COL_STATUS} </span>
-                  {adminOrderStatusLabel(order.orderStatus)}
+                  {reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)}
                   {isAwaitingFulfilment(order) ? ` · ${ADMIN_ORDERS_AWAITING_FULFILMENT}` : ""}
                 </span>
                 <span className={`text-small ${styles.amount}`}>

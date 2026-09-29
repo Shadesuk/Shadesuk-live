@@ -1,6 +1,10 @@
 import "server-only";
 
 import {
+  COMMITTED_PURCHASE_PAYMENT_STATUSES,
+  isCommittedPurchase,
+} from "@/contracts/order/lifecycle";
+import {
   parseOrderReferenceInput,
   toCustomerOrderListItem,
   toCustomerOrderView,
@@ -70,6 +74,7 @@ export async function listOwnCustomerOrders(): Promise<
       .from("orders")
       .select(ORDER_COLUMNS)
       .eq("user_id", user.id)
+      .in("payment_status", [...COMMITTED_PURCHASE_PAYMENT_STATUSES])
       .order("created_at", { ascending: false })
       .limit(CUSTOMER_ORDER_LIST_LIMIT);
     if (ordersResult.error) {
@@ -156,7 +161,7 @@ export async function getOwnCustomerOrder(
       return { status: "error" };
     }
     const order = parseOrderRow(orderResult.data);
-    if (!order || order.user_id !== user.id) {
+    if (!order || order.user_id !== user.id || !isCommittedPurchase(order.payment_status)) {
       return { status: "not_found" };
     }
 

@@ -7,6 +7,7 @@ export const ORDER_STATUSES = [
   "delivered",
   "exception",
   "tracking_unavailable",
+  "checkout",
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 

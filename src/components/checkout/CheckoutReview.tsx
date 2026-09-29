@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
+  cancelCheckoutPaymentAction,
+  declineCheckoutPaymentAction,
   initiateCheckoutPaymentAction,
+  loadPayPalCheckoutConfigAction,
   verifyCheckoutPaymentAction,
 } from "@/app/(storefront)/checkout/payment-actions";
 import { Button } from "@/components/ui/Button";
@@ -13,13 +16,14 @@ import { InlineError } from "@/components/ui/InlineError";
 import { PaymentMethods } from "@/components/payment/PaymentMethods";
 import {
   BACK,
-  CONTINUE_TO_PAYMENT,
   EDIT,
   ESTIMATED_DELIVERY_LABEL,
   ESTIMATED_DELIVERY_WINDOW,
   PAYMENT_CANCELLED,
   PAYMENT_CONFIRM_ERROR,
+  PAYMENT_DECLINED,
   PAYMENT_HEADING,
+  PAYMENT_NETWORK,
   PAYMENT_NEXT_BODY,
   PAYMENT_START_ERROR,
   PAYMENT_UNAVAILABLE,
@@ -30,7 +34,7 @@ import {
   UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
 import { formatGbp, formatGbpMinor } from "@/lib/money";
-import { openPayPalButtons } from "@/lib/paypal/open-buttons";
+import { mountPayPalCheckout } from "@/lib/paypal/open-buttons";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { orderConfirmationPath, routes } from "@/lib/navigation";
 import type { PublicCheckoutDraft } from "@/types/checkout";
@@ -55,9 +59,12 @@ export function CheckoutReview({
   onBack,
 }: CheckoutReviewProps) {
   const router = useRouter();
+  const paypalSlotRef = useRef<HTMLDivElement>(null);
+  const paymentIdRef = useRef<string>("");
   const [paymentUi, setPaymentUi] = useState<PaymentUiState>("idle");
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string>("");
+  const [paypalReady, setPaypalReady] = useState(false);
   const addressLines = [
     `${draft.firstName} ${draft.lastName}`.trim(),
     draft.line1,
@@ -67,58 +74,98 @@ export function CheckoutReview({
     draft.country === "GB" ? UNITED_KINGDOM : draft.country,
   ].filter(Boolean);
 
-  async function continueToPayment() {
-    if (paymentBusy || pending || paymentUi === "verified") {
+  useEffect(() => {
+    const slot = paypalSlotRef.current;
+    if (!slot || pending) {
       return;
     }
-    setPaymentBusy(true);
-    setPaymentError("");
-    setPaymentUi("starting");
-    try {
-      const started = await initiateCheckoutPaymentAction();
-      if (started.status !== "ok") {
-        setPaymentError(started.status === "unavailable" ? PAYMENT_UNAVAILABLE : PAYMENT_START_ERROR);
+    let cancelled = false;
+    let unmount: () => void = () => undefined;
+    void (async () => {
+      const config = await loadPayPalCheckoutConfigAction();
+      if (cancelled) {
+        return;
+      }
+      if (config.status !== "ok") {
+        setPaymentError(PAYMENT_UNAVAILABLE);
         setPaymentUi("error");
         return;
       }
-      setPaymentUi("checkout");
-      const opened = await openPayPalButtons({
-        clientId: started.clientId,
-        providerOrderId: started.providerOrderId,
-        paymentId: started.paymentId,
-        mode: started.mode,
+      unmount = await mountPayPalCheckout({
+        container: slot,
+        clientId: config.clientId,
+        mode: config.mode,
+        createOrder: async () => {
+          setPaymentBusy(true);
+          setPaymentError("");
+          setPaymentUi("starting");
+          const started = await initiateCheckoutPaymentAction();
+          if (started.status !== "ok") {
+            setPaymentError(
+              started.status === "unavailable" ? PAYMENT_UNAVAILABLE : PAYMENT_START_ERROR,
+            );
+            setPaymentUi("error");
+            setPaymentBusy(false);
+            return null;
+          }
+          paymentIdRef.current = started.paymentId;
+          setPaymentUi("checkout");
+          return { orderId: started.providerOrderId };
+        },
+        onApprove: async (paypalOrderId) => {
+          setPaymentBusy(true);
+          setPaymentUi("verifying");
+          const verified = await verifyCheckoutPaymentAction({
+            paymentId: paymentIdRef.current,
+            paypalOrderId,
+          });
+          if (
+            (verified.status === "verified" || verified.status === "already_processed") &&
+            verified.orderReference
+          ) {
+            setPaymentUi("verified");
+            router.replace(orderConfirmationPath(verified.orderReference), { scroll: true });
+            return;
+          }
+          setPaymentError(PAYMENT_CONFIRM_ERROR);
+          setPaymentUi("error");
+          setPaymentBusy(false);
+        },
+        onCancel: () => {
+          const paymentId = paymentIdRef.current;
+          if (paymentId) {
+            void cancelCheckoutPaymentAction({ paymentId });
+          }
+          paymentIdRef.current = "";
+          setPaymentUi("cancelled");
+          setPaymentBusy(false);
+        },
+        onError: (kind) => {
+          const paymentId = paymentIdRef.current;
+          if (kind === "declined" && paymentId) {
+            void declineCheckoutPaymentAction({ paymentId });
+            paymentIdRef.current = "";
+            setPaymentError(PAYMENT_DECLINED);
+          } else if (kind === "network") {
+            setPaymentError(PAYMENT_NETWORK);
+          } else {
+            setPaymentError(PAYMENT_START_ERROR);
+          }
+          setPaymentUi("error");
+          setPaymentBusy(false);
+        },
       });
-      if (opened.status === "dismissed") {
-        setPaymentUi("cancelled");
+      if (cancelled) {
+        unmount();
         return;
       }
-      if (opened.status !== "approved") {
-        setPaymentError(paypalOpenErrorMessage(opened.reason));
-        setPaymentUi("error");
-        return;
-      }
-      setPaymentUi("verifying");
-      const verified = await verifyCheckoutPaymentAction({
-        paymentId: started.paymentId,
-        paypalOrderId: opened.paypalOrderId,
-      });
-      if (
-        (verified.status === "verified" || verified.status === "already_processed") &&
-        verified.orderReference
-      ) {
-        setPaymentUi("verified");
-        router.replace(orderConfirmationPath(verified.orderReference), { scroll: true });
-        return;
-      }
-      setPaymentError(PAYMENT_CONFIRM_ERROR);
-      setPaymentUi("error");
-    } catch {
-      setPaymentError(PAYMENT_CONFIRM_ERROR);
-      setPaymentUi("error");
-    } finally {
-      setPaymentBusy(false);
-    }
-  }
+      setPaypalReady(true);
+    })();
+    return () => {
+      cancelled = true;
+      unmount();
+    };
+  }, [pending, router]);
 
   return (
     <div className={styles.review} data-checkout-review>
@@ -198,6 +245,13 @@ export function CheckoutReview({
           {PAYMENT_HEADING}
         </h3>
         <PaymentMethods />
+        <div
+          ref={paypalSlotRef}
+          className={styles.paypalSlot}
+          data-paypal-button
+          data-paypal-ready={paypalReady ? "true" : "false"}
+          aria-busy={paymentBusy}
+        />
         <p id="checkout-payment-next" className="text-small">
           {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
         </p>
@@ -210,16 +264,7 @@ export function CheckoutReview({
       </section>
 
       <div className={styles.actions}>
-        <Button
-          type="button"
-          onClick={() => void continueToPayment()}
-          disabled={pending || paymentBusy || paymentUi === "verified"}
-          loading={paymentBusy}
-          aria-describedby="checkout-payment-next"
-        >
-          {CONTINUE_TO_PAYMENT}
-        </Button>
-        <Button type="button" variant="tertiary" onClick={onBack} disabled={pending}>
+        <Button type="button" variant="tertiary" onClick={onBack} disabled={pending || paymentBusy}>
           {BACK}
         </Button>
         <ButtonLink href={routes.cart} variant="tertiary">
@@ -228,21 +273,4 @@ export function CheckoutReview({
       </div>
     </div>
   );
-}
-
-function paypalOpenErrorMessage(
-  reason: "missing_input" | "script_failed" | "not_eligible" | "sdk_error" | "order_mismatch",
-): string {
-  switch (reason) {
-    case "not_eligible":
-      return "PayPal is not available for this checkout. Try again or use another device.";
-    case "script_failed":
-      return "Could not load PayPal. Check your connection and try again.";
-    case "order_mismatch":
-      return PAYMENT_CONFIRM_ERROR;
-    case "missing_input":
-    case "sdk_error":
-    default:
-      return PAYMENT_START_ERROR;
-  }
 }

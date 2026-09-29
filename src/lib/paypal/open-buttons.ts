@@ -41,6 +41,8 @@ type PayPalOneTimePaymentSession = {
     options: { presentationMode?: string },
     orderPromise: Promise<{ orderId: string }>,
   ) => Promise<void>;
+  hasReturned?: () => boolean;
+  resume?: () => Promise<void>;
 };
 
 type PayPalSdkInstance = {
@@ -185,6 +187,146 @@ async function loadPayPalSdkScript(mode: PayPalBrowserMode): Promise<boolean> {
     return false;
   }
   return waitForPayPalNamespace();
+}
+
+export type MountPayPalCheckoutInput = {
+  container: HTMLElement;
+  clientId: string;
+  mode: PayPalBrowserMode;
+  createOrder: () => Promise<{ orderId: string } | null>;
+  onApprove: (paypalOrderId: string) => Promise<void>;
+  onCancel: () => void;
+  onError: (kind: "declined" | "network" | "sdk") => void;
+};
+
+/**
+ * Official PayPal JS SDK v6 `paypal-button`. `createOrder` must return the
+ * server-created order id. Approval is reported to the caller; this function
+ * never captures.
+ *
+ * If the buyer is returning from a redirect (`hasReturned`), the session is
+ * resumed so `onApprove` still runs on this page.
+ */
+export async function mountPayPalCheckout(input: MountPayPalCheckoutInput): Promise<() => void> {
+  const noop = () => undefined;
+  if (typeof window === "undefined") {
+    input.onError("sdk");
+    return noop;
+  }
+  const clientId = input.clientId.trim();
+  const mode: PayPalBrowserMode = input.mode === "live" ? "live" : "sandbox";
+  if (!clientId) {
+    input.onError("sdk");
+    return noop;
+  }
+  const loaded = await loadPayPalSdkScript(mode);
+  if (!loaded || !window.paypal?.createInstance) {
+    input.onError("sdk");
+    return noop;
+  }
+
+  let sdk: PayPalSdkInstance;
+  try {
+    sdk = await window.paypal.createInstance({
+      clientId,
+      components: ["paypal-payments"],
+      pageType: "checkout",
+    });
+  } catch {
+    input.onError("sdk");
+    return noop;
+  }
+
+  try {
+    const methods = await sdk.findEligibleMethods({ currencyCode: "GBP" });
+    if (!methods.isEligible("paypal")) {
+      input.onError("sdk");
+      return noop;
+    }
+  } catch {
+    input.onError("sdk");
+    return noop;
+  }
+
+  let settled = false;
+  const session = sdk.createPayPalOneTimePaymentSession({
+    async onApprove(data) {
+      const orderId = typeof data?.orderId === "string" ? data.orderId.trim() : "";
+      if (!orderId) {
+        input.onError("sdk");
+        return;
+      }
+      await input.onApprove(orderId);
+    },
+    onCancel() {
+      if (settled) {
+        return;
+      }
+      input.onCancel();
+    },
+    onError(error) {
+      if (settled) {
+        return;
+      }
+      input.onError(paypalErrorKind(error));
+    },
+  });
+
+  if (typeof session.hasReturned === "function" && session.hasReturned()) {
+    try {
+      await session.resume?.();
+    } catch {
+      input.onError("sdk");
+    }
+    return noop;
+  }
+
+  const button = document.createElement("paypal-button");
+  button.setAttribute("type", "pay");
+  button.className = "paypal-gold";
+  const onClick = () => {
+    if (settled) {
+      return;
+    }
+    // Pass the order promise into start immediately so the PayPal window
+    // stays tied to this click. The server creates the order inside the promise.
+    const orderPromise = input.createOrder().then((created) => {
+      if (!created?.orderId) {
+        throw new Error("paypal_order_not_created");
+      }
+      return { orderId: created.orderId };
+    });
+    void session.start({ presentationMode: "auto" }, orderPromise).catch((error: unknown) => {
+      if (error instanceof Error && error.message === "paypal_order_not_created") {
+        return;
+      }
+      input.onError("sdk");
+    });
+  };
+  button.addEventListener("click", onClick);
+  input.container.replaceChildren(button);
+
+  return () => {
+    settled = true;
+    button.removeEventListener("click", onClick);
+    if (button.parentElement === input.container) {
+      button.remove();
+    }
+  };
+}
+
+function paypalErrorKind(error: unknown): "declined" | "network" | "sdk" {
+  const code =
+    error && typeof error === "object" && "code" in error && typeof error.code === "string"
+      ? error.code
+      : "";
+  if (code === "INSTRUMENT_DECLINED") {
+    return "declined";
+  }
+  if (code === "NETWORK_ERROR") {
+    return "network";
+  }
+  return "sdk";
 }
 
 function waitForPayPalNamespace(): Promise<boolean> {
