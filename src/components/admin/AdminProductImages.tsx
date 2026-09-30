@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { AdminProductImageView, AdminProductVariantView } from "@/contracts/admin/products";
@@ -39,16 +39,25 @@ export function AdminProductImages({
   variants,
   colourName,
   heading,
+  altValues,
+  variantValues,
+  onAltChange,
+  onVariantChange,
 }: {
   productId: string | null;
   images: AdminProductImageView[];
   variants: AdminProductVariantView[];
   colourName?: string;
   heading?: string;
+  altValues: Record<string, string>;
+  variantValues: Record<string, string>;
+  onAltChange: (imageId: string, value: string) => void;
+  onVariantChange: (imageId: string, value: string) => void;
 }) {
   const router = useRouter();
   const [state, upload, pending] = useActionState(uploadAdminProductImageAction, idle);
   const [busy, startBusy] = useTransition();
+  const [uploadVariantId, setUploadVariantId] = useState("");
   const title = heading ?? ADMIN_PRODUCT_IMAGES;
   const headingId = colourName
     ? `product-images-${colourName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
@@ -57,10 +66,18 @@ export function AdminProductImages({
   const altId = `${headingId}-alt`;
 
   useEffect(() => {
-    if (state.productId) {
+    if (state.status === "ok" && state.productId) {
+      const fileInput = document.getElementById(fileId);
+      if (fileInput instanceof HTMLInputElement) {
+        fileInput.value = "";
+      }
+      router.refresh();
+      return;
+    }
+    if (state.committed && state.productId) {
       router.refresh();
     }
-  }, [state, router]);
+  }, [state, router, fileId]);
 
   function runUpload() {
     if (!productId) {
@@ -76,9 +93,6 @@ export function AdminProductImages({
       if (file.size > 0) {
         data.append("image", file);
       }
-    }
-    if (fileInput instanceof HTMLInputElement) {
-      fileInput.value = "";
     }
     data.set("altText", altInput instanceof HTMLInputElement ? altInput.value : "");
     const variantId = variantInput instanceof HTMLSelectElement ? variantInput.value.trim() : "";
@@ -142,7 +156,8 @@ export function AdminProductImages({
                       id={`image-alt-${image.id}`}
                       name={`imageAlt:${image.id}`}
                       label={ADMIN_PRODUCT_IMAGE_ALT}
-                      defaultValue={image.altText}
+                      value={altValues[image.id] ?? image.altText}
+                      onChange={(event) => onAltChange(image.id, event.target.value)}
                       form="admin-product-form"
                       autoComplete="off"
                     />
@@ -150,7 +165,8 @@ export function AdminProductImages({
                       id={`image-variant-${image.id}`}
                       name={`imageVariant:${image.id}`}
                       label={ADMIN_PRODUCT_IMAGE_VARIANT}
-                      defaultValue={image.variantId ?? ""}
+                      value={variantValues[image.id] ?? image.variantId ?? ""}
+                      onChange={(event) => onVariantChange(image.id, event.target.value)}
                       form="admin-product-form"
                     >
                       <VariantOptions variants={variants} />
@@ -199,7 +215,12 @@ export function AdminProductImages({
               label={ADMIN_PRODUCT_IMAGE_FILE}
             />
             <Field id={altId} label={ADMIN_PRODUCT_IMAGE_ALT} autoComplete="off" />
-            <FieldSelect id={`${headingId}-variant`} label={ADMIN_PRODUCT_IMAGE_VARIANT} defaultValue="">
+            <FieldSelect
+              id={`${headingId}-variant`}
+              label={ADMIN_PRODUCT_IMAGE_VARIANT}
+              value={uploadVariantId}
+              onChange={(event) => setUploadVariantId(event.target.value)}
+            >
               <VariantOptions variants={variants} />
             </FieldSelect>
             {state.status === "invalid" || state.status === "error" ? (

@@ -16,8 +16,8 @@ import {
   type AdminProductListItem,
   type AdminProductListQuery,
   type AdminProductPlacementView,
+  assessPublishReadiness,
   type AdminProductSaveInput,
-  type AdminProductVariantInput,
   type AdminProductVariantView,
 } from "@/contracts/admin/products";
 import { newArrivalDaysRemaining, isNewArrivalFromPublishedAt } from "@/contracts/catalogue/merchandising";
@@ -40,7 +40,7 @@ import { PRODUCT_IMAGES_BUCKET } from "@/contracts/catalogue/image";
 const PRODUCT_LIST_COLUMNS =
   "id, slug, name, brand, status, updated_at, created_at";
 const PRODUCT_DETAIL_COLUMNS =
-  "id, slug, name, brand, description, materials, whats_included, shape, gender, fit, disclosure, status, published_at, created_at, updated_at";
+  "id, slug, name, brand, description, materials, whats_included, shape, gender, fit, disclosure, product_code, status, published_at, created_at, updated_at";
 const VARIANT_COLUMNS =
   "id, product_id, sku, colour_name, size_name, price_minor, compare_at_price_minor, currency, lens_width_mm, bridge_width_mm, temple_length_mm, stock_quantity, status, created_at, updated_at";
 const IMAGE_COLUMNS =
@@ -60,9 +60,23 @@ export type AdminProductListResult = {
 };
 
 export type AdminProductMutationResult =
-  | { status: "ok"; productId: string }
-  | { status: "invalid"; errors: Record<string, string> }
-  | { status: "error"; message?: string }
+  | { status: "ok"; productId: string; detail?: AdminProductDetailView }
+  | { status: "published"; productId: string; detail?: AdminProductDetailView }
+  | {
+      status: "invalid";
+      errors: Record<string, string>;
+      message?: string;
+      committed?: boolean;
+      detail?: AdminProductDetailView;
+      productId?: string;
+    }
+  | {
+      status: "error";
+      message?: string;
+      committed?: boolean;
+      productId?: string;
+      detail?: AdminProductDetailView;
+    }
   | { status: "forbidden" }
   | { status: "not_found" }
   | { status: "stale" };
@@ -296,6 +310,7 @@ export async function loadAdminProductDetail(
         bridgeWidthMm: measurements.bridgeWidthMm,
         templeLengthMm: measurements.templeLengthMm,
         disclosure: typeof product.disclosure === "string" ? product.disclosure : "",
+        productCode: typeof product.product_code === "string" ? product.product_code : "",
         status: product.status as CatalogueStatus,
         publishedAt,
         updatedAt: typeof product.updated_at === "string" ? product.updated_at : "",
@@ -313,38 +328,123 @@ export async function loadAdminProductDetail(
 
 export async function saveAdminProduct(input: {
   payload: AdminProductSaveInput;
-  intent: "save" | "publish" | "unpublish";
   role: AdminV1Role;
 }): Promise<AdminProductMutationResult> {
+  if (!canPublishProduct(input.role)) {
+    return { status: "forbidden" };
+  }
+  return commitAdminProduct(input.payload);
+}
+
+export async function publishAdminProduct(input: {
+  payload: AdminProductSaveInput;
+  role: AdminV1Role;
+}): Promise<AdminProductMutationResult> {
+  if (!canPublishProduct(input.role)) {
+    return { status: "forbidden" };
+  }
+  const saved = await commitAdminProduct(input.payload);
+  if (saved.status !== "ok" || !saved.productId) {
+    return saved;
+  }
+  const loaded = await loadAdminProductDetail(saved.productId);
+  if (loaded.status !== "ok") {
+    return {
+      status: "error",
+      committed: true,
+      productId: saved.productId,
+      message: "The product was saved. Reload the page before publishing.",
+    };
+  }
+  const readiness = assessPublishReadiness({
+    name: loaded.data.name,
+    slug: loaded.data.slug,
+    disclosure: loaded.data.disclosure,
+    variants: loaded.data.variants,
+    imageCount: loaded.data.images.length,
+  });
+  if (!readiness.ok) {
+    const errors: Record<string, string> = {};
+    for (const [key, value] of Object.entries(readiness.errors)) {
+      if (value) {
+        errors[key] = value;
+      }
+    }
+    return {
+      status: "invalid",
+      errors,
+      committed: true,
+      detail: loaded.data,
+      productId: saved.productId,
+    };
+  }
+  const published = await callProductRpc("admin_publish_product", {
+    p_product_id: saved.productId,
+  });
+  if (published.status === "invalid") {
+    return {
+      ...published,
+      committed: true,
+      detail: loaded.data,
+      productId: saved.productId,
+    };
+  }
+  if (published.status === "error") {
+    return {
+      status: "error",
+      committed: true,
+      detail: loaded.data,
+      productId: saved.productId,
+      message: published.message ?? "The product was saved, but publishing did not complete.",
+    };
+  }
+  if (published.status !== "ok") {
+    return published;
+  }
+  return reloadCommitted(saved.productId, "published");
+}
+
+export async function unpublishAdminProduct(input: {
+  payload: AdminProductSaveInput;
+  role: AdminV1Role;
+}): Promise<AdminProductMutationResult> {
+  if (!canUnpublishProduct(input.role)) {
+    return { status: "forbidden" };
+  }
+  const saved = await commitAdminProduct(input.payload);
+  if (saved.status !== "ok" || !saved.productId) {
+    return saved;
+  }
+  const unpublished = await callProductRpc("admin_unpublish_product", {
+    p_product_id: saved.productId,
+  });
+  if (unpublished.status === "invalid" || unpublished.status === "error") {
+    return {
+      ...unpublished,
+      committed: true,
+      productId: saved.productId,
+      detail: saved.detail,
+      message:
+        unpublished.status === "error"
+          ? unpublished.message ?? "The product was saved, but it could not be unpublished."
+          : undefined,
+    };
+  }
+  if (unpublished.status !== "ok") {
+    return unpublished;
+  }
+  return reloadCommitted(saved.productId, "ok");
+}
+
+async function commitAdminProduct(payload: AdminProductSaveInput): Promise<AdminProductMutationResult> {
   if (!isSupabaseConfigured()) {
     return { status: "error" };
   }
-  if (input.intent === "publish" && !canPublishProduct(input.role)) {
-    return { status: "forbidden" };
-  }
-  if (input.intent === "unpublish" && !canUnpublishProduct(input.role)) {
-    return { status: "forbidden" };
-  }
   try {
-    const supabase = await createSupabaseServerClient();
-    const now = new Date().toISOString();
-    const nextStatus = nextCatalogueStatus(input.intent);
-    const productFields = {
-      name: input.payload.name,
-      brand: input.payload.brand || null,
-      description: input.payload.description || null,
-      materials: input.payload.materials || null,
-      whats_included: input.payload.whatsIncluded || null,
-      gender: encodeTaxonomy(input.payload.genders),
-      shape: encodeTaxonomy(input.payload.shapes),
-      fit: input.payload.fit || null,
-      disclosure: input.payload.disclosure,
-      updated_at: now,
-    };
-
-    if (!input.payload.id) {
-      const slug = await allocateUniqueProductSlug(input.payload.name);
-      if (!slug) {
+    let allocatedSlug: string | null = null;
+    if (!payload.id) {
+      allocatedSlug = await allocateUniqueProductSlug(payload.name);
+      if (!allocatedSlug) {
         return {
           status: "invalid",
           errors: {
@@ -352,92 +452,192 @@ export async function saveAdminProduct(input: {
           },
         };
       }
-      const created = await supabase
-        .from("products")
-        .insert({
-          ...productFields,
-          slug,
-          status: nextStatus === "published" ? "published" : "draft",
-        })
-        .select("id")
-        .maybeSingle();
-      if (created.error || !created.data || typeof created.data.id !== "string") {
-        return uniqueOrError(created.error, "slug");
-      }
-      const productId = created.data.id;
-      const variants = await persistVariants(productId, [], input.payload.variants);
-      if (variants.status !== "ok") {
-        return variants;
-      }
-      const collections = await persistCollections(productId, input.payload.collectionIds);
-      if (collections.status !== "ok") {
-        return collections;
-      }
-      return { status: "ok", productId };
     }
-
-    if (!isUuid(input.payload.id)) {
-      return { status: "not_found" };
-    }
-    const current = await supabase
-      .from("products")
-      .select("id, status, updated_at, slug, published_at")
-      .eq("id", input.payload.id)
-      .maybeSingle();
-    if (current.error) {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc("admin_save_product", {
+      payload: adminSaveRpcPayload(payload, allocatedSlug),
+    });
+    if (error) {
       return { status: "error" };
     }
-    if (!current.data) {
-      return { status: "not_found" };
+    const parsed = readRpcBody(data);
+    if (!parsed) {
+      return { status: "error" };
     }
-    if (
-      input.payload.updatedAt &&
-      typeof current.data.updated_at === "string" &&
-      current.data.updated_at !== input.payload.updatedAt
-    ) {
-      return { status: "stale" };
+    if (parsed.status === "ok" && isUuid(parsed.productId)) {
+      return reloadCommitted(parsed.productId, "ok");
     }
-    const currentStatus = current.data.status as CatalogueStatus;
-    if (currentStatus === "archived" && input.role !== "superadmin") {
-      return { status: "forbidden" };
-    }
-    const status =
-      nextStatus ?? (currentStatus === "archived" ? "archived" : currentStatus);
-    if (status === "archived" && currentStatus !== "archived" && !canArchiveProduct(input.role)) {
-      return { status: "forbidden" };
-    }
-    const updated = await supabase
-      .from("products")
-      .update({ ...productFields, status })
-      .eq("id", input.payload.id)
-      .select("id")
-      .maybeSingle();
-    if (updated.error || !updated.data) {
-      return uniqueOrError(updated.error, "slug");
-    }
-    const existingVariants = await supabase
-      .from("product_variants")
-      .select("id")
-      .eq("product_id", input.payload.id);
-    const existingIds = (Array.isArray(existingVariants.data) ? existingVariants.data : [])
-      .map((row) => (row && typeof row.id === "string" ? row.id : ""))
-      .filter(Boolean);
-    const variants = await persistVariants(input.payload.id, existingIds, input.payload.variants);
-    if (variants.status !== "ok") {
-      return variants;
-    }
-    const collections = await persistCollections(input.payload.id, input.payload.collectionIds);
-    if (collections.status !== "ok") {
-      return collections;
-    }
-    const images = await persistImageMetadata(input.payload);
-    if (images.status !== "ok") {
-      return images;
-    }
-    return { status: "ok", productId: input.payload.id };
+    return mutationFromRpc(parsed);
   } catch {
     return { status: "error" };
   }
+}
+
+async function reloadCommitted(
+  productId: string,
+  status: "ok" | "published",
+): Promise<AdminProductMutationResult> {
+  const loaded = await loadAdminProductDetail(productId);
+  if (loaded.status !== "ok") {
+    return {
+      status: "error",
+      committed: true,
+      productId,
+      message: "The product was saved. Reload the page to see the latest version.",
+    };
+  }
+  return { status, productId, detail: loaded.data };
+}
+
+function adminSaveRpcPayload(payload: AdminProductSaveInput, allocatedSlug: string | null) {
+  const imageIds = new Set([
+    ...Object.keys(payload.imageAlts),
+    ...Object.keys(payload.imageVariantIds),
+  ]);
+  return {
+    id: payload.id,
+    updatedAt: payload.updatedAt,
+    allocatedSlug,
+    name: payload.name,
+    productCode: payload.productCode,
+    brand: payload.brand,
+    description: payload.description,
+    materials: payload.materials,
+    whatsIncluded: payload.whatsIncluded,
+    gender: encodeTaxonomy(payload.genders),
+    shape: encodeTaxonomy(payload.shapes),
+    fit: payload.fit,
+    disclosure: payload.disclosure,
+    variants: payload.variants.map((variant) => ({
+      clientKey: variant.clientKey,
+      id: variant.id,
+      sku: variant.sku,
+      colourName: variant.colourName,
+      sizeName: variant.sizeName,
+      priceMinor: variant.priceMinor,
+      compareAtMinor: variant.compareAtMinor,
+      stockQuantity: variant.stockQuantity,
+      status: variant.status,
+      lensWidthMm: variant.lensWidthMm,
+      bridgeWidthMm: variant.bridgeWidthMm,
+      templeLengthMm: variant.templeLengthMm,
+    })),
+    collectionIds: payload.collectionIds,
+    imageOrder: payload.imageOrder,
+    images: [...imageIds].map((id) => ({
+      id,
+      altPresent: Object.prototype.hasOwnProperty.call(payload.imageAlts, id),
+      alt: payload.imageAlts[id] ?? "",
+      variantKeyPresent: Object.prototype.hasOwnProperty.call(payload.imageVariantIds, id),
+      variantKey: payload.imageVariantIds[id] ?? "",
+    })),
+  };
+}
+
+async function callProductRpc(
+  fn: "admin_publish_product" | "admin_unpublish_product",
+  args: { p_product_id: string },
+): Promise<AdminProductMutationResult> {
+  if (!isSupabaseConfigured()) {
+    return { status: "error" };
+  }
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc(fn, args);
+    if (error) {
+      return { status: "error" };
+    }
+    const parsed = readRpcBody(data);
+    if (!parsed) {
+      return { status: "error" };
+    }
+    if (parsed.status === "ok") {
+      return { status: "ok", productId: parsed.productId || args.p_product_id };
+    }
+    return mutationFromRpc(parsed);
+  } catch {
+    return { status: "error" };
+  }
+}
+
+function readRpcBody(data: unknown): {
+  status: string;
+  productId: string;
+  field: string;
+  code: string;
+  rolledBack: boolean;
+} | null {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+  const row = data as Record<string, unknown>;
+  return {
+    status: typeof row.status === "string" ? row.status : "",
+    productId: typeof row.productId === "string" ? row.productId : "",
+    field: typeof row.field === "string" ? row.field : "",
+    code: typeof row.code === "string" ? row.code : "",
+    rolledBack: row.rolledBack === true,
+  };
+}
+
+function mutationFromRpc(parsed: {
+  status: string;
+  productId: string;
+  field: string;
+  code: string;
+  rolledBack: boolean;
+}): AdminProductMutationResult {
+  if (parsed.status === "forbidden") {
+    return { status: "forbidden" };
+  }
+  if (parsed.status === "not_found") {
+    return { status: "not_found" };
+  }
+  if (parsed.status === "stale") {
+    return { status: "stale" };
+  }
+  if (parsed.status === "invalid") {
+    return { status: "invalid", errors: rpcFieldErrors(parsed.code, parsed.field) };
+  }
+  return { status: "error" };
+}
+
+function rpcFieldErrors(code: string, field: string): Record<string, string> {
+  if (code === "sku_taken" || field === "sku") {
+    return { sku: "That SKU is already in use." };
+  }
+  if (code === "sku_options") {
+    return { variants: "Each colour and size combination can only exist once." };
+  }
+  if (code === "slug_taken" || field === "slug") {
+    return {
+      name: "Couldn't generate a unique product URL from this name. Change the name and try again.",
+    };
+  }
+  if (code === "product_code_invalid") {
+    return { productCode: "Enter a product code of up to 12 letters, numbers, and hyphens." };
+  }
+  if (code === "product_code_taken" || field === "productCode") {
+    return { productCode: "That product code is already in use. Choose a different code." };
+  }
+  if (code === "image_variant" || field === "images") {
+    return { images: "An image points at a variant that is not part of this save." };
+  }
+  if (code === "variant_referenced") {
+    return { variants: "A variant could not be removed because it is referenced by existing records." };
+  }
+  if (code === "publish_variants") {
+    return {
+      variants: "Publish needs at least one saved variant with a SKU, colour, price, and available status.",
+    };
+  }
+  if (code === "publish_images") {
+    return { images: "Publish needs at least one saved image." };
+  }
+  if (code === "publish_incomplete") {
+    return { name: "Publish needs a saved product name, URL, and disclosure." };
+  }
+  return { variants: "The product could not be saved." };
 }
 
 export async function archiveAdminProduct(input: {
@@ -610,7 +810,13 @@ export async function uploadAdminProductImage(input: {
       height: processed.value.height,
     });
     if (inserted.error) {
-      await supabase.storage.from(PRODUCT_IMAGES_BUCKET).remove([objectPath]);
+      const removed = await supabase.storage.from(PRODUCT_IMAGES_BUCKET).remove([objectPath]);
+      if (removed.error) {
+        return {
+          status: "error",
+          message: "The image was uploaded to storage but was not saved on the product.",
+        };
+      }
       return { status: "error" };
     }
     return { status: "ok", productId: input.productId };
@@ -698,212 +904,22 @@ export async function moveAdminProductImage(input: {
     }
     ids[index] = other;
     ids[swapWith] = current;
-    return applyProductImageOrder(input.productId, ids, existing.data);
+    const ordered = ids.filter((id) => isUuid(id));
+    const { data, error } = await supabase.rpc("admin_reorder_product_images", {
+      p_product_id: input.productId,
+      p_image_order: ordered,
+    });
+    if (error) {
+      return { status: "error" };
+    }
+    const parsed = readRpcBody(data);
+    if (!parsed || parsed.status !== "ok") {
+      return parsed ? mutationFromRpc(parsed) : { status: "error" };
+    }
+    return { status: "ok", productId: input.productId };
   } catch {
     return { status: "error" };
   }
-}
-
-async function persistVariants(
-  productId: string,
-  existingIds: string[],
-  variants: AdminProductVariantInput[],
-): Promise<AdminProductMutationResult> {
-  const supabase = await createSupabaseServerClient();
-  const keep = new Set(variants.map((variant) => variant.id).filter((id): id is string => Boolean(id)));
-  const remove = existingIds.filter((id) => !keep.has(id));
-  if (remove.length > 0) {
-    const detached = await supabase
-      .from("product_images")
-      .update({ variant_id: null })
-      .eq("product_id", productId)
-      .in("variant_id", remove);
-    if (detached.error) {
-      return { status: "error" };
-    }
-    const deleted = await supabase
-      .from("product_variants")
-      .delete()
-      .eq("product_id", productId)
-      .in("id", remove);
-    if (deleted.error) {
-      return {
-        status: "invalid",
-        errors: {
-          variants: "A variant could not be removed because it is referenced by existing records.",
-        },
-      };
-    }
-  }
-  for (const variant of variants) {
-    const payload = {
-      product_id: productId,
-      sku: variant.sku,
-      colour_name: variant.colourName,
-      size_name: variant.sizeName,
-      price_minor: variant.priceMinor,
-      compare_at_price_minor: variant.compareAtMinor,
-      currency: "GBP" as const,
-      stock_quantity: variant.stockQuantity,
-      status: variant.status,
-      lens_width_mm: variant.lensWidthMm,
-      bridge_width_mm: variant.bridgeWidthMm,
-      temple_length_mm: variant.templeLengthMm,
-      updated_at: new Date().toISOString(),
-    };
-    if (variant.id && existingIds.includes(variant.id)) {
-      const updated = await supabase
-        .from("product_variants")
-        .update(payload)
-        .eq("id", variant.id)
-        .eq("product_id", productId);
-      if (updated.error) {
-        return uniqueOrError(updated.error, "sku");
-      }
-    } else {
-      const inserted = await supabase.from("product_variants").insert(payload);
-      if (inserted.error) {
-        return uniqueOrError(inserted.error, "sku");
-      }
-    }
-  }
-  return { status: "ok", productId };
-}
-
-async function persistCollections(
-  productId: string,
-  collectionIds: string[],
-): Promise<AdminProductMutationResult> {
-  const supabase = await createSupabaseServerClient();
-  const removed = await supabase.from("product_collections").delete().eq("product_id", productId);
-  if (removed.error) {
-    return { status: "error" };
-  }
-  if (collectionIds.length === 0) {
-    return { status: "ok", productId };
-  }
-  const inserted = await supabase.from("product_collections").insert(
-    collectionIds.map((collectionId) => ({
-      product_id: productId,
-      collection_id: collectionId,
-    })),
-  );
-  if (inserted.error) {
-    return { status: "error" };
-  }
-  return { status: "ok", productId };
-}
-
-async function persistImageMetadata(payload: AdminProductSaveInput): Promise<AdminProductMutationResult> {
-  if (!payload.id || payload.imageOrder.length === 0) {
-    return { status: "ok", productId: payload.id ?? "" };
-  }
-  const supabase = await createSupabaseServerClient();
-  const existing = await supabase
-    .from("product_images")
-    .select("id, variant_id, image_type, alt_text")
-    .eq("product_id", payload.id)
-    .order("sort_order");
-  if (existing.error) {
-    return { status: "error" };
-  }
-  const rows = Array.isArray(existing.data) ? existing.data : [];
-  const order = payload.imageOrder.filter((id) => rows.some((row) => row && row.id === id));
-  for (const row of rows) {
-    if (row && typeof row.id === "string" && !order.includes(row.id)) {
-      order.push(row.id);
-    }
-  }
-  const demoted = await supabase
-    .from("product_images")
-    .update({ image_type: "secondary", updated_at: new Date().toISOString() })
-    .eq("product_id", payload.id)
-    .eq("image_type", "primary");
-  if (demoted.error) {
-    return { status: "error" };
-  }
-  const nextRows: Array<{ id: string; variant_id: string | null }> = [];
-  for (const id of order) {
-    const row = rows.find((item) => item && item.id === id);
-    const submittedAlt = payload.imageAlts[id]?.trim();
-    const existingAlt = row && typeof row.alt_text === "string" ? row.alt_text : "";
-    const variantId = (
-      Object.prototype.hasOwnProperty.call(payload.imageVariantIds, id)
-        ? payload.imageVariantIds[id]
-        : row && typeof row.variant_id === "string"
-          ? row.variant_id
-          : null
-    ) ?? null;
-    const updated = await supabase
-      .from("product_images")
-      .update({
-        alt_text: submittedAlt || existingAlt || "Product image",
-        variant_id: variantId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq("product_id", payload.id);
-    if (updated.error) {
-      return { status: "error" };
-    }
-    nextRows.push({ id, variant_id: variantId });
-  }
-  return applyProductImageOrder(payload.id, order, nextRows);
-}
-
-async function applyProductImageOrder(
-  productId: string,
-  orderedIds: string[],
-  existingRows: unknown[],
-): Promise<AdminProductMutationResult> {
-  const supabase = await createSupabaseServerClient();
-  const rows = existingRows.filter(
-    (row): row is { id: string; variant_id: string | null } =>
-      Boolean(row && typeof row === "object" && typeof (row as { id?: unknown }).id === "string"),
-  );
-  const firstUnassociated = orderedIds.find((id) => {
-    const row = rows.find((item) => item.id === id);
-    return Boolean(row && !row.variant_id);
-  });
-  const demoted = await supabase
-    .from("product_images")
-    .update({ image_type: "secondary", updated_at: new Date().toISOString() })
-    .eq("product_id", productId)
-    .eq("image_type", "primary");
-  if (demoted.error) {
-    return { status: "error" };
-  }
-  for (let sort = 0; sort < orderedIds.length; sort += 1) {
-    const id = orderedIds[sort];
-    if (!id) {
-      continue;
-    }
-    const updated = await supabase
-      .from("product_images")
-      .update({
-        sort_order: sort,
-        image_type: id === firstUnassociated ? "primary" : "secondary",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq("product_id", productId);
-    if (updated.error) {
-      return { status: "error" };
-    }
-  }
-  return { status: "ok", productId };
-}
-
-function nextCatalogueStatus(
-  intent: "save" | "publish" | "unpublish",
-): CatalogueStatus | null {
-  if (intent === "publish") {
-    return "published";
-  }
-  if (intent === "unpublish") {
-    return "draft";
-  }
-  return null;
 }
 
 async function allocateUniqueProductSlug(name: string): Promise<string | null> {
@@ -962,10 +978,8 @@ async function loadProductPlacement(input: {
     featured: Boolean(featured.data),
     bestSeller: Boolean(bestSeller.data),
     flagship: flagshipId === input.productId,
-    newArrival:
-      input.status === "published" && isNewArrivalFromPublishedAt(input.publishedAt),
-    newArrivalDaysRemaining:
-      input.status === "published" ? newArrivalDaysRemaining(input.publishedAt) : null,
+    newArrival: input.status === "published" && isNewArrivalFromPublishedAt(input.publishedAt),
+    newArrivalDaysRemaining: input.status === "published" ? newArrivalDaysRemaining(input.publishedAt) : null,
     publishedAt: input.publishedAt,
   };
 }
@@ -977,9 +991,7 @@ function sharedVariantMeasurements(variants: AdminProductVariantView[]): {
 } {
   const source = variants.find(
     (variant) =>
-      variant.lensWidthMm != null ||
-      variant.bridgeWidthMm != null ||
-      variant.templeLengthMm != null,
+      variant.lensWidthMm != null || variant.bridgeWidthMm != null || variant.templeLengthMm != null,
   );
   if (!source) {
     return { lensWidthMm: null, bridgeWidthMm: null, templeLengthMm: null };
@@ -989,25 +1001,6 @@ function sharedVariantMeasurements(variants: AdminProductVariantView[]): {
     bridgeWidthMm: source.bridgeWidthMm,
     templeLengthMm: source.templeLengthMm,
   };
-}
-
-function uniqueOrError(
-  error: { code?: string; message?: string } | null,
-  field: "slug" | "sku",
-): AdminProductMutationResult {
-  const text = `${error?.code ?? ""} ${error?.message ?? ""}`.toLowerCase();
-  if (text.includes("23505") || text.includes("duplicate") || text.includes("unique")) {
-    return {
-      status: "invalid",
-      errors: {
-        [field]:
-          field === "slug"
-            ? "Couldn't generate a unique product URL from this name. Change the name and try again."
-            : "That SKU is already in use.",
-      },
-    };
-  }
-  return { status: "error" };
 }
 
 async function productIdsForAvailability(

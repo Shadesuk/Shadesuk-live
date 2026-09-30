@@ -8,22 +8,26 @@ import { getAdminGate } from "@/lib/admin-session";
 import { adminProductPath } from "@/lib/navigation";
 import { privatePathMetadata } from "@/lib/seo";
 
-type PageProps = { params: Promise<{ id: string }> };
+type PageProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ notice?: string }>;
+};
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   return privatePathMetadata("Product", ADMIN_PRODUCTS_TITLE, adminProductPath(id));
 }
 
-export default async function AdminProductDetailPage({ params }: PageProps) {
+export default async function AdminProductDetailPage({ params, searchParams }: PageProps) {
   const gate = await getAdminGate();
   if (gate.status !== "ok") {
     return <AdminAuthScreen gate={gate} />;
   }
   const { id } = await params;
+  const { notice } = await searchParams;
   return (
     <Suspense fallback={<AdminProductEditorSkeleton />}>
-      <AdminProductDetailSection id={id} role={gate.actor.role} />
+      <AdminProductDetailSection id={id} role={gate.actor.role} notice={notice} />
     </Suspense>
   );
 }

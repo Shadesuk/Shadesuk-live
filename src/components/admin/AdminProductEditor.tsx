@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
+import type { Gender, Shape } from "@/types/catalogue";
 import { useRouter } from "next/navigation";
 import {
   ADMIN_CATALOGUE_STATUS_LABELS,
@@ -12,10 +13,12 @@ import {
   GENDERS,
   SHAPES,
   adminProductSlugFromName,
+  allocateClientProductCode,
   formatGbpMajorInput,
   groupVariantsByColour,
+  nextDraftSku,
+  normalizeProductCode,
   parseAdminFit,
-  suggestedVariantSku,
   type AdminProductCollectionOption,
   type AdminProductDetailView,
   type AdminProductImageView,
@@ -39,6 +42,8 @@ import {
   ADMIN_PRODUCT_BRAND,
   ADMIN_PRODUCT_BRIDGE_WIDTH,
   ADMIN_PRODUCT_CANCEL,
+  ADMIN_PRODUCT_CODE,
+  ADMIN_PRODUCT_CODE_HINT,
   ADMIN_PRODUCT_COLLECTIONS,
   ADMIN_PRODUCT_COLLECTIONS_HINT,
   ADMIN_PRODUCT_COLOUR_ADD,
@@ -75,6 +80,8 @@ import {
   ADMIN_PRODUCT_PLACEMENT_NEW_ARRIVAL,
   ADMIN_PRODUCT_PREVIEW,
   ADMIN_PRODUCT_PUBLISH,
+  ADMIN_PRODUCT_PUBLISH_BLOCKED,
+  ADMIN_PRODUCT_PUBLISHED_BANNER,
   ADMIN_PRODUCT_SAVE,
   ADMIN_PRODUCT_SAVE_DRAFT,
   ADMIN_PRODUCT_SAVE_FAILED_BODY,
@@ -87,6 +94,7 @@ import {
   ADMIN_PRODUCT_SLUG_HINT,
   ADMIN_PRODUCT_TEMPLE_LENGTH,
   ADMIN_PRODUCT_UNPUBLISH,
+  ADMIN_PRODUCT_UNPUBLISHED_BANNER,
   ADMIN_PRODUCT_UNSAVED,
   ADMIN_PRODUCT_UNSAVED_TITLE,
   ADMIN_PRODUCT_VARIANT_COLOUR,
@@ -114,6 +122,7 @@ type DraftVariant = {
   key: string;
   id: string;
   sku: string;
+  skuTouched: boolean;
   colourName: string;
   sizeName: string;
   price: string;
@@ -133,6 +142,7 @@ function toDraft(variant: AdminProductVariantView): DraftVariant {
     key: variant.id,
     id: variant.id,
     sku: variant.sku,
+    skuTouched: true,
     colourName: variant.colourName,
     sizeName: variant.sizeName ?? "",
     price: formatGbpMajorInput(variant.priceMinor),
@@ -146,6 +156,7 @@ function emptySize(colourName = ""): DraftVariant {
     key: `new-${crypto.randomUUID()}`,
     id: "",
     sku: "",
+    skuTouched: false,
     colourName,
     sizeName: "",
     price: "",
@@ -180,26 +191,46 @@ export function AdminProductEditor({
   role,
   collections,
   images,
+  notice,
 }: {
   product: AdminProductDetailView | null;
   role: AdminV1Role;
   collections: AdminProductCollectionOption[];
   images: AdminProductImageView[];
+  notice?: string;
 }) {
   const router = useRouter();
   const [dirty, setDirty] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [name, setName] = useState(product?.name ?? "");
+  const [brand, setBrand] = useState(product?.brand ?? "");
+  const [description, setDescription] = useState(product?.description ?? "");
+  const [materials, setMaterials] = useState(product?.materials ?? "");
+  const [whatsIncluded, setWhatsIncluded] = useState(product?.whatsIncluded ?? "");
+  const [disclosure, setDisclosure] = useState(product?.disclosure || ADMIN_DEFAULT_DISCLOSURE);
+  const [fit, setFit] = useState(parseAdminFit(product?.fit));
+  const [lensWidthMm, setLensWidthMm] = useState(product?.lensWidthMm ? String(product.lensWidthMm) : "");
+  const [bridgeWidthMm, setBridgeWidthMm] = useState(product?.bridgeWidthMm ? String(product.bridgeWidthMm) : "");
+  const [templeLengthMm, setTempleLengthMm] = useState(product?.templeLengthMm ? String(product.templeLengthMm) : "");
+  const [genders, setGenders] = useState<Gender[]>(product?.genders ?? []);
+  const [shapes, setShapes] = useState<Shape[]>(product?.shapes ?? []);
+  const [collectionIds, setCollectionIds] = useState<string[]>(product?.collectionIds ?? []);
+  const [productCode, setProductCode] = useState(product?.productCode || (product ? "" : allocateClientProductCode()));
+  const [productId, setProductId] = useState(product?.id ?? "");
+  const [updatedAt, setUpdatedAt] = useState(product?.updatedAt ?? "");
+  const [slug, setSlug] = useState(product?.slug ?? "");
+  const [status, setStatus] = useState(product?.status ?? "draft");
+  const [placement, setPlacement] = useState(product?.placement ?? null);
+  const [imageList, setImageList] = useState(images);
+  const [imageAlts, setImageAlts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(images.map((image) => [image.id, image.altText])),
+  );
+  const [imageVariants, setImageVariants] = useState<Record<string, string>>(() =>
+    Object.fromEntries(images.map((image) => [image.id, image.variantId ?? ""])),
+  );
   const [colours, setColours] = useState<DraftColour[]>(() => coloursFromProduct(product));
   const [confirm, setConfirm] = useState<"archive" | "delete" | null>(null);
-  const [state, action, pending] = useActionState(async (prev: AdminProductActionState, formData: FormData) => {
-    const result = await saveAdminProductAction(prev, formData);
-    if (result.status === "ok") {
-      setDirty(false);
-      setConfirm(null);
-    }
-    return result;
-  }, idle);
+  const [state, action, pending] = useActionState(saveAdminProductAction, idle);
 
   useEffect(() => {
     const onLeave = (event: BeforeUnloadEvent) => {
@@ -213,12 +244,83 @@ export function AdminProductEditor({
     return () => window.removeEventListener("beforeunload", onLeave);
   }, [dirty]);
 
+  const [seenAction, setSeenAction] = useState(state);
+  const [seenImages, setSeenImages] = useState(images);
+  function applyAuthoritativeDetail(detail: AdminProductDetailView) {
+    setProductId(detail.id);
+    setUpdatedAt(detail.updatedAt);
+    setSlug(detail.slug);
+    setStatus(detail.status);
+    setName(detail.name);
+    setBrand(detail.brand);
+    setDescription(detail.description);
+    setMaterials(detail.materials);
+    setWhatsIncluded(detail.whatsIncluded);
+    setDisclosure(detail.disclosure || ADMIN_DEFAULT_DISCLOSURE);
+    setFit(parseAdminFit(detail.fit));
+    setLensWidthMm(detail.lensWidthMm ? String(detail.lensWidthMm) : "");
+    setBridgeWidthMm(detail.bridgeWidthMm ? String(detail.bridgeWidthMm) : "");
+    setTempleLengthMm(detail.templeLengthMm ? String(detail.templeLengthMm) : "");
+    setGenders(detail.genders);
+    setShapes(detail.shapes);
+    setCollectionIds(detail.collectionIds);
+    setProductCode(detail.productCode);
+    setPlacement(detail.placement);
+    setColours(coloursFromProduct(detail));
+    setImageList(detail.images);
+    setImageAlts(Object.fromEntries(detail.images.map((image) => [image.id, image.altText])));
+    setImageVariants(Object.fromEntries(detail.images.map((image) => [image.id, image.variantId ?? ""])));
+  }
+  if (images !== seenImages) {
+    setSeenImages(images);
+    setImageList(images);
+    setImageAlts((current) => {
+      const next: Record<string, string> = {};
+      for (const image of images) {
+        next[image.id] = Object.prototype.hasOwnProperty.call(current, image.id)
+          ? current[image.id] ?? image.altText
+          : image.altText;
+      }
+      return next;
+    });
+    setImageVariants((current) => {
+      const next: Record<string, string> = {};
+      for (const image of images) {
+        next[image.id] = Object.prototype.hasOwnProperty.call(current, image.id)
+          ? current[image.id] ?? image.variantId ?? ""
+          : image.variantId ?? "";
+      }
+      return next;
+    });
+  }
+  if (state !== seenAction) {
+    setSeenAction(state);
+    if (state.detail && (state.status === "ok" || state.status === "published" || state.committed)) {
+      applyAuthoritativeDetail(state.detail);
+      setDirty(false);
+      setConfirm(null);
+    } else if (state.status === "ok" && state.intent === "archive") {
+      setStatus("archived");
+      setDirty(false);
+      setConfirm(null);
+    }
+  }
+
+  function suggestionCode(): string {
+    const normalized = normalizeProductCode(productCode);
+    if (normalized) {
+      return normalized;
+    }
+    const allocated = allocateClientProductCode();
+    setProductCode(allocated);
+    return allocated;
+  }
+
   const markDirty = () => setDirty(true);
-  const title = product?.name || "New product";
+  const title = name || product?.name || "New product";
   const canArchive = canArchiveProduct(role);
   const canDelete = canDeleteProduct(role);
-  const status = product?.status ?? "draft";
-  const generatedSlug = product?.slug || adminProductSlugFromName(name);
+  const generatedSlug = slug || adminProductSlugFromName(name);
   const variants = useMemo(
     () =>
       colours.flatMap((colour) =>
@@ -226,8 +328,10 @@ export function AdminProductEditor({
       ),
     [colours],
   );
-  const saveFailed = state.status === "error" || state.status === "forbidden" || state.status === "stale";
-  const savedJustNow = state.status === "ok" && !dirty && !pending;
+  const saveFailed = (state.status === "error" && !state.committed) || state.status === "forbidden" || state.status === "stale";
+  const savedJustNow = state.status === "ok" && state.intent !== "unpublish" && state.intent !== "archive" && !dirty && !pending;
+  const publishedJustNow = state.status === "published" && !dirty && !pending;
+  const unpublishedJustNow = state.status === "ok" && state.intent === "unpublish" && !dirty && !pending;
 
   function updateColour(key: string, patch: Partial<DraftColour>) {
     setColours((current) => current.map((colour) => (colour.key === key ? { ...colour, ...patch } : colour)));
@@ -253,7 +357,7 @@ export function AdminProductEditor({
       <AdminPageHeader
         kicker="Products"
         title={title}
-        description={product ? ADMIN_CATALOGUE_STATUS_LABELS[product.status] : undefined}
+        description={productId ? ADMIN_CATALOGUE_STATUS_LABELS[status] : undefined}
         action={
           <Button
             type="button"
@@ -272,12 +376,22 @@ export function AdminProductEditor({
       />
       <div className={styles.editor}>
         <form id="admin-product-form" className={styles.stack} action={action} onChange={markDirty} noValidate>
-          {product ? <input type="hidden" name="productId" value={product.id} /> : null}
-          {product ? <input type="hidden" name="updatedAt" value={product.updatedAt} /> : null}
+          {productId ? <input type="hidden" name="productId" value={productId} /> : null}
+          {productId ? <input type="hidden" name="updatedAt" value={updatedAt} /> : null}
           <input type="hidden" name="variantCount" value={String(variants.length)} />
-          {images.length > 0 ? (
-            <input type="hidden" name="imageOrder" value={images.map((image) => image.id).join(",")} />
+          {imageList.length > 0 ? (
+            <input type="hidden" name="imageOrder" value={imageList.map((image) => image.id).join(",")} />
           ) : null}
+          {imageList.filter((image) => !imageFieldsMounted(image, colours)).map((image) => (
+            <div key={`image-hidden-${image.id}`} hidden>
+              <input type="hidden" name={`imageAlt:${image.id}`} value={imageAlts[image.id] ?? image.altText} />
+              <input
+                type="hidden"
+                name={`imageVariant:${image.id}`}
+                value={imageVariants[image.id] ?? image.variantId ?? ""}
+              />
+            </div>
+          ))}
           <section className={styles.section} aria-labelledby="product-info-heading">
             <h2 id="product-info-heading" className={styles.sectionTitle}>
               {ADMIN_PRODUCT_INFORMATION}
@@ -309,17 +423,57 @@ export function AdminProductEditor({
                 ) : null}
               </div>
               <Field
+                id="product-code"
+                name="productCode"
+                label={ADMIN_PRODUCT_CODE}
+                hint={ADMIN_PRODUCT_CODE_HINT}
+                value={productCode}
+                maxLength={12}
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(event) => {
+                  const nextCode = event.target.value;
+                  setProductCode(nextCode);
+                  const code = normalizeProductCode(nextCode);
+                  setColours((current) =>
+                    current.map((colour) => ({
+                      ...colour,
+                      sizes: colour.sizes.map((size) => ({
+                        ...size,
+                        sku: nextDraftSku({
+                          productCode: code,
+                          colourName: colour.colourName,
+                          sizeName: size.sizeName,
+                          currentSku: size.sku,
+                          skuTouched: size.skuTouched,
+                        }),
+                      })),
+                    })),
+                  );
+                  markDirty();
+                }}
+                error={state.errors?.productCode}
+              />
+              <Field
                 id="product-brand"
                 name="brand"
                 label={ADMIN_PRODUCT_BRAND}
-                defaultValue={product?.brand ?? ""}
+                value={brand}
                 maxLength={ADMIN_PRODUCT_TEXT_MAX}
+                onChange={(event) => {
+                  setBrand(event.target.value);
+                  markDirty();
+                }}
               />
               <FieldSelect
                 id="product-fit"
                 name="fit"
                 label={ADMIN_PRODUCT_FIT}
-                defaultValue={parseAdminFit(product?.fit)}
+                value={fit}
+                onChange={(event) => {
+                  setFit(event.target.value);
+                  markDirty();
+                }}
               >
                 <option value="">{ADMIN_PRODUCT_FIT_UNSPECIFIED}</option>
                 {ADMIN_FIT_VALUES.map((value) => (
@@ -343,21 +497,33 @@ export function AdminProductEditor({
                   name="lensWidthMm"
                   label={`${ADMIN_PRODUCT_LENS_WIDTH} (${ADMIN_PRODUCT_MM})`}
                   inputMode="numeric"
-                  defaultValue={product?.lensWidthMm ? String(product.lensWidthMm) : ""}
+                  value={lensWidthMm}
+                  onChange={(event) => {
+                    setLensWidthMm(event.target.value);
+                    markDirty();
+                  }}
                 />
                 <Field
                   id="product-bridge"
                   name="bridgeWidthMm"
                   label={`${ADMIN_PRODUCT_BRIDGE_WIDTH} (${ADMIN_PRODUCT_MM})`}
                   inputMode="numeric"
-                  defaultValue={product?.bridgeWidthMm ? String(product.bridgeWidthMm) : ""}
+                  value={bridgeWidthMm}
+                  onChange={(event) => {
+                    setBridgeWidthMm(event.target.value);
+                    markDirty();
+                  }}
                 />
                 <Field
                   id="product-temple"
                   name="templeLengthMm"
                   label={`${ADMIN_PRODUCT_TEMPLE_LENGTH} (${ADMIN_PRODUCT_MM})`}
                   inputMode="numeric"
-                  defaultValue={product?.templeLengthMm ? String(product.templeLengthMm) : ""}
+                  value={templeLengthMm}
+                  onChange={(event) => {
+                    setTempleLengthMm(event.target.value);
+                    markDirty();
+                  }}
                 />
               </div>
             </fieldset>
@@ -365,44 +531,70 @@ export function AdminProductEditor({
               id="product-description"
               name="description"
               label={ADMIN_PRODUCT_DESCRIPTION}
-              defaultValue={product?.description ?? ""}
+              value={description}
               maxLength={ADMIN_PRODUCT_LONG_TEXT_MAX}
+              onChange={(event) => {
+                setDescription(event.target.value);
+                markDirty();
+              }}
             />
             <FieldTextarea
               id="product-materials"
               name="materials"
               label={ADMIN_PRODUCT_MATERIALS}
-              defaultValue={product?.materials ?? ""}
+              value={materials}
               maxLength={ADMIN_PRODUCT_LONG_TEXT_MAX}
+              onChange={(event) => {
+                setMaterials(event.target.value);
+                markDirty();
+              }}
             />
             <FieldTextarea
               id="product-included"
               name="whatsIncluded"
               label={ADMIN_PRODUCT_INCLUDED}
-              defaultValue={product?.whatsIncluded ?? ""}
+              value={whatsIncluded}
               maxLength={ADMIN_PRODUCT_LONG_TEXT_MAX}
+              onChange={(event) => {
+                setWhatsIncluded(event.target.value);
+                markDirty();
+              }}
             />
             <Field
               id="product-disclosure"
               name="disclosure"
               label={ADMIN_PRODUCT_DISCLOSURE}
-              defaultValue={product?.disclosure || ADMIN_DEFAULT_DISCLOSURE}
+              value={disclosure}
               maxLength={ADMIN_PRODUCT_TEXT_MAX}
               error={state.errors?.disclosure}
+              onChange={(event) => {
+                setDisclosure(event.target.value);
+                markDirty();
+              }}
             />
           </section>
           <AdminProductImages
-            productId={product?.id ?? null}
-            images={images.filter((image) => !image.variantId)}
-            variants={product?.variants ?? []}
+            productId={productId || null}
+            images={imageList.filter((image) => !image.variantId)}
+            variants={draftVariantViews(colours)}
+            altValues={imageAlts}
+            variantValues={imageVariants}
+            onAltChange={(imageId, value) => {
+              setImageAlts((current) => ({ ...current, [imageId]: value }));
+              markDirty();
+            }}
+            onVariantChange={(imageId, value) => {
+              setImageVariants((current) => ({ ...current, [imageId]: value }));
+              markDirty();
+            }}
           />
           <section className={styles.section} aria-labelledby="product-colours-heading">
             <h2 id="product-colours-heading" className={styles.sectionTitle}>
               {ADMIN_PRODUCT_COLOURS}
             </h2>
-            {state.errors?.variants || state.errors?.sku || state.errors?.price || state.errors?.sale ? (
+            {state.errors?.variants || state.errors?.sku || state.errors?.price || state.errors?.sale || state.errors?.images ? (
               <p className={`text-small ${styles.banner}`} role="alert">
-                {state.errors?.variants || state.errors?.sku || state.errors?.price || state.errors?.sale}
+                {state.errors?.variants || state.errors?.sku || state.errors?.price || state.errors?.sale || state.errors?.images}
               </p>
             ) : null}
             {colours.length === 0 ? (
@@ -412,7 +604,7 @@ export function AdminProductEditor({
               </div>
             ) : null}
             {colours.map((colour, colourIndex) => {
-              const colourImages = imagesForColour(images, colour, product?.variants ?? []);
+              const colourImages = imagesForColour(imageList, colour, draftVariantViews(colours));
               const sizeCount = colour.sizes.filter((size) => size.sizeName || size.sku).length;
               return (
                 <article key={colour.key} className={styles.colour} data-colour-editor={colour.colourName || "new"}>
@@ -423,7 +615,31 @@ export function AdminProductEditor({
                         label={ADMIN_PRODUCT_VARIANT_COLOUR}
                         value={colour.colourName}
                         maxLength={ADMIN_PRODUCT_TEXT_MAX}
-                        onChange={(event) => updateColour(colour.key, { colourName: event.target.value })}
+                        onChange={(event) => {
+                          const colourName = event.target.value;
+                          const code = suggestionCode();
+                          setColours((current) =>
+                            current.map((item) =>
+                              item.key === colour.key
+                                ? {
+                                    ...item,
+                                    colourName,
+                                    sizes: item.sizes.map((size) => ({
+                                      ...size,
+                                      sku: nextDraftSku({
+                                        productCode: code,
+                                        colourName,
+                                        sizeName: size.sizeName,
+                                        currentSku: size.sku,
+                                        skuTouched: size.skuTouched,
+                                      }),
+                                    })),
+                                  }
+                                : item,
+                            ),
+                          );
+                          markDirty();
+                        }}
                       />
                       <h3 className={styles.sectionTitle}>Sizes</h3>
                       {colour.sizes.length === 0 ? (
@@ -439,6 +655,7 @@ export function AdminProductEditor({
                             <legend className="visually-hidden">
                               {colour.colourName || "Colour"} size {sizeIndex + 1}
                             </legend>
+                            <input type="hidden" name={`variant_${variantIndex}_key`} value={size.key} />
                             {size.id ? <input type="hidden" name={`variant_${variantIndex}_id`} value={size.id} /> : null}
                             <input type="hidden" name={`variant_${variantIndex}_colourName`} value={colour.colourName} />
                             <Field
@@ -447,19 +664,20 @@ export function AdminProductEditor({
                               label={ADMIN_PRODUCT_VARIANT_SIZE}
                               value={size.sizeName}
                               maxLength={ADMIN_PRODUCT_TEXT_MAX}
-                              onChange={(event) =>
+                              onChange={(event) => {
+                                const sizeName = event.target.value;
+                                const code = suggestionCode();
                                 updateSize(colour.key, size.key, {
-                                  sizeName: event.target.value,
-                                  sku:
-                                    size.sku || !generatedSlug
-                                      ? size.sku
-                                      : suggestedVariantSku(
-                                          generatedSlug,
-                                          colour.colourName,
-                                          event.target.value || null,
-                                        ),
-                                })
-                              }
+                                  sizeName,
+                                  sku: nextDraftSku({
+                                    productCode: code,
+                                    colourName: colour.colourName,
+                                    sizeName,
+                                    currentSku: size.sku,
+                                    skuTouched: size.skuTouched,
+                                  }),
+                                });
+                              }}
                             />
                             <Field
                               id={`variant-${variantIndex}-sku`}
@@ -469,7 +687,9 @@ export function AdminProductEditor({
                               maxLength={ADMIN_PRODUCT_SKU_MAX}
                               spellCheck={false}
                               autoComplete="off"
-                              onChange={(event) => updateSize(colour.key, size.key, { sku: event.target.value })}
+                              onChange={(event) =>
+                                updateSize(colour.key, size.key, { sku: event.target.value, skuTouched: true })
+                              }
                             />
                             <Field
                               id={`variant-${variantIndex}-price`}
@@ -500,6 +720,17 @@ export function AdminProductEditor({
                               type="button"
                               variant="tertiary"
                               onClick={() => {
+                                if (size.id) {
+                                  setImageVariants((current) => {
+                                    const next = { ...current };
+                                    for (const [imageId, variantId] of Object.entries(next)) {
+                                      if (variantId === size.id) {
+                                        next[imageId] = "";
+                                      }
+                                    }
+                                    return next;
+                                  });
+                                }
                                 updateColour(colour.key, {
                                   sizes: colour.sizes.filter((item) => item.key !== size.key),
                                 });
@@ -515,22 +746,28 @@ export function AdminProductEditor({
                           type="button"
                           variant="secondary"
                           onClick={() => {
-                            const next = emptySize(colour.colourName);
-                            next.sku = generatedSlug
-                              ? suggestedVariantSku(generatedSlug, colour.colourName, null)
-                              : "";
-                            updateColour(colour.key, { sizes: [...colour.sizes, next] });
+                            updateColour(colour.key, { sizes: [...colour.sizes, emptySize(colour.colourName)] });
                           }}
                         >
                           {ADMIN_PRODUCT_SIZE_ADD}
                         </Button>
                       </div>
                       <AdminProductImages
-                        productId={product?.id ?? null}
+                        productId={productId || null}
                         images={colourImages}
-                        variants={savedVariantsForColour(product?.variants ?? [], colour.colourName)}
+                        variants={savedVariantsForColour(draftVariantViews(colours), colour.colourName)}
                         colourName={colour.colourName}
                         heading={`${colour.colourName || "Colour"} images`}
+                        altValues={imageAlts}
+                        variantValues={imageVariants}
+                        onAltChange={(imageId, value) => {
+                          setImageAlts((current) => ({ ...current, [imageId]: value }));
+                          markDirty();
+                        }}
+                        onVariantChange={(imageId, value) => {
+                          setImageVariants((current) => ({ ...current, [imageId]: value }));
+                          markDirty();
+                        }}
                       />
                       <div className={styles.filterActions}>
                         <Button
@@ -574,6 +811,7 @@ export function AdminProductEditor({
                         const variantIndex = variantIndexOf(variants, colour, size);
                         return (
                           <div key={size.key} hidden>
+                            <input type="hidden" name={`variant_${variantIndex}_key`} value={size.key} />
                             {size.id ? <input type="hidden" name={`variant_${variantIndex}_id`} value={size.id} /> : null}
                             <input type="hidden" name={`variant_${variantIndex}_colourName`} value={colour.colourName} />
                             <input type="hidden" name={`variant_${variantIndex}_sizeName`} value={size.sizeName} />
@@ -613,7 +851,15 @@ export function AdminProductEditor({
                       type="checkbox"
                       name="gender"
                       value={gender}
-                      defaultChecked={product?.genders.includes(gender)}
+                      checked={genders.includes(gender)}
+                      onChange={(event) => {
+                        setGenders((current) =>
+                          event.target.checked
+                            ? [...current, gender]
+                            : current.filter((item) => item !== gender),
+                        );
+                        markDirty();
+                      }}
                     />
                     {gender}
                   </label>
@@ -629,7 +875,13 @@ export function AdminProductEditor({
                       type="checkbox"
                       name="shape"
                       value={shape}
-                      defaultChecked={product?.shapes.includes(shape)}
+                      checked={shapes.includes(shape)}
+                      onChange={(event) => {
+                        setShapes((current) =>
+                          event.target.checked ? [...current, shape] : current.filter((item) => item !== shape),
+                        );
+                        markDirty();
+                      }}
                     />
                     {shape}
                   </label>
@@ -647,7 +899,15 @@ export function AdminProductEditor({
                         type="checkbox"
                         name="collectionId"
                         value={collection.id}
-                        defaultChecked={product?.collectionIds.includes(collection.id)}
+                        checked={collectionIds.includes(collection.id)}
+                        onChange={(event) => {
+                          setCollectionIds((current) =>
+                            event.target.checked
+                              ? [...current, collection.id]
+                              : current.filter((id) => id !== collection.id),
+                          );
+                          markDirty();
+                        }}
                       />
                       {collection.name}
                     </label>
@@ -656,12 +916,17 @@ export function AdminProductEditor({
               </fieldset>
             ) : null}
           </section>
-          {product ? <PlacementSummary placement={product.placement} slug={product.slug} status={status} /> : null}
+          {placement ? <PlacementSummary placement={placement} slug={slug || generatedSlug} status={status} /> : null}
           <section className={styles.section} aria-labelledby="product-publish-heading">
             <h2 id="product-publish-heading" className={styles.sectionTitle}>
               Publishing
             </h2>
-            {formBanner(state, pending, savedJustNow)}
+            {notice === "publish" && state.status === "idle" ? (
+              <p className={`text-small ${styles.banner}`} role="alert">
+                {ADMIN_PRODUCT_PUBLISH_BLOCKED}
+              </p>
+            ) : null}
+            {formBanner(state, pending, savedJustNow, publishedJustNow, unpublishedJustNow)}
             <div className={styles.filterActions}>
               {status === "published" ? (
                 <>
@@ -843,7 +1108,13 @@ function PlacementSummary({
   );
 }
 
-function formBanner(state: AdminProductActionState, pending: boolean, savedJustNow: boolean) {
+function formBanner(
+  state: AdminProductActionState,
+  pending: boolean,
+  savedJustNow: boolean,
+  publishedJustNow: boolean,
+  unpublishedJustNow: boolean,
+) {
   if (pending) {
     return (
       <p className={`text-small ${styles.banner}`} role="status">
@@ -851,10 +1122,38 @@ function formBanner(state: AdminProductActionState, pending: boolean, savedJustN
       </p>
     );
   }
+  if (publishedJustNow) {
+    return (
+      <p className={`text-small ${styles.banner}`} role="status">
+        {ADMIN_PRODUCT_PUBLISHED_BANNER}
+      </p>
+    );
+  }
+  if (unpublishedJustNow) {
+    return (
+      <p className={`text-small ${styles.banner}`} role="status">
+        {ADMIN_PRODUCT_UNPUBLISHED_BANNER}
+      </p>
+    );
+  }
   if (savedJustNow) {
     return (
       <p className={`text-small ${styles.banner}`} role="status">
         {ADMIN_PRODUCT_SAVED_JUST_NOW} ✓
+      </p>
+    );
+  }
+  if (state.status === "invalid" && state.committed) {
+    return (
+      <p className={`text-small ${styles.banner}`} role="alert">
+        {state.message || ADMIN_PRODUCT_PUBLISH_BLOCKED}
+      </p>
+    );
+  }
+  if (state.status === "error" && state.committed) {
+    return (
+      <p className={`text-small ${styles.banner}`} role="alert">
+        {state.message}
       </p>
     );
   }
@@ -888,6 +1187,35 @@ function savedVariantsForColour(
 ): AdminProductVariantView[] {
   const key = colourName.trim().toLowerCase();
   return variants.filter((variant) => variant.colourName.trim().toLowerCase() === key);
+}
+
+function imageFieldsMounted(image: AdminProductImageView, colours: DraftColour[]): boolean {
+  if (!image.variantId) {
+    return true;
+  }
+  return colours.some(
+    (colour) => colour.open && colour.sizes.some((size) => size.id === image.variantId),
+  );
+}
+
+function draftVariantViews(colours: DraftColour[]): AdminProductVariantView[] {
+  return colours.flatMap((colour) =>
+    colour.sizes
+      .filter((size) => size.id)
+      .map((size) => ({
+        id: size.id,
+        sku: size.sku,
+        colourName: colour.colourName,
+        sizeName: size.sizeName || null,
+        priceMinor: 0,
+        compareAtMinor: null,
+        stockQuantity: Number.parseInt(size.stock, 10) || 0,
+        status: "available" as const,
+        lensWidthMm: null,
+        bridgeWidthMm: null,
+        templeLengthMm: null,
+      })),
+  );
 }
 
 function imagesForColour(

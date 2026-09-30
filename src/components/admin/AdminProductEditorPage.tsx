@@ -22,9 +22,11 @@ export async function AdminNewProductSection({ role }: { role: AdminV1Role }) {
 export async function AdminProductDetailSection({
   id,
   role,
+  notice,
 }: {
   id: string;
   role: AdminV1Role;
+  notice?: string;
 }) {
   const result = await loadAdminProductDetail(id);
   if (result.status === "not_found") {
@@ -39,6 +41,7 @@ export async function AdminProductDetailSection({
       role={role}
       collections={result.data.collections}
       images={result.data.images}
+      notice={notice}
     />
   );
 }

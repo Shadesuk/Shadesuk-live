@@ -16,6 +16,9 @@ export const ADMIN_PRODUCT_SEARCH_MAX = 80;
 export const ADMIN_PRODUCT_TEXT_MAX = 120;
 export const ADMIN_PRODUCT_LONG_TEXT_MAX = 4000;
 export const ADMIN_PRODUCT_SKU_MAX = 64;
+export const ADMIN_PRODUCT_CODE_MAX = 12;
+export const ADMIN_SKU_COLOUR_TOKEN_MAX = 16;
+export const ADMIN_SKU_SIZE_TOKEN_MAX = 8;
 export const ADMIN_DEFAULT_DISCLOSURE = "High-quality 1:1 Superclone";
 export const ADMIN_FIT_VALUES = ["Small", "Medium", "Large"] as const;
 export type AdminFitValue = (typeof ADMIN_FIT_VALUES)[number];
@@ -143,6 +146,7 @@ export type AdminProductDetailView = {
   bridgeWidthMm: number | null;
   templeLengthMm: number | null;
   disclosure: string;
+  productCode: string;
   status: CatalogueStatus;
   publishedAt: string | null;
   updatedAt: string;
@@ -154,6 +158,7 @@ export type AdminProductDetailView = {
 };
 
 export type AdminProductVariantInput = {
+  clientKey: string;
   id: string | null;
   sku: string;
   colourName: string;
@@ -183,6 +188,7 @@ export type AdminProductSaveInput = {
   bridgeWidthMm: number | null;
   templeLengthMm: number | null;
   disclosure: string;
+  productCode: string;
   variants: AdminProductVariantInput[];
   collectionIds: string[];
   imageOrder: string[];
@@ -208,7 +214,8 @@ export type AdminProductField =
   | "sku"
   | "status"
   | "images"
-  | "collections";
+  | "collections"
+  | "productCode";
 
 export type AdminProductIntent = "save" | "publish" | "unpublish" | "archive" | "delete";
 
@@ -345,15 +352,178 @@ export function groupVariantsByColour<T extends { colourName: string }>(
   return groups;
 }
 
+const PRODUCT_CODE_PATTERN = /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
+
+export function parseProductCode(value: unknown): { ok: true; code: string } | { ok: false } {
+  if (typeof value !== "string" || value.trim() === "") {
+    return { ok: true, code: "" };
+  }
+  const code = value.trim().toUpperCase();
+  if (code.length > ADMIN_PRODUCT_CODE_MAX || !PRODUCT_CODE_PATTERN.test(code)) {
+    return { ok: false };
+  }
+  return { ok: true, code };
+}
+
+export function normalizeProductCode(value: string): string {
+  const parsed = parseProductCode(value);
+  return parsed.ok ? parsed.code : "";
+}
+
+export function allocateClientProductCode(): string {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  const suffix = String(bytes[0] % 100000).padStart(5, "0");
+  return `SHD-${suffix}`;
+}
+
+function capSlugToken(value: string | null, max: number): string | null {
+  if (!value) {
+    return null;
+  }
+  const capped = value.slice(0, max).replace(/-+$/g, "");
+  return capped.length > 0 ? capped : null;
+}
+
+/**
+ * Suggested SKU is `{PRODUCT_CODE}-{COLOUR}-{SIZE}`.
+ * Colour and size tokens are capped before joining. The result is never sliced
+ * to 64, so two different variants cannot collapse onto one prefix.
+ * An empty size yields no suggestion.
+ */
 export function suggestedVariantSku(
-  productSlug: string,
+  productCode: string,
   colourName: string,
   sizeName: string | null,
 ): string {
-  const parts = [productSlug, slugifyToken(colourName), sizeName ? slugifyToken(sizeName) : null].filter(
-    (part): part is string => Boolean(part),
+  const code = normalizeProductCode(productCode);
+  const colour = capSlugToken(slugifyToken(colourName), ADMIN_SKU_COLOUR_TOKEN_MAX);
+  const size = sizeName ? capSlugToken(slugifyToken(sizeName), ADMIN_SKU_SIZE_TOKEN_MAX) : null;
+  if (!code || !colour || !size) {
+    return "";
+  }
+  const sku = `${code}-${colour}-${size}`.toUpperCase();
+  if (sku.length > ADMIN_PRODUCT_SKU_MAX) {
+    return "";
+  }
+  return sku;
+}
+
+export function nextDraftSku(input: {
+  productCode: string;
+  colourName: string;
+  sizeName: string;
+  currentSku: string;
+  skuTouched: boolean;
+}): string {
+  if (input.skuTouched) {
+    return input.currentSku;
+  }
+  return suggestedVariantSku(input.productCode, input.colourName, input.sizeName);
+}
+
+export function nullableCatalogueText(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+export type VariantPersistencePlan = {
+  updates: Array<{ clientKey: string; id: string }>;
+  inserts: Array<{ clientKey: string }>;
+  remove: string[];
+};
+
+export function planVariantPersistence(
+  existingIds: readonly string[],
+  incoming: readonly { clientKey: string; id: string | null }[],
+): VariantPersistencePlan {
+  const existing = new Set(existingIds);
+  const updates: VariantPersistencePlan["updates"] = [];
+  const inserts: VariantPersistencePlan["inserts"] = [];
+  const keep = new Set<string>();
+  for (const variant of incoming) {
+    if (variant.id && existing.has(variant.id)) {
+      updates.push({ clientKey: variant.clientKey, id: variant.id });
+      keep.add(variant.id);
+      continue;
+    }
+    inserts.push({ clientKey: variant.clientKey });
+  }
+  return {
+    updates,
+    inserts,
+    remove: existingIds.filter((id) => !keep.has(id)),
+  };
+}
+
+export function resolveImageVariantId(input: {
+  variantKeyPresent: boolean;
+  variantKey: string | null;
+  storedVariantId: string | null;
+  keyToId: Readonly<Record<string, string>>;
+  liveIds: ReadonlySet<string>;
+}): { ok: true; variantId: string | null } | { ok: false } {
+  if (!input.variantKeyPresent) {
+    if (input.storedVariantId && !input.liveIds.has(input.storedVariantId)) {
+      return { ok: true, variantId: null };
+    }
+    return { ok: true, variantId: input.storedVariantId };
+  }
+  const key = input.variantKey?.trim() ?? "";
+  if (!key) {
+    return { ok: true, variantId: null };
+  }
+  const resolved = input.keyToId[key] ?? (input.liveIds.has(key) ? key : "");
+  if (!resolved || !input.liveIds.has(resolved)) {
+    return { ok: false };
+  }
+  return { ok: true, variantId: resolved };
+}
+
+export function assessPublishReadiness(detail: {
+  name: string;
+  slug: string;
+  disclosure: string;
+  variants: ReadonlyArray<{
+    sku: string;
+    colourName: string;
+    priceMinor: number;
+    status: VariantStatus;
+  }>;
+  imageCount: number;
+}): { ok: true } | { ok: false; errors: Partial<Record<AdminProductField, string>> } {
+  const errors: Partial<Record<AdminProductField, string>> = {};
+  if (!detail.name.trim() || !detail.slug.trim()) {
+    errors.name = "Publish needs a saved product name and URL.";
+  }
+  if (!detail.disclosure.trim()) {
+    errors.disclosure = "Publish needs a disclosure on the saved product.";
+  }
+  const sellable = detail.variants.some(
+    (variant) =>
+      variant.sku.trim().length > 0 &&
+      variant.colourName.trim().length > 0 &&
+      variant.priceMinor >= 0 &&
+      variant.status === "available",
   );
-  return parts.join("-").toUpperCase().slice(0, ADMIN_PRODUCT_SKU_MAX);
+  if (!sellable) {
+    errors.variants =
+      "Publish needs at least one saved variant with a SKU, colour, price, and available status.";
+  }
+  if (detail.imageCount < 1) {
+    errors.images = "Publish needs at least one saved image.";
+  }
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+  return { ok: true };
+}
+
+export function statusAfterDraftSave(current: CatalogueStatus | null): CatalogueStatus {
+  if (current === "published" || current === "archived") {
+    return current;
+  }
+  return "draft";
 }
 
 export function variantCombinations(
@@ -475,6 +645,7 @@ export function parseAdminProductSaveInput(form: FormData): {
   const templeLengthMm = parseOptionalMm(form.get("templeLengthMm"));
   const disclosure =
     readOptionalText(form.get("disclosure"), ADMIN_PRODUCT_TEXT_MAX) || ADMIN_DEFAULT_DISCLOSURE;
+  const productCode = parseProductCode(form.get("productCode"));
   const genders = parseProductGenders(form.getAll("gender"));
   const shapes = parseProductShapes(form.getAll("shape"));
   const updatedAt = readOptionalText(form.get("updatedAt"), 40) || null;
@@ -487,6 +658,9 @@ export function parseAdminProductSaveInput(form: FormData): {
   }
   if (!disclosure) {
     errors.disclosure = "Enter a disclosure.";
+  }
+  if (!productCode.ok) {
+    errors.productCode = "Enter a product code of up to 12 letters, numbers, and hyphens.";
   }
   if (form.get("lensWidthMm") && lensWidthMm == null) {
     errors.measurements = "Enter frame measurements as whole millimetres, or leave them blank.";
@@ -536,15 +710,13 @@ export function parseAdminProductSaveInput(form: FormData): {
       bridgeWidthMm,
       templeLengthMm,
       disclosure,
+      productCode: productCode.ok ? productCode.code : "",
       variants,
       collectionIds: form
         .getAll("collectionId")
         .map((value) => (typeof value === "string" ? value : ""))
         .filter((value) => /^[0-9a-f-]{36}$/i.test(value)),
-      imageOrder: readOptionalText(form.get("imageOrder"), 2000)
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean),
+      imageOrder: readImageOrder(form.get("imageOrder")),
       imageAlts: readKeyedMap(form, "imageAlt"),
       imageVariantIds: Object.fromEntries(
         Object.entries(readKeyedMap(form, "imageVariant")).map(([key, value]) => [
@@ -599,6 +771,7 @@ function emptyProductSave(id: string): AdminProductSaveInput {
     bridgeWidthMm: null,
     templeLengthMm: null,
     disclosure: ADMIN_DEFAULT_DISCLOSURE,
+    productCode: "",
     variants: [],
     collectionIds: [],
     imageOrder: [],
@@ -637,7 +810,8 @@ function parseVariantInputs(
     const prefix = `variant_${index}_`;
     const colourName = readOptionalText(form.get(`${prefix}colourName`), ADMIN_PRODUCT_TEXT_MAX);
     const sizeName = readOptionalText(form.get(`${prefix}sizeName`), ADMIN_PRODUCT_TEXT_MAX) || null;
-    const sku = readOptionalText(form.get(`${prefix}sku`), ADMIN_PRODUCT_SKU_MAX);
+    const sku = readBoundedSku(form.get(`${prefix}sku`));
+    const clientKey = readOptionalText(form.get(`${prefix}key`), 80);
     const statusRaw = readOptionalText(form.get(`${prefix}status`), 24);
     const stockRaw = Number.parseInt(String(form.get(`${prefix}stock`) ?? "0"), 10);
     const price = parseGbpMajorInput(form.get(`${prefix}price`));
@@ -652,7 +826,11 @@ function parseVariantInputs(
       errors.variants = "Each colour needs a name.";
       continue;
     }
-    if (!sku) {
+    if (!sku.ok) {
+      errors.sku = "SKUs must be 64 characters or fewer. Shorten the colour, size, or product code.";
+      continue;
+    }
+    if (!sku.sku) {
       errors.sku = "Each size needs a SKU.";
       continue;
     }
@@ -679,15 +857,17 @@ function parseVariantInputs(
       continue;
     }
     seen.add(key);
-    const skuKey = sku.toLowerCase();
+    const skuKey = sku.sku.toLowerCase();
     if (skus.has(skuKey)) {
       errors.sku = "SKUs must be unique.";
       continue;
     }
     skus.add(skuKey);
+    const id = readOptionalText(form.get(`${prefix}id`), 36) || null;
     variants.push({
-      id: readOptionalText(form.get(`${prefix}id`), 36) || null,
-      sku,
+      clientKey: clientKey || id || `row-${index}`,
+      id,
+      sku: sku.sku,
       colourName,
       sizeName,
       priceMinor: price.minor,
@@ -736,6 +916,33 @@ function readParam(value: string | string[] | undefined): string {
     return typeof value[0] === "string" ? value[0] : "";
   }
   return typeof value === "string" ? value : "";
+}
+
+function readBoundedSku(value: unknown): { ok: true; sku: string } | { ok: false } {
+  if (typeof value !== "string") {
+    return { ok: true, sku: "" };
+  }
+  const sku = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  if (sku.length > ADMIN_PRODUCT_SKU_MAX) {
+    return { ok: false };
+  }
+  return { ok: true, sku };
+}
+
+function readImageOrder(value: unknown): string[] {
+  if (typeof value !== "string") {
+    return [];
+  }
+  let raw = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  if (raw.length > 8000) {
+    const cut = raw.slice(0, 8000);
+    const comma = cut.lastIndexOf(",");
+    raw = comma > 0 ? cut.slice(0, comma) : "";
+  }
+  return raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(part));
 }
 
 function readOptionalText(value: unknown, max: number): string {
