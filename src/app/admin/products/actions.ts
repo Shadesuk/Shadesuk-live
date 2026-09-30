@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   parseAdminProductSaveInput,
+  type AdminProductDetailView,
   type AdminProductIntent,
 } from "@/contracts/admin/products";
 import {
   ADMIN_FORBIDDEN,
+  ADMIN_PRODUCT_PUBLISH_BLOCKED,
   ADMIN_PRODUCT_SAVE_FAILED_BODY,
   ADMIN_PRODUCT_STALE,
 } from "@/lib/admin-copy";
@@ -21,17 +23,22 @@ import {
   deleteAdminProduct,
   deleteAdminProductImage,
   moveAdminProductImage,
+  publishAdminProduct,
   saveAdminProduct,
+  unpublishAdminProduct,
   uploadAdminProductImage,
   type AdminProductMutationResult,
 } from "@/services/admin-products";
 
 export type AdminProductActionState = {
-  status: "idle" | "ok" | "invalid" | "error" | "forbidden" | "stale";
+  status: "idle" | "ok" | "published" | "invalid" | "error" | "forbidden" | "stale";
   message?: string;
   errors?: Record<string, string>;
   values?: Record<string, string>;
   productId?: string;
+  detail?: AdminProductDetailView;
+  committed?: boolean;
+  intent?: AdminProductIntent;
 };
 
 const idleFailure = (message = ADMIN_PRODUCT_SAVE_FAILED_BODY): AdminProductActionState => ({
@@ -56,7 +63,7 @@ export async function saveAdminProductAction(
   }
   if (parsed.intent === "archive") {
     const result = await archiveAdminProduct({ productId: parsed.value.id ?? "", role: gate.actor.role });
-    return finish(result, parsed.value.id, parsed.value.slug);
+    return finish(result, parsed.value.id, parsed.value.slug, parsed.intent);
   }
   if (parsed.intent === "delete") {
     const result = await deleteAdminProduct({ productId: parsed.value.id ?? "", role: gate.actor.role });
@@ -65,17 +72,21 @@ export async function saveAdminProductAction(
       revalidatePath(routes.admin);
       redirect(routes.adminProducts);
     }
-    return finish(result, parsed.value.id, parsed.value.slug);
+    return finish(result, parsed.value.id, parsed.value.slug, parsed.intent);
   }
-  const result = await saveAdminProduct({
-    payload: parsed.value,
-    intent: parsed.intent as "save" | "publish" | "unpublish",
-    role: gate.actor.role,
-  });
-  const created = !parsed.value.id && result.status === "ok";
-  const finished = finish(result, result.status === "ok" ? result.productId : parsed.value.id, parsed.value.slug);
-  if (created && result.status === "ok") {
-    redirect(adminProductPath(result.productId));
+  const result =
+    parsed.intent === "publish"
+      ? await publishAdminProduct({ payload: parsed.value, role: gate.actor.role })
+      : parsed.intent === "unpublish"
+        ? await unpublishAdminProduct({ payload: parsed.value, role: gate.actor.role })
+        : await saveAdminProduct({ payload: parsed.value, role: gate.actor.role });
+  const resultId = "productId" in result ? result.productId : undefined;
+  const created = !parsed.value.id && Boolean(resultId);
+  const finished = finish(result, resultId ?? parsed.value.id, parsed.value.slug, parsed.intent);
+  const committed = "committed" in result && result.committed === true;
+  if (created && resultId && (result.status === "ok" || result.status === "published" || committed)) {
+    const notice = result.status === "invalid" ? "?notice=publish" : "";
+    redirect(`${adminProductPath(resultId)}${notice}`);
   }
   return finished;
 }
@@ -110,9 +121,23 @@ export async function uploadAdminProductImageAction(
     if (result.status !== "ok") {
       if (saved) {
         revalidateProduct(productId);
-        return { ...finish(result, productId), productId };
+        return {
+          status: "error",
+          committed: true,
+          productId,
+          message: "Some images were saved. This file was not attached, and the product was not published.",
+        };
       }
-      return finish(result, productId);
+      if (result.status === "invalid") {
+        return { status: "invalid", errors: result.errors, message: result.errors.images };
+      }
+      if (result.status === "forbidden") {
+        return { status: "forbidden", message: ADMIN_FORBIDDEN };
+      }
+      return {
+        status: "error",
+        message: result.status === "error" ? result.message ?? "The image was not saved." : "The image was not saved.",
+      };
     }
     saved = true;
   }
@@ -156,28 +181,52 @@ function finish(
   result: AdminProductMutationResult,
   _productId: string | null | undefined,
   slug?: string,
+  intent?: AdminProductIntent,
 ): AdminProductActionState {
-  if (result.status === "ok") {
+  if (result.status === "ok" || result.status === "published") {
     revalidateProduct(result.productId, slug);
-    return { status: "ok", productId: result.productId };
+    return {
+      status: result.status,
+      productId: result.productId,
+      detail: result.detail,
+      intent,
+    };
   }
   if (result.status === "invalid") {
+    if (result.committed && result.productId) {
+      revalidateProduct(result.productId, slug);
+    }
     return {
       status: "invalid",
       errors: result.errors,
-      message: Object.values(result.errors)[0],
+      message: result.committed ? ADMIN_PRODUCT_PUBLISH_BLOCKED : Object.values(result.errors)[0],
+      detail: result.detail,
+      committed: result.committed,
+      productId: result.productId,
+      intent,
     };
   }
   if (result.status === "forbidden") {
-    return { status: "forbidden", message: ADMIN_FORBIDDEN };
+    return { status: "forbidden", message: ADMIN_FORBIDDEN, intent };
   }
   if (result.status === "stale") {
-    return { status: "stale", message: ADMIN_PRODUCT_STALE };
+    return { status: "stale", message: ADMIN_PRODUCT_STALE, intent };
   }
   if (result.status === "not_found") {
-    return { status: "error", message: ADMIN_PRODUCT_SAVE_FAILED_BODY };
+    return { status: "error", message: ADMIN_PRODUCT_SAVE_FAILED_BODY, intent };
   }
-  return { status: "error", message: result.message ?? ADMIN_PRODUCT_SAVE_FAILED_BODY };
+  if (result.committed && result.productId) {
+    revalidateProduct(result.productId, slug);
+  }
+  return {
+    status: "error",
+    committed: result.committed,
+    productId: result.productId,
+    message: result.committed
+      ? result.message ?? "The product was saved, but the last step did not finish."
+      : result.message ?? ADMIN_PRODUCT_SAVE_FAILED_BODY,
+    intent,
+  };
 }
 
 function revalidateProduct(productId: string, slug?: string) {

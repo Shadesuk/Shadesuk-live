@@ -12,16 +12,23 @@ import {
   ADMIN_PRODUCT_SEARCH_MAX,
   adminProductListQueryString,
   adminProductSlugFromName,
+  allocateClientProductCode,
+  assessPublishReadiness,
   formatGbpMajorInput,
   groupVariantsByColour,
   isProductSlug,
+  nextDraftSku,
   nextUniqueProductSlug,
+  nullableCatalogueText,
   parseAdminFit,
   parseAdminProductListQuery,
   parseAdminProductSaveInput,
   parseGbpMajorInput,
   parseOptionalGbpMajorInput,
+  planVariantPersistence,
+  resolveImageVariantId,
   sanitizeAdminProductSearch,
+  statusAfterDraftSave,
   suggestedVariantSku,
   variantCombinations,
 } from "../src/contracts/admin/products";
@@ -129,7 +136,115 @@ if (formatGbpMajorInput(9900) !== "99" || formatGbpMajorInput(9999) !== "99.99")
 }
 
 if (suggestedVariantSku("frame-01", "Black", "M") !== "FRAME-01-BLACK-M") {
-  throw new Error("Suggested SKUs must stay stable and derived from slug/colour/size.");
+  throw new Error("Suggested SKUs must stay {code}-{colour}-{size} when the code is short.");
+}
+if (suggestedVariantSku("SHD-00042", "Black", null) !== "" || suggestedVariantSku("SHD-00042", "Black", "") !== "") {
+  throw new Error("A SKU must not be suggested until a size exists.");
+}
+const longTitle = "Signature acetate optical frame with extended catalogue title";
+const longSlug = adminProductSlugFromName(`${longTitle} ${"extra".repeat(12)}`);
+const blackSku = suggestedVariantSku("SHD-00042", "Black", "M");
+const tortoiseSku = suggestedVariantSku("SHD-00042", "Tortoise", "L");
+if (
+  blackSku === tortoiseSku ||
+  blackSku.length > 64 ||
+  tortoiseSku.length > 64 ||
+  !blackSku.includes("BLACK") ||
+  !blackSku.includes("M") ||
+  !tortoiseSku.includes("L") ||
+  blackSku.startsWith(longSlug.toUpperCase()) ||
+  tortoiseSku.startsWith(longSlug.toUpperCase())
+) {
+  throw new Error("Long product titles must not become SKUs. Colour and size tokens must both survive.");
+}
+let drafted = "";
+drafted = nextDraftSku({
+  productCode: "SHD-00042",
+  colourName: "Black",
+  sizeName: "M",
+  currentSku: drafted,
+  skuTouched: false,
+});
+const afterFirstSizeKey = drafted;
+drafted = nextDraftSku({
+  productCode: "SHD-00042",
+  colourName: "Black",
+  sizeName: "XL",
+  currentSku: drafted,
+  skuTouched: false,
+});
+if (afterFirstSizeKey === drafted || !drafted.endsWith("-XL")) {
+  throw new Error("Size keystrokes must keep updating an untouched SKU suggestion.");
+}
+if (
+  nextDraftSku({
+    productCode: "SHD-00042",
+    colourName: "Black",
+    sizeName: "S",
+    currentSku: "HAND-MADE",
+    skuTouched: true,
+  }) !== "HAND-MADE"
+) {
+  throw new Error("A manually edited SKU must not be replaced.");
+}
+if (!/^SHD-\d{5}$/.test(allocateClientProductCode())) {
+  throw new Error("Client product codes must use the SHD-##### shape.");
+}
+if (nullableCatalogueText("hello") !== "hello" || nullableCatalogueText("   ") !== null) {
+  throw new Error("Empty catalogue text becomes null only when the submitted value is empty.");
+}
+const keptId = "11111111-1111-4111-8111-111111111111";
+const firstPlan = planVariantPersistence([], [{ clientKey: "new-size", id: null }]);
+const secondPlan = planVariantPersistence([keptId], [{ clientKey: "new-size", id: keptId }]);
+if (firstPlan.inserts.length !== 1 || firstPlan.updates.length !== 0 || firstPlan.remove.length !== 0) {
+  throw new Error("A new size must insert, not pretend to update.");
+}
+if (secondPlan.updates.length !== 1 || secondPlan.inserts.length !== 0 || secondPlan.remove.length !== 0) {
+  throw new Error("A second save must update the adopted variant id instead of deleting it.");
+}
+const liveIds = new Set([keptId]);
+const mappedImage = resolveImageVariantId({
+  variantKeyPresent: true,
+  variantKey: "new-size",
+  storedVariantId: null,
+  keyToId: { "new-size": keptId },
+  liveIds,
+});
+const omittedImage = resolveImageVariantId({
+  variantKeyPresent: false,
+  variantKey: null,
+  storedVariantId: keptId,
+  keyToId: {},
+  liveIds,
+});
+const deletedImage = resolveImageVariantId({
+  variantKeyPresent: true,
+  variantKey: "22222222-2222-4222-8222-222222222222",
+  storedVariantId: keptId,
+  keyToId: {},
+  liveIds,
+});
+if (!mappedImage.ok || mappedImage.variantId !== keptId) {
+  throw new Error("An image client key must resolve to the returned variant uuid.");
+}
+if (!omittedImage.ok || omittedImage.variantId !== keptId) {
+  throw new Error("An omitted image key must leave the stored variant mapping.");
+}
+if (deletedImage.ok) {
+  throw new Error("An image pointing at a deleted variant id must fail the save.");
+}
+const publishBlocked = assessPublishReadiness({
+  name: "Frame 01",
+  slug: "frame-01",
+  disclosure: "High-quality 1:1 Superclone",
+  variants: [],
+  imageCount: 2,
+});
+if (publishBlocked.ok || publishBlocked.errors.variants == null) {
+  throw new Error("Publish must reject a saved product with zero variants, ignoring any stale client rows.");
+}
+if (statusAfterDraftSave("draft") !== "draft" || statusAfterDraftSave("published") === "draft") {
+  throw new Error("Draft save must not change a draft into published or unpublish an existing product.");
 }
 const combos = variantCombinations(["Black", "Brown", "black"], ["M", "L", "XL"]);
 if (combos.length !== 6) {
@@ -294,6 +409,54 @@ if (
   throw new Error("Frame measurements must apply to variants and fit must stay optional.");
 }
 
+const keptDescription = parseAdminProductSaveInput(
+  saveForm({
+    intent: "save",
+    name: "Frame 01",
+    description: "hello",
+    productCode: "SHD-00042",
+    variantCount: "1",
+    variant_0_key: "new-size",
+    variant_0_colourName: "Black",
+    variant_0_sizeName: "M",
+    variant_0_sku: "SHD-00042-BLACK-M",
+    variant_0_price: "49",
+    variant_0_stock: "2",
+  }),
+);
+if (!keptDescription.ok || keptDescription.value.description !== "hello" || keptDescription.value.productCode !== "SHD-00042") {
+  throw new Error("A submitted description and product code must round-trip without being dropped.");
+}
+if (keptDescription.value.variants[0]?.clientKey !== "new-size") {
+  throw new Error("New sizes must keep their client key distinct from the database id.");
+}
+const oversizedSku = parseAdminProductSaveInput(
+  saveForm({
+    intent: "save",
+    name: "Frame 01",
+    variantCount: "1",
+    variant_0_colourName: "Black",
+    variant_0_sizeName: "M",
+    variant_0_sku: "A".repeat(65),
+    variant_0_price: "49",
+    variant_0_stock: "1",
+  }),
+);
+if (oversizedSku.ok || oversizedSku.errors?.sku == null) {
+  throw new Error("SKUs longer than 64 characters must fail closed instead of being truncated.");
+}
+const oversizedCode = parseAdminProductSaveInput(
+  saveForm({
+    intent: "save",
+    name: "Frame 01",
+    productCode: "SHD-000421234",
+    variantCount: "0",
+  }),
+);
+if (oversizedCode.ok || oversizedCode.errors?.productCode == null) {
+  throw new Error("Product codes longer than 12 characters must be rejected.");
+}
+
 const archiveWithoutFields = parseAdminProductSaveInput(
   saveForm({ intent: "archive", productId: "11111111-1111-4111-8111-111111111111" }),
 );
@@ -377,6 +540,12 @@ if (!actions.includes("\"use server\"") || !actions.includes("getAdminGate")) {
 if (!actions.includes("cartActionOriginAllowed") || !actions.includes("hasForbiddenOwnershipKey")) {
   throw new Error("Product mutations must keep origin and ownership-key guards.");
 }
+if (!actions.includes("publishAdminProduct") || !actions.includes("saveAdminProduct")) {
+  throw new Error("Publish and draft save must be separate server paths.");
+}
+if (!actions.includes("ADMIN_PRODUCT_PUBLISH_BLOCKED")) {
+  throw new Error("A blocked publish must not claim that nothing was saved.");
+}
 if (actions.includes("createSupabaseAdminClient") || actions.includes("error.message")) {
   throw new Error("Actions must not use the service-role client or leak database errors.");
 }
@@ -426,6 +595,15 @@ if (editor.includes("ADMIN_PRODUCT_VARIANT_STATUS") || editor.includes("VARIANT_
 if (!editor.includes("ADMIN_PRODUCT_PLACEMENT")) {
   throw new Error("Product editor must show storefront placement.");
 }
+if (editor.includes("defaultValue") || editor.includes("defaultChecked")) {
+  throw new Error("Catalogue fields must be controlled so a failed save cannot reset them.");
+}
+if (!editor.includes("value={description}") || !editor.includes("skuTouched")) {
+  throw new Error("Description and SKU suggestion state must survive an action result.");
+}
+if (!editor.includes("nextDraftSku") || editor.includes("suggestedVariantSku(generatedSlug")) {
+  throw new Error("SKU suggestions must use the product code, not the title slug.");
+}
 
 const images = read("src/components/admin/AdminProductImages.tsx");
 if (!images.includes("ADMIN_PRODUCT_IMAGE_MOVE_UP") || !images.includes("ADMIN_PRODUCT_IMAGE_MOVE_DOWN")) {
@@ -442,6 +620,12 @@ if (images.includes("variants[0]") || images.includes("colourVariantId")) {
 }
 if (!images.includes("ADMIN_PRODUCT_IMAGE_NONE")) {
   throw new Error("Image upload must allow a product-level association when no variant is selected.");
+}
+if (images.includes("defaultValue")) {
+  throw new Error("Image alt and variant selects must be controlled so save cannot reset them.");
+}
+if (!images.includes("variant_id") && !images.includes("imageVariant:")) {
+  throw new Error("Image mapping must keep the variant select on product_images.variant_id.");
 }
 
 const imageActions = read("src/app/admin/products/actions.ts");
@@ -475,6 +659,29 @@ if (!imageService.includes('!input.variantId && !hasProductPrimary ? "primary" :
 if (!imageService.includes("sort_order: rows.length")) {
   throw new Error("New images must append by sort_order.");
 }
+if (!imageService.includes(".remove([objectPath])")) {
+  throw new Error("A database insert failure must remove the storage object.");
+}
+if (!imageService.includes("The image was uploaded to storage but was not saved on the product.")) {
+  throw new Error("Storage and database failures must be reported separately from a successful upload.");
+}
+const uploadFn = imageService.slice(
+  imageService.indexOf("export async function uploadAdminProductImage"),
+  imageService.indexOf("export async function deleteAdminProductImage"),
+);
+if (uploadFn.includes('status: "published"') || uploadFn.includes("admin_publish_product")) {
+  throw new Error("Image upload must not publish the product.");
+}
+if (!imageService.includes('rpc("admin_save_product"')) {
+  throw new Error("Product save must be one admin_save_product RPC.");
+}
+const saveFn = imageService.slice(
+  imageService.indexOf("export async function saveAdminProduct"),
+  imageService.indexOf("export async function publishAdminProduct"),
+);
+if (saveFn.includes('status: "published"') || saveFn.includes("admin_publish_product")) {
+  throw new Error("Draft save must not publish the product.");
+}
 
 const imageLib = read("src/lib/admin-product-image.ts");
 if (!imageLib.includes("webp") || !imageLib.includes("sniffImageType") || !imageLib.includes("resize")) {
@@ -497,6 +704,49 @@ if (!migration.includes("private.is_admin()") || !migration.includes("product_im
 const rls = read("supabase/migrations/20260916063709_admin_v1_role_rls.sql");
 if (!rls.includes("products_admin_update") || !rls.includes("products_superadmin_delete")) {
   throw new Error("Existing product archive/delete RLS must remain the authorization boundary.");
+}
+
+const saveMigration = read("supabase/migrations/20260930190000_admin_save_product.sql");
+if (!saveMigration.includes("security definer") || !saveMigration.includes("private.is_admin()")) {
+  throw new Error("admin_save_product must be security definer and check private.is_admin().");
+}
+if (!saveMigration.includes("revoke all on function public.admin_save_product(jsonb) from public, anon")) {
+  throw new Error("admin_save_product must revoke public execute.");
+}
+if (!saveMigration.includes("grant execute on function public.admin_save_product(jsonb) to authenticated")) {
+  throw new Error("admin_save_product must be callable by the authenticated user client.");
+}
+if (/^\s*truncate\s+/im.test(saveMigration) || /delete\s+from\s+public\.products\b/i.test(saveMigration)) {
+  throw new Error("The save migration must not truncate or mass-delete the catalogue.");
+}
+if (/\b(credit|wallet|voucher|gift)\b/i.test(saveMigration)) {
+  throw new Error("The save migration must not invent store credit.");
+}
+const saveSql = saveMigration.slice(
+  saveMigration.indexOf("function public.admin_save_product"),
+  saveMigration.indexOf("function public.admin_publish_product"),
+);
+if (saveSql.includes("'published'") || saveSql.includes("status = 'published'")) {
+  throw new Error("admin_save_product must not set catalogue status to published.");
+}
+if (!saveSql.includes("returning id into v_new_id") || !saveSql.includes("not (id = any(v_keep))")) {
+  throw new Error("New variants must return ids, and existing variants must be updated rather than recreated.");
+}
+if (!saveSql.includes("raise exception 'image_variant_missing'") || !saveSql.includes("rolledBack")) {
+  throw new Error("A bad image mapping must fail the whole save.");
+}
+if (!saveMigration.includes("variant_id is null")) {
+  throw new Error("Product-level primary assignment must not clear variant-scoped primaries.");
+}
+const publishSql = saveMigration.slice(
+  saveMigration.indexOf("function public.admin_publish_product"),
+  saveMigration.indexOf("function public.admin_unpublish_product"),
+);
+if (!publishSql.includes("for update") || !publishSql.includes("'published'")) {
+  throw new Error("Publish must lock the saved row and set published only after the checks.");
+}
+if (publishSql.includes("payload")) {
+  throw new Error("Publish must read the database row, not the unsaved form payload.");
 }
 
 const sources = [

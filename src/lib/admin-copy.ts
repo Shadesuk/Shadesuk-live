@@ -166,6 +166,9 @@ export const ADMIN_PRODUCT_NAME = "Name";
 export const ADMIN_PRODUCT_SLUG = "Generated slug";
 export const ADMIN_PRODUCT_SLUG_HINT = "Created from the product name. This URL does not change after the product is saved.";
 export const ADMIN_PRODUCT_BRAND = "Brand";
+export const ADMIN_PRODUCT_CODE = "Product code";
+export const ADMIN_PRODUCT_CODE_HINT =
+  "Short code used in SKUs, separate from the URL. Example: SHD-10421. Existing SKUs stay until you edit them.";
 export const ADMIN_PRODUCT_DESCRIPTION = "Description";
 export const ADMIN_PRODUCT_MATERIALS = "Materials";
 export const ADMIN_PRODUCT_INCLUDED = "What’s included";
@@ -225,6 +228,10 @@ export const ADMIN_PRODUCT_SAVE = "Save changes";
 export const ADMIN_PRODUCT_SAVING = "Saving";
 export const ADMIN_PRODUCT_SAVED_JUST_NOW = "Saved just now";
 export const ADMIN_PRODUCT_PUBLISH = "Publish";
+export const ADMIN_PRODUCT_PUBLISHED_BANNER = "Published";
+export const ADMIN_PRODUCT_UNPUBLISHED_BANNER = "Unpublished";
+export const ADMIN_PRODUCT_PUBLISH_BLOCKED =
+  "The product was saved, but it is not published yet. It needs a sellable variant and an image.";
 export const ADMIN_PRODUCT_UNPUBLISH = "Unpublish";
 export const ADMIN_PRODUCT_ARCHIVE = "Archive";
 export const ADMIN_PRODUCT_DELETE = "Delete permanently";
