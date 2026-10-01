@@ -458,7 +458,7 @@ async function commitAdminProduct(payload: AdminProductSaveInput): Promise<Admin
       payload: adminSaveRpcPayload(payload, allocatedSlug),
     });
     if (error) {
-      return { status: "error" };
+      return { status: "error", message: error.message };
     }
     const parsed = readRpcBody(data);
     if (!parsed) {
@@ -566,6 +566,8 @@ function readRpcBody(data: unknown): {
   field: string;
   code: string;
   rolledBack: boolean;
+  message: string;
+  sqlstate: string;
 } | null {
   if (!data || typeof data !== "object") {
     return null;
@@ -577,6 +579,8 @@ function readRpcBody(data: unknown): {
     field: typeof row.field === "string" ? row.field : "",
     code: typeof row.code === "string" ? row.code : "",
     rolledBack: row.rolledBack === true,
+    message: typeof row.message === "string" ? row.message.slice(0, 500) : "",
+    sqlstate: typeof row.sqlstate === "string" ? row.sqlstate : "",
   };
 }
 
@@ -586,6 +590,8 @@ function mutationFromRpc(parsed: {
   field: string;
   code: string;
   rolledBack: boolean;
+  message: string;
+  sqlstate: string;
 }): AdminProductMutationResult {
   if (parsed.status === "forbidden") {
     return { status: "forbidden" };
@@ -597,9 +603,26 @@ function mutationFromRpc(parsed: {
     return { status: "stale" };
   }
   if (parsed.status === "invalid") {
-    return { status: "invalid", errors: rpcFieldErrors(parsed.code, parsed.field) };
+    const errors = rpcFieldErrors(parsed.code, parsed.field);
+    const exact = parsed.message
+      ? parsed.sqlstate
+        ? `${parsed.message} (${parsed.sqlstate})`
+        : parsed.message
+      : "";
+    return {
+      status: "invalid",
+      errors,
+      message: exact || Object.values(errors)[0],
+    };
   }
-  return { status: "error" };
+  return {
+    status: "error",
+    message: parsed.message
+      ? parsed.sqlstate
+        ? `${parsed.message} (${parsed.sqlstate})`
+        : parsed.message
+      : undefined,
+  };
 }
 
 function rpcFieldErrors(code: string, field: string): Record<string, string> {
@@ -636,6 +659,9 @@ function rpcFieldErrors(code: string, field: string): Record<string, string> {
   }
   if (code === "publish_incomplete") {
     return { name: "Publish needs a saved product name, URL, and disclosure." };
+  }
+  if (code === "variant_invalid" && field === "price") {
+    return { price: "Enter a valid price in pounds and pence." };
   }
   return { variants: "The product could not be saved." };
 }

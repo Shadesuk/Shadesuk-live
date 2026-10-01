@@ -59,7 +59,12 @@ export async function saveAdminProductAction(
     return { status: "forbidden", message: ADMIN_FORBIDDEN, values: parsed.ok ? undefined : parsed.values };
   }
   if (!parsed.ok) {
-    return { status: "invalid", errors: parsed.errors, values: parsed.values };
+    return {
+      status: "invalid",
+      errors: parsed.errors,
+      values: parsed.values,
+      message: Object.values(parsed.errors)[0],
+    };
   }
   if (parsed.intent === "archive") {
     const result = await archiveAdminProduct({ productId: parsed.value.id ?? "", role: gate.actor.role });
@@ -199,7 +204,9 @@ function finish(
     return {
       status: "invalid",
       errors: result.errors,
-      message: result.committed ? ADMIN_PRODUCT_PUBLISH_BLOCKED : Object.values(result.errors)[0],
+      message: result.committed
+        ? ADMIN_PRODUCT_PUBLISH_BLOCKED
+        : result.message || Object.values(result.errors)[0],
       detail: result.detail,
       committed: result.committed,
       productId: result.productId,
