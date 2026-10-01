@@ -430,6 +430,86 @@ if (!keptDescription.ok || keptDescription.value.description !== "hello" || kept
 if (keptDescription.value.variants[0]?.clientKey !== "new-size") {
   throw new Error("New sizes must keep their client key distinct from the database id.");
 }
+const blankSibling = parseAdminProductSaveInput(
+  saveForm({
+    intent: "save",
+    name: "Frame 01",
+    productCode: "SHD-00041",
+    variantCount: "2",
+    variant_0_key: "new-filled",
+    variant_0_colourName: "BLK",
+    variant_0_sizeName: "M",
+    variant_0_sku: "SHD-00041-BLK-M",
+    variant_0_price: "49",
+    variant_0_compareAt: "",
+    variant_0_stock: "0",
+    variant_1_key: "new-blank",
+    variant_1_colourName: "BLK",
+    variant_1_sizeName: "",
+    variant_1_sku: "",
+    variant_1_price: "",
+    variant_1_compareAt: "",
+    variant_1_stock: "0",
+  }),
+);
+if (!blankSibling.ok || blankSibling.value.variants.length !== 1 || blankSibling.value.variants[0]?.sku !== "SHD-00041-BLK-M") {
+  throw new Error("A blank size row that only inherited its colour name must not fail the variant save.");
+}
+if (blankSibling.value.variants[0]?.priceMinor !== 4900) {
+  throw new Error("A filled variant beside a blank size row must keep its price in minor units.");
+}
+const four = parseAdminProductSaveInput(
+  saveForm({
+    intent: "save",
+    name: "Frame 01",
+    productCode: "SHD-00041",
+    variantCount: "4",
+    variant_0_key: "a",
+    variant_0_colourName: "BLK",
+    variant_0_sizeName: "S",
+    variant_0_sku: "SHD-00041-BLK-S",
+    variant_0_price: "49",
+    variant_0_stock: "1",
+    variant_1_key: "b",
+    variant_1_colourName: "BLK",
+    variant_1_sizeName: "M",
+    variant_1_sku: "SHD-00041-BLK-M",
+    variant_1_price: "49",
+    variant_1_stock: "1",
+    variant_2_key: "c",
+    variant_2_colourName: "BRN",
+    variant_2_sizeName: "S",
+    variant_2_sku: "SHD-00041-BRN-S",
+    variant_2_price: "49",
+    variant_2_stock: "1",
+    variant_3_key: "d",
+    variant_3_colourName: "BRN",
+    variant_3_sizeName: "M",
+    variant_3_sku: "SHD-00041-BRN-M",
+    variant_3_price: "49",
+    variant_3_stock: "1",
+  }),
+);
+if (!four.ok || four.value.variants.length !== 4) {
+  throw new Error("Four filled colour/size rows must parse into one atomic variant payload.");
+}
+const keptExistingBlankSibling = parseAdminProductSaveInput(
+  saveForm({
+    intent: "save",
+    name: "Frame 01",
+    variantCount: "1",
+    variant_0_id: "11111111-1111-4111-8111-111111111111",
+    variant_0_key: "11111111-1111-4111-8111-111111111111",
+    variant_0_colourName: "BLK",
+    variant_0_sizeName: "",
+    variant_0_sku: "",
+    variant_0_price: "",
+    variant_0_stock: "0",
+  }),
+);
+if (keptExistingBlankSibling.ok) {
+  throw new Error("An existing variant id must not be dropped when its price or SKU is missing.");
+}
 const oversizedSku = parseAdminProductSaveInput(
   saveForm({
     intent: "save",
@@ -747,6 +827,23 @@ if (!publishSql.includes("for update") || !publishSql.includes("'published'")) {
 }
 if (publishSql.includes("payload")) {
   throw new Error("Publish must read the database row, not the unsaved form payload.");
+}
+
+const variantFix = read("supabase/migrations/20261001070126_fix_admin_save_product_variant_errors.sql");
+if (!variantFix.includes("security definer") || !variantFix.includes("private.is_admin()") || !variantFix.includes("sqlerrm")) {
+  throw new Error("The variant save fix must stay security definer and return sqlerrm.");
+}
+if (!variantFix.includes("not_null_violation") || !variantFix.includes("price_minor")) {
+  throw new Error("A null variant price must surface the not-null violation instead of a generic save error.");
+}
+if (variantFix.includes("'published'") || variantFix.includes("status = 'published'") || /delete\s+from\s+public\.products\b/i.test(variantFix)) {
+  throw new Error("The variant save fix must not publish or delete products.");
+}
+if (!variantFix.includes("returning id into v_new_id") || !variantFix.includes("not (id = any(v_keep))")) {
+  throw new Error("The variant save fix must keep insert-returning ids and stable updates.");
+}
+if (!editor.includes("submittedProductId") || !editor.includes("product?.id || productId")) {
+  throw new Error("A follow-up save must submit the saved product id, not start another insert.");
 }
 
 const sources = [

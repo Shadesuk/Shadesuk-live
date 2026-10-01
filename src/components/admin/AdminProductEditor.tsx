@@ -246,6 +246,7 @@ export function AdminProductEditor({
 
   const [seenAction, setSeenAction] = useState(state);
   const [seenImages, setSeenImages] = useState(images);
+  const [seenProductId, setSeenProductId] = useState(product?.id ?? "");
   function applyAuthoritativeDetail(detail: AdminProductDetailView) {
     setProductId(detail.id);
     setUpdatedAt(detail.updatedAt);
@@ -293,8 +294,18 @@ export function AdminProductEditor({
       return next;
     });
   }
+  if ((product?.id ?? "") !== seenProductId) {
+    setSeenProductId(product?.id ?? "");
+    if (product?.id) {
+      setProductId(product.id);
+      setUpdatedAt(product.updatedAt);
+    }
+  }
   if (state !== seenAction) {
     setSeenAction(state);
+    if (state.productId) {
+      setProductId(state.productId);
+    }
     if (state.detail && (state.status === "ok" || state.status === "published" || state.committed)) {
       applyAuthoritativeDetail(state.detail);
       setDirty(false);
@@ -321,6 +332,8 @@ export function AdminProductEditor({
   const canArchive = canArchiveProduct(role);
   const canDelete = canDeleteProduct(role);
   const generatedSlug = slug || adminProductSlugFromName(name);
+  const submittedProductId = product?.id || productId;
+  const submittedUpdatedAt = updatedAt || product?.updatedAt || "";
   const variants = useMemo(
     () =>
       colours.flatMap((colour) =>
@@ -376,8 +389,8 @@ export function AdminProductEditor({
       />
       <div className={styles.editor}>
         <form id="admin-product-form" className={styles.stack} action={action} onChange={markDirty} noValidate>
-          {productId ? <input type="hidden" name="productId" value={productId} /> : null}
-          {productId ? <input type="hidden" name="updatedAt" value={updatedAt} /> : null}
+          {submittedProductId ? <input type="hidden" name="productId" value={submittedProductId} /> : null}
+          {submittedProductId ? <input type="hidden" name="updatedAt" value={submittedUpdatedAt} /> : null}
           <input type="hidden" name="variantCount" value={String(variants.length)} />
           {imageList.length > 0 ? (
             <input type="hidden" name="imageOrder" value={imageList.map((image) => image.id).join(",")} />
@@ -1150,17 +1163,20 @@ function formBanner(
       </p>
     );
   }
+  if (state.status === "invalid") {
+    const message = state.message || state.errors?.status;
+    if (message) {
+      return (
+        <p className={`text-small ${styles.banner}`} role="alert">
+          {message}
+        </p>
+      );
+    }
+  }
   if (state.status === "error" && state.committed) {
     return (
       <p className={`text-small ${styles.banner}`} role="alert">
         {state.message}
-      </p>
-    );
-  }
-  if (state.status === "invalid" && state.errors?.status) {
-    return (
-      <p className={`text-small ${styles.banner}`} role="alert">
-        {state.errors.status}
       </p>
     );
   }

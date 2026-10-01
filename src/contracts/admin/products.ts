@@ -814,12 +814,20 @@ function parseVariantInputs(
     const clientKey = readOptionalText(form.get(`${prefix}key`), 80);
     const statusRaw = readOptionalText(form.get(`${prefix}status`), 24);
     const stockRaw = Number.parseInt(String(form.get(`${prefix}stock`) ?? "0"), 10);
-    const price = parseGbpMajorInput(form.get(`${prefix}price`));
-    const compare = parseOptionalGbpMajorInput(form.get(`${prefix}compareAt`));
+    const priceRaw = typeof form.get(`${prefix}price`) === "string" ? String(form.get(`${prefix}price`)) : "";
+    const compareRaw = typeof form.get(`${prefix}compareAt`) === "string" ? String(form.get(`${prefix}compareAt`)) : "";
+    const skuRaw = typeof form.get(`${prefix}sku`) === "string" ? String(form.get(`${prefix}sku`)).trim() : "";
+    const price = parseGbpMajorInput(priceRaw);
+    const compare = parseOptionalGbpMajorInput(compareRaw);
     const lens = parseOptionalMm(form.get(`${prefix}lens`)) ?? measurements.lensWidthMm;
     const bridge = parseOptionalMm(form.get(`${prefix}bridge`)) ?? measurements.bridgeWidthMm;
     const temple = parseOptionalMm(form.get(`${prefix}temple`)) ?? measurements.templeLengthMm;
-    if (!colourName && !sku && !price.ok) {
+    const id = readOptionalText(form.get(`${prefix}id`), 36) || null;
+    // A new colour always includes one empty size, and Add size leaves another.
+    // The parent colour name is copied onto that row, so it is not blank unless
+    // size, SKU, price, and compare-at are all empty. Skipping it keeps a filled
+    // sibling in the same atomic save. An existing variant id is never skipped.
+    if (!id && !sizeName && !skuRaw && !priceRaw.trim() && !compareRaw.trim()) {
       continue;
     }
     if (!colourName) {
@@ -863,7 +871,6 @@ function parseVariantInputs(
       continue;
     }
     skus.add(skuKey);
-    const id = readOptionalText(form.get(`${prefix}id`), 36) || null;
     variants.push({
       clientKey: clientKey || id || `row-${index}`,
       id,
