@@ -31,13 +31,16 @@ import {
   isPaymentStatus,
   isShipmentStatus,
 } from "@/contracts/admin/dashboard";
+import { isCancellationDispatchLock, readRefundStatus } from "@/contracts/order/cancellation";
 import {
   AWAITING_FULFILMENT_ORDER_STATUSES,
   AWAITING_FULFILMENT_PAYMENT_STATUS,
+  isDispatchConfirmationOrderStatus,
   isIdempotentDispatch,
   legalOrderStatusPath,
   orderStatusForShipment,
 } from "@/contracts/fulfilment/dispatch";
+import { isShipmentConfirmationStatus } from "@/contracts/fulfilment/shipment";
 import type { ShipmentStatus } from "@/contracts/fulfilment/shipment";
 import type { OrderStatus } from "@/contracts/order/schema";
 import { isUuid } from "@/lib/ids";
@@ -47,9 +50,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { safeHttpUrl } from "@/lib/tracking-url";
 
 const LIST_COLUMNS =
-  "id, order_reference, user_id, customer_email, customer_first_name, customer_last_name, status, payment_status, total_minor, created_at";
+  "id, order_reference, user_id, customer_email, customer_first_name, customer_last_name, status, payment_status, total_minor, created_at, cancelled_at, refund_status";
 const DETAIL_COLUMNS =
-  "id, order_reference, user_id, customer_email, customer_first_name, customer_last_name, status, payment_status, subtotal_minor, shipping_minor, total_minor, delivery_address, created_at";
+  "id, order_reference, user_id, customer_email, customer_first_name, customer_last_name, status, payment_status, subtotal_minor, shipping_minor, total_minor, delivery_address, created_at, cancelled_at, refund_status, refund_amount_minor, refund_payment_reference, refund_marked_at, refund_marked_by";
+const LOCK_COLUMNS = "id, status, payment_status, cancelled_at, refund_status";
 const ITEM_COLUMNS =
   "id, product_name, colour_name, variant_name, quantity, unit_price_minor, line_total_minor";
 const SHIPMENT_COLUMNS =
@@ -99,7 +103,7 @@ export async function loadAdminOrderList(
       .order("created_at", { ascending: false })
       .range(from, to);
     if (query.fulfilment === "awaiting") {
-      request = request.eq("payment_status", AWAITING_FULFILMENT_PAYMENT_STATUS);
+      request = request.eq("payment_status", AWAITING_FULFILMENT_PAYMENT_STATUS).is("cancelled_at", null);
       request = query.status
         ? request.eq("status", query.status)
         : request.in("status", [...AWAITING_FULFILMENT_ORDER_STATUSES]);
@@ -268,7 +272,7 @@ export async function updateAdminOrderStatus(input: {
     const supabase = await createSupabaseServerClient();
     const current = await supabase
       .from("orders")
-      .select("id, status, payment_status")
+      .select(LOCK_COLUMNS)
       .eq("id", input.orderId)
       .maybeSingle();
     if (current.error) {
@@ -286,6 +290,12 @@ export async function updateAdminOrderStatus(input: {
     }
     if (parsed.status === current.data.status) {
       return { status: "ok" };
+    }
+    if (
+      rowDispatchLocked(current.data) &&
+      isDispatchConfirmationOrderStatus(parsed.status)
+    ) {
+      return { status: "invalid", errors: { status: ADMIN_DISPATCH_BLOCKED_ERROR } };
     }
     const updated = await supabase
       .from("orders")
@@ -348,7 +358,7 @@ export async function saveAdminFulfilment(input: {
     const supabase = await createSupabaseServerClient();
     const order = await supabase
       .from("orders")
-      .select("id, status, payment_status")
+      .select(LOCK_COLUMNS)
       .eq("id", input.orderId)
       .maybeSingle();
     if (order.error) {
@@ -356,6 +366,12 @@ export async function saveAdminFulfilment(input: {
     }
     if (!order.data) {
       return { status: "not_found" };
+    }
+    if (
+      rowDispatchLocked(order.data) &&
+      isShipmentConfirmationStatus(parsed.value.status)
+    ) {
+      return { status: "invalid", errors: { status: ADMIN_DISPATCH_BLOCKED_ERROR } };
     }
     const existing = await supabase
       .from("shipments")
@@ -391,7 +407,7 @@ export async function saveAdminFulfilment(input: {
         .select("id")
         .maybeSingle();
       if (updated.error || !updated.data) {
-        return { status: "error" };
+        return shipmentMutationResult(updated.error);
       }
       const event = await supabase.from("order_events").insert({
         order_id: input.orderId,
@@ -431,7 +447,7 @@ export async function saveAdminFulfilment(input: {
       .select("id")
       .maybeSingle();
     if (created.error || !created.data || typeof created.data.id !== "string") {
-      return { status: "error" };
+      return shipmentMutationResult(created.error);
     }
     const event = await supabase.from("order_events").insert({
       order_id: input.orderId,
@@ -459,6 +475,15 @@ export async function saveAdminFulfilment(input: {
   } catch {
     return { status: "error" };
   }
+}
+
+function shipmentMutationResult(
+  error: { message?: string } | null | undefined,
+): AdminOrderMutationResult {
+  if ((error?.message ?? "").includes("order_not_dispatchable")) {
+    return { status: "invalid", errors: { status: ADMIN_DISPATCH_BLOCKED_ERROR } };
+  }
+  return { status: "error" };
 }
 
 function shipmentWritePayload(
@@ -565,6 +590,8 @@ async function syncOrderStatusWithShipment(
       .update({ status: next, updated_at: new Date().toISOString() })
       .eq("id", orderId)
       .eq("status", current)
+      .eq("payment_status", AWAITING_FULFILMENT_PAYMENT_STATUS)
+      .is("cancelled_at", null)
       .select("id")
       .maybeSingle();
     if (updated.error || !updated.data) {
@@ -612,7 +639,7 @@ export async function dispatchAdminOrder(input: {
     const supabase = await createSupabaseServerClient();
     const order = await supabase
       .from("orders")
-      .select("id, status, payment_status")
+      .select(LOCK_COLUMNS)
       .eq("id", input.orderId)
       .maybeSingle();
     if (order.error) {
@@ -620,6 +647,9 @@ export async function dispatchAdminOrder(input: {
     }
     if (!order.data) {
       return { status: "not_found" };
+    }
+    if (rowDispatchLocked(order.data)) {
+      return { status: "invalid", errors: { status: ADMIN_DISPATCH_BLOCKED_ERROR } };
     }
     if (order.data.payment_status !== AWAITING_FULFILMENT_PAYMENT_STATUS) {
       return { status: "invalid", errors: { payment: ADMIN_DISPATCH_UNPAID_ERROR } };
@@ -655,7 +685,7 @@ export async function dispatchAdminOrder(input: {
     if (shipmentId) {
       const updated = await supabase.from("shipments").update(payload).eq("id", shipmentId).select("id").maybeSingle();
       if (updated.error || !updated.data) {
-        return { status: "error" };
+        return shipmentMutationResult(updated.error);
       }
     } else {
       const inserted = await supabase
@@ -678,11 +708,11 @@ export async function dispatchAdminOrder(input: {
         }
         const updated = await supabase.from("shipments").update(payload).eq("id", raced.id).select("id").maybeSingle();
         if (updated.error || !updated.data) {
-          return { status: "error" };
+          return shipmentMutationResult(updated.error);
         }
         shipmentId = raced.id;
       } else if (inserted.error || !inserted.data || typeof inserted.data.id !== "string") {
-        return { status: "error" };
+        return shipmentMutationResult(inserted.error);
       } else {
         shipmentId = inserted.data.id;
         created = true;
@@ -770,6 +800,8 @@ function parseListItem(value: unknown): AdminOrderListItem | null {
     paymentStatus: row.payment_status,
     orderStatus: row.status,
     totalMinor: row.total_minor as number,
+    cancelledAt: typeof row.cancelled_at === "string" ? row.cancelled_at : null,
+    refundStatus: readRefundStatus(row.refund_status),
   };
 }
 
@@ -804,7 +836,23 @@ function parseDetailOrder(
     subtotalMinor: row.subtotal_minor as number,
     shippingMinor: row.shipping_minor as number,
     totalMinor: list.totalMinor,
+    cancelledAt: typeof row.cancelled_at === "string" ? row.cancelled_at : null,
+    refundStatus: readRefundStatus(row.refund_status),
+    refundAmountMinor: Number.isInteger(row.refund_amount_minor) ? (row.refund_amount_minor as number) : null,
+    refundPaymentReference:
+      typeof row.refund_payment_reference === "string" && row.refund_payment_reference.trim()
+        ? row.refund_payment_reference.trim()
+        : null,
+    refundMarkedAt: typeof row.refund_marked_at === "string" ? row.refund_marked_at : null,
+    refundMarkedBy: typeof row.refund_marked_by === "string" ? row.refund_marked_by : null,
   };
+}
+
+function rowDispatchLocked(row: { cancelled_at?: unknown; refund_status?: unknown }): boolean {
+  return isCancellationDispatchLock({
+    cancelledAt: typeof row.cancelled_at === "string" ? row.cancelled_at : null,
+    refundStatus: typeof row.refund_status === "string" ? row.refund_status : null,
+  });
 }
 
 function parseItem(value: unknown): AdminOrderItemView | null {

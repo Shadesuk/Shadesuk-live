@@ -40,6 +40,29 @@ export const ADMIN_ORDER_COL_PAYMENT = "Payment";
 export const ADMIN_ORDER_COL_STATUS = "Status";
 export const ADMIN_NO_ORDERS_TITLE = "No orders yet";
 export const ADMIN_NO_ORDERS_BODY = "New orders will appear here.";
+export const ADMIN_REFUND_ALERTS_TITLE = "Refunds pending";
+export const ADMIN_REFUND_ALERTS_BODY =
+  "Refund these captured payments in PayPal, then mark each order refunded. Overdue refunds stay here until they are marked.";
+export const ADMIN_REFUND_VIEW_ORDER = "View order";
+export const ADMIN_REFUND_DUE = "Due";
+export const ADMIN_REFUND_AMOUNT = "Amount";
+export const ADMIN_REFUND_URGENCY_PENDING = "Pending";
+export const ADMIN_REFUND_URGENCY_APPROACHING = "Approaching";
+export const ADMIN_REFUND_URGENCY_OVERDUE = "Overdue";
+export const ADMIN_REFUND_ALERTS_UNAVAILABLE = "Refund alerts could not be loaded.";
+export const ADMIN_REFUND_SECTION = "Refund";
+export const ADMIN_REFUND_PENDING_BODY =
+  "This order is cancelled. Refund the captured payment in PayPal, then confirm it here. This does not send a refund.";
+export const ADMIN_REFUND_MARK = "Mark as refunded";
+export const ADMIN_REFUND_MARKING = "Marking refunded";
+export const ADMIN_REFUND_CONFIRM_TITLE = "Confirm the PayPal refund";
+export const ADMIN_REFUND_CONFIRM_BODY =
+  "Confirm that this payment has already been refunded in PayPal. This does not contact PayPal.";
+export const ADMIN_REFUND_KEEP_PENDING = "Keep pending";
+export const ADMIN_REFUND_PAYMENT_REFERENCE = "Payment reference";
+export const ADMIN_REFUND_MARKED_BODY = "Marked refunded after the PayPal refund was confirmed.";
+export const ADMIN_REFUND_MARKED_AT = "Confirmed";
+export const ADMIN_REFUND_FAILED = "The refund status could not be updated.";
 export const ADMIN_ALERTS_TITLE = "Needs attention";
 export const ADMIN_ALL_CLEAR_TITLE = "All clear";
 export const ADMIN_ALL_CLEAR_BODY =

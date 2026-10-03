@@ -22,6 +22,9 @@ import {
 } from "@/lib/account-copy";
 import { formatGbp } from "@/lib/money";
 import {
+  REFUND_PENDING_CUSTOMER_NOTICE,
+} from "@/lib/cancellation-copy";
+import {
   CANCELLED_BODY,
   CANCELLED_STATUS_LABEL,
   DELIVERY_UPDATE_BODY,
@@ -66,6 +69,7 @@ export type OrderDetailModel = {
   shipment: CustomerShipmentView | null;
   paymentState?: CustomerPaymentState;
   cancelled?: boolean;
+  refundPending?: boolean;
 };
 
 type OrderDetailProps = {
@@ -106,7 +110,7 @@ export function OrderDetail({ order, variant, trackHref, footer }: OrderDetailPr
         ) : (
           <h1 className="text-h2">{formatOrderHeading(order.orderReference)}</h1>
         )}
-        {variant === "account" ? <p className="text-micro">{ORDER_CONFIRMED}</p> : null}
+        {variant === "account" && !cancelled ? <p className="text-micro">{ORDER_CONFIRMED}</p> : null}
         <OrderStatus label={statusLabel} />
         {placed ? <p className="text-small">{placed}</p> : null}
       </header>
@@ -189,6 +193,7 @@ export function OrderDetail({ order, variant, trackHref, footer }: OrderDetailPr
               {CANCELLED_STATUS_LABEL}
             </h3>
             <p className="text-small">{CANCELLED_BODY}</p>
+            {order.refundPending ? <p className="text-small">{REFUND_PENDING_CUSTOMER_NOTICE}</p> : null}
           </div>
         ) : null}
 

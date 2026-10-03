@@ -25,8 +25,37 @@
   }
 }
 
-@media (max-width: 767px) {
-  .mobileTwo :global([data-product-grid] li:nth-child(n + 3)) {
+.swipeHint {
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .swipeHint {
     display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Featured and new-arrival rails used to hide item 3+ with display:none,
+     so products 3 and 4 could not be reached. Keep two cards in view and
+     let the rest scroll. */
+  .mobileTwo :global([data-product-grid] .grid--product) {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: calc((100% - var(--grid-gap)) / 2);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: var(--space-8);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobileTwo :global([data-product-grid] li) {
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .mobileTwo :global([data-product-grid] .grid--product) {
+    scroll-behavior: auto;
   }
 }

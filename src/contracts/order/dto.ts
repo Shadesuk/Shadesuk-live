@@ -1,3 +1,4 @@
+import { evaluateCancellationEligibility, readRefundStatus } from "./cancellation";
 import { minorToMajorGbp, STORE_CURRENCY } from "../money";
 import type { CustomerPaymentState } from "../payment/stub";
 import { customerPaymentState } from "../payment/stub";
@@ -67,6 +68,10 @@ export type CustomerOrderView = {
   shipment: CustomerShipmentView | null;
   events: CustomerVisibleOrderEventView[];
   cancelled: boolean;
+  /** True while a paid cancellation still owes a manual refund. */
+  refundPending?: boolean;
+  /** Server policy. Omitted means the surface must not offer cancellation. */
+  cancellationEligible?: boolean;
 };
 
 /**
@@ -99,6 +104,8 @@ export type GuestOrderTrackingView = {
   deliveryAddress: GuestDeliveryAddressView | null;
   shipment: CustomerShipmentView | null;
   cancelled: boolean;
+  refundPending?: boolean;
+  cancellationEligible?: boolean;
 };
 
 export function toOrderItemSnapshotView(row: OrderItemRow): OrderItemSnapshotView {
@@ -138,7 +145,9 @@ export function toGuestOrderTrackingView(input: {
     currency: STORE_CURRENCY,
     deliveryAddress: toGuestDeliveryAddress(input.order.delivery_address),
     shipment: input.shipment,
-    cancelled: input.order.payment_status === "cancelled",
+    cancelled: isCustomerOrderCancelled(input.order),
+    refundPending: isRefundPending(input.order),
+    cancellationEligible: orderCancellationEligible(input.order, input.shipment),
   };
 }
 
@@ -167,7 +176,9 @@ export function toCustomerOrderView(input: {
     paymentState: customerPaymentState(input.order.payment_status),
     shipment: input.shipment,
     events: toCustomerVisibleOrderEvents(input.events ?? []),
-    cancelled: input.order.payment_status === "cancelled",
+    cancelled: isCustomerOrderCancelled(input.order),
+    refundPending: isRefundPending(input.order),
+    cancellationEligible: orderCancellationEligible(input.order, input.shipment),
   };
 }
 
@@ -188,9 +199,38 @@ export function toCustomerOrderListItem(input: {
     quantity: first?.quantity ?? 0,
     total: minorToMajorGbp(input.order.total_minor),
     currency: STORE_CURRENCY,
-    cancelled: input.order.payment_status === "cancelled",
+    cancelled: isCustomerOrderCancelled(input.order),
     shipmentStatus: input.shipmentStatus ?? null,
   };
+}
+
+function isCustomerOrderCancelled(order: OrderRow): boolean {
+  return (
+    Boolean(order.cancelled_at) ||
+    order.refund_status === "refund_pending" ||
+    order.refund_status === "refunded" ||
+    order.payment_status === "cancelled" ||
+    order.payment_status === "refunded"
+  );
+}
+
+function isRefundPending(order: OrderRow): boolean {
+  return readRefundStatus(order.refund_status) === "refund_pending";
+}
+
+function orderCancellationEligible(
+  order: OrderRow,
+  shipment: CustomerShipmentView | null,
+): boolean {
+  return evaluateCancellationEligibility({
+    createdAt: order.created_at,
+    paymentStatus: order.payment_status,
+    orderStatus: order.status,
+    shipmentStatus: shipment?.status ?? null,
+    shippedAt: shipment?.shippedAt ?? null,
+    cancelledAt: order.cancelled_at,
+    refundStatus: readRefundStatus(order.refund_status),
+  }).eligible;
 }
 
 function toCustomerVisibleOrderEvents(

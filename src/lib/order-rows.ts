@@ -1,3 +1,4 @@
+import { readRefundStatus } from "@/contracts/order/cancellation";
 import type { OrderEventRow, OrderItemRow, OrderRow, OrderStatus, PaymentStatus } from "@/contracts/order/schema";
 import { ORDER_STATUSES, PAYMENT_STATUSES } from "@/contracts/order/schema";
 import type { ShipmentRow, ShipmentStatus, TrackingEventRow } from "@/contracts/fulfilment/shipment";
@@ -52,6 +53,8 @@ export function parseOrderRow(value: unknown): OrderRow | null {
     delivery_address: isRecord(value.delivery_address) ? value.delivery_address : {},
     created_at: createdAt,
     updated_at: updatedAt,
+    cancelled_at: asString(value.cancelled_at),
+    refund_status: readRefundStatus(value.refund_status),
   };
 }
 

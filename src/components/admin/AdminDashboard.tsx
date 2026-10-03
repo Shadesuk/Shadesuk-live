@@ -10,6 +10,7 @@ import {
 import { AdminDashboardKpis } from "./AdminDashboardKpis";
 import { AdminDashboardPeriodNav } from "./AdminDashboardPeriodNav";
 import { AdminOperationalAlerts } from "./AdminOperationalAlerts";
+import { AdminPendingRefunds } from "./AdminPendingRefunds";
 import { AdminRecentOrders } from "./AdminRecentOrders";
 import { AdminSalesOverview } from "./AdminSalesOverview";
 import {
@@ -46,6 +47,9 @@ export function AdminDashboard({
         </Suspense>
         <Suspense fallback={<AdminSalesSkeleton />}>
           <AdminSalesOverview period={period} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AdminPendingRefunds />
         </Suspense>
         <div className={styles.split}>
           <Suspense fallback={<AdminOrdersSkeleton />}>

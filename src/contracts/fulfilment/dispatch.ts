@@ -1,3 +1,4 @@
+import { isCancellationDispatchLock } from "../order/cancellation";
 import type { OrderStatus, PaymentStatus } from "../order/schema";
 import { ORDER_STATUSES } from "../order/schema";
 import { isLegalOrderStatusTransition } from "../order/status";
@@ -15,10 +16,27 @@ const PAST_DISPATCH = new Set<ShipmentStatus>([
   "exception",
 ]);
 
+const DISPATCH_CONFIRMATION_ORDER_STATUSES = new Set<OrderStatus>([
+  "dispatched",
+  "in_transit",
+  "out_for_delivery",
+  "delivered",
+  "tracking_unavailable",
+]);
+
+export function isDispatchConfirmationOrderStatus(status: OrderStatus): boolean {
+  return DISPATCH_CONFIRMATION_ORDER_STATUSES.has(status);
+}
+
 export function isAwaitingFulfilment(order: {
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
+  cancelledAt?: string | null;
+  refundStatus?: string | null;
 }): boolean {
+  if (isCancellationDispatchLock(order)) {
+    return false;
+  }
   return (
     order.paymentStatus === AWAITING_FULFILMENT_PAYMENT_STATUS &&
     (AWAITING_FULFILMENT_ORDER_STATUSES as readonly OrderStatus[]).includes(order.orderStatus)
@@ -80,7 +98,12 @@ export function canDispatchOrder(input: {
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   shipmentStatus: ShipmentStatus | null;
+  cancelledAt?: string | null;
+  refundStatus?: string | null;
 }): boolean {
+  if (isCancellationDispatchLock(input)) {
+    return false;
+  }
   if (input.paymentStatus !== AWAITING_FULFILMENT_PAYMENT_STATUS) {
     return false;
   }

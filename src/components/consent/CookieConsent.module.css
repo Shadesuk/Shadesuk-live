@@ -1,0 +1,75 @@
+.banner {
+  position: fixed;
+  z-index: 45;
+  right: var(--page-gutter);
+  bottom: var(--page-gutter);
+  left: var(--page-gutter);
+  max-width: 40rem;
+  margin-inline: auto;
+  padding: var(--space-24);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-near-black) 8%, transparent);
+}
+
+.inner,
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.dialog {
+  padding: var(--space-24);
+}
+
+.copy,
+.choice span {
+  margin: 0;
+}
+
+.copy a,
+.policy {
+  color: inherit;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  align-items: center;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice {
+  display: flex;
+  gap: var(--space-12);
+  align-items: flex-start;
+}
+
+.choice span {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.choice input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+  accent-color: var(--color-navy);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner {
+    scroll-behavior: auto;
+  }
+}

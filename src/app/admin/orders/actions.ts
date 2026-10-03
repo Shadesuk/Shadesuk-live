@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   ADMIN_FORBIDDEN,
   ADMIN_ORDER_SAVE_FAILED_BODY,
+  ADMIN_REFUND_FAILED,
 } from "@/lib/admin-copy";
 import { getAdminGate } from "@/lib/admin-session";
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
@@ -15,6 +16,7 @@ import {
   updateAdminOrderStatus,
   type AdminOrderMutationResult,
 } from "@/services/admin-orders";
+import { markOrderRefunded } from "@/services/order-refund";
 
 export type AdminOrderActionState = {
   status: "idle" | "ok" | "invalid" | "error" | "forbidden";
@@ -85,6 +87,38 @@ export async function saveAdminFulfilmentAction(
           status: values.status,
         });
   return finishMutation(result, orderId, values);
+}
+
+export async function markOrderRefundedAction(
+  _prev: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  if (!(await cartActionOriginAllowed()) || hasForbiddenOwnershipKey(Object.fromEntries(formData))) {
+    return { status: "error", message: ADMIN_REFUND_FAILED };
+  }
+  if (String(formData.get("confirmed") ?? "") !== "yes") {
+    return { status: "invalid", errors: { refund: ADMIN_REFUND_FAILED } };
+  }
+  const gate = await getAdminGate();
+  if (gate.status === "unauthenticated" || gate.status === "forbidden") {
+    return { status: "forbidden", message: ADMIN_FORBIDDEN };
+  }
+  const orderId = String(formData.get("orderId") ?? "");
+  const result = await markOrderRefunded(orderId);
+  if (result.status === "refunded" || result.status === "already_refunded") {
+    revalidatePath(routes.adminOrders);
+    revalidatePath(adminOrderPath(orderId));
+    revalidatePath(routes.admin);
+    revalidatePath(routes.accountOrders, "layout");
+    return { status: "ok" };
+  }
+  if (result.status === "unauthorized") {
+    return { status: "forbidden", message: ADMIN_FORBIDDEN };
+  }
+  if (result.status === "ineligible") {
+    return { status: "invalid", errors: { refund: ADMIN_REFUND_FAILED } };
+  }
+  return { status: "error", message: ADMIN_REFUND_FAILED };
 }
 
 function finishMutation(

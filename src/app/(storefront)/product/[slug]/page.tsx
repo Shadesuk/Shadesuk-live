@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { ProductPage } from "@/components/pdp/ProductPage";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { productPath } from "@/lib/navigation";
+import { productPath, routes } from "@/lib/navigation";
 import { getProductBrandName, getPrimaryImage } from "@/lib/product-display";
 import {
   NOINDEX_NOFOLLOW,
   absoluteUrl,
+  breadcrumbJsonLd,
   productJsonLd,
   storefrontMetadata,
 } from "@/lib/seo";
@@ -62,6 +63,13 @@ export default async function ProductSlugPage({ params }: PageProps) {
   return (
     <>
       <JsonLd data={productJsonLd(record.product, url)} />
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: routes.home },
+          { name: "Shop", path: routes.shop },
+          { name: record.product.name, path: productPath(record.product.slug) },
+        ])}
+      />
       <ProductPage record={record} />
     </>
   );

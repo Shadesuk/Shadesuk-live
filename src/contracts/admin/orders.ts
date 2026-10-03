@@ -9,11 +9,13 @@ import { toGuestDeliveryAddress, type GuestDeliveryAddressView } from "../order/
 import { isOrderReference, parseOrderReferenceInput } from "../order/reference";
 import { isLegalOrderStatusTransition, legalOrderStatusTargets } from "../order/status";
 import { isCommittedPurchase, COMMITTED_PURCHASE_PAYMENT_STATUSES } from "../order/lifecycle";
+import { ORDER_REFUND_MARKED_EVENT } from "../order/cancellation";
 import {
   ORDER_STATUSES,
   PAYMENT_STATUSES,
   type OrderStatus,
   type PaymentStatus,
+  type RefundStatus,
 } from "../order/schema";
 import {
   AWAITING_FULFILMENT_ORDER_STATUSES,
@@ -77,6 +79,8 @@ export type AdminOrderListItem = {
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   totalMinor: number;
+  cancelledAt?: string | null;
+  refundStatus?: RefundStatus | null;
 };
 
 export type AdminOrderItemView = {
@@ -131,6 +135,12 @@ export type AdminOrderDetailView = {
   shipment: AdminShipmentView | null;
   events: AdminOrderEventView[];
   statusTargets: OrderStatus[];
+  cancelledAt: string | null;
+  refundStatus: RefundStatus | null;
+  refundAmountMinor: number | null;
+  refundPaymentReference: string | null;
+  refundMarkedAt: string | null;
+  refundMarkedBy: string | null;
 };
 
 export type AdminFulfilmentInput = {
@@ -233,6 +243,15 @@ export function adminOrderEventLabel(eventType: string): string {
   }
   if (eventType === ADMIN_ORDER_EVENT_TYPES.shipmentUpdated) {
     return "Shipment updated";
+  }
+  if (eventType === "order_cancellation_requested") {
+    return "Cancellation requested";
+  }
+  if (eventType === "order_cancellation_refund") {
+    return "Cancellation refund";
+  }
+  if (eventType === ORDER_REFUND_MARKED_EVENT) {
+    return "Refund marked";
   }
   return "Event recorded";
 }

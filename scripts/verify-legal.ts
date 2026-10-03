@@ -155,8 +155,17 @@ if (PRIVACY_POLICY.sections.some((section) => section.paragraphs.some((p) => p.i
 if (!FAQ_GROUPS.some((group) => group.items.some((item) => item.paragraphs.some((p) => p.includes(PRODUCT_DISCLOSURE_COPY))))) {
   throw new Error("FAQ must keep the locked product disclosure.");
 }
-if (!FAQ_GROUPS.some((group) => group.items.some((item) => item.paragraphs.some((p) => p.includes("not live on this storefront yet"))))) {
-  throw new Error("FAQ payment copy must not claim card payment is live.");
+if (!FAQ_GROUPS.some((group) => group.items.some((item) => item.paragraphs.some((p) => p.includes("PayPal") && p.includes("does not store raw card numbers"))))) {
+  throw new Error("FAQ payment copy must name PayPal and must not claim SHADESUK stores card numbers.");
+}
+if (JSON.stringify(FAQ_GROUPS).includes("not live on this storefront yet")) {
+  throw new Error("FAQ must not describe PayPal checkout as unpaid.");
+}
+if (!JSON.stringify(REFUND_POLICY).includes("12 hours") || !JSON.stringify(REFUND_POLICY).toLowerCase().includes("statutory")) {
+  throw new Error("Refund policy must state the 12-hour window without removing statutory rights.");
+}
+if (/solely the customer's responsibility/i.test(JSON.stringify(REFUND_POLICY))) {
+  throw new Error("Damage copy must not blame the customer absolutely.");
 }
 if (!FAQ_GROUPS.some((group) => group.items.some((item) => item.paragraphs.includes(TRACKING_UNAVAILABLE_COPY.heading)))) {
   throw new Error("FAQ must keep TRACKING NOT AVAILABLE YET as a normal state.");

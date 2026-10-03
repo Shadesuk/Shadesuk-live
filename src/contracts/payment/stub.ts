@@ -39,7 +39,7 @@ export const SCHEMA_PAYMENT_TO_CUSTOMER: Record<PaymentStatus, CustomerPaymentSt
   captured: "PAYMENT_SUCCEEDED",
   failed: "PAYMENT_FAILED",
   cancelled: "PAYMENT_CANCELLED",
-  refunded: "PAYMENT_UNKNOWN",
+  refunded: "PAYMENT_CANCELLED",
   partially_refunded: "PAYMENT_UNKNOWN",
 };
 

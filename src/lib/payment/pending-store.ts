@@ -22,6 +22,13 @@ const ORDER_ITEM_COLUMNS =
 const PAYMENT_COLUMNS =
   "id, order_id, provider, provider_order_id, provider_payment_id, amount_minor, currency, status, failure_reason, captured_at, created_at, updated_at";
 
+export class OrderReferenceCollisionError extends Error {
+  constructor() {
+    super("order_reference collision");
+    this.name = "OrderReferenceCollisionError";
+  }
+}
+
 export type PersistedPendingPayment = {
   order: OrderRow;
   items: OrderItemRow[];
@@ -67,6 +74,9 @@ export function createSupabasePendingPaymentStore(): PendingPaymentStore {
         .select(ORDER_COLUMNS)
         .single();
       const order = parseOrderRow(orderResult.data);
+      if (orderResult.error?.code === "23505") {
+        throw new OrderReferenceCollisionError();
+      }
       if (orderResult.error || !order) {
         throw new Error("Could not create the pending order.");
       }

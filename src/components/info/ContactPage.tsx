@@ -5,19 +5,30 @@ import {
   CONTACT_PATHWAYS,
   CONTACT_TITLE,
 } from "@/lib/legal-copy";
+import { resolveSupportEmail } from "@/lib/support-email";
 import { routes } from "@/lib/navigation";
 import { InfoTextLink } from "./InfoTextLink";
 import { RelatedLinks } from "./RelatedLinks";
 import styles from "./InfoPage.module.css";
 
 export function ContactPage() {
+  const supportEmail = resolveSupportEmail();
+
   return (
     <ContentWidth>
       <article className={styles.document}>
         <header className={styles.header}>
           <h1 className="text-h2">{CONTACT_TITLE}</h1>
-          <p className={`text-body ${styles.lede}`}>{CONTACT_LEDE}</p>
-          <p className="text-small">{CONTACT_CHANNEL}</p>
+          <p className={`text-body ${styles.lede}`}>
+            {supportEmail
+              ? `Email ${supportEmail} about an order. Include your order reference.`
+              : CONTACT_LEDE}
+          </p>
+          <p className="text-small">
+            {supportEmail
+              ? `Use ${supportEmail} for order help. Do not send payment card numbers.`
+              : CONTACT_CHANNEL}
+          </p>
         </header>
         <ul className={styles.pathways}>
           {CONTACT_PATHWAYS.map((item) => (

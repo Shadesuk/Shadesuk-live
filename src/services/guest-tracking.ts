@@ -34,7 +34,7 @@ import type { GuestOrderTrackingView } from "@/contracts/order/dto";
 import type { GuestTrackingActionResult } from "@/types/tracking";
 
 const ORDER_COLUMNS =
-  "id, order_reference, user_id, customer_email, customer_first_name, customer_last_name, status, payment_status, currency, subtotal_minor, shipping_minor, total_minor, delivery_address, created_at, updated_at";
+  "id, order_reference, user_id, customer_email, customer_first_name, customer_last_name, status, payment_status, currency, subtotal_minor, shipping_minor, total_minor, delivery_address, created_at, updated_at, cancelled_at, refund_status";
 
 const ORDER_ITEM_COLUMNS =
   "id, order_id, product_id, product_variant_id, sku, product_name, colour_name, variant_name, quantity, unit_price_minor, line_total_minor, product_snapshot, created_at";

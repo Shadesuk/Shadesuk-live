@@ -113,15 +113,16 @@ export const footerNav = {
   ],
 } as const;
 
-export const footerSocialNote =
-  "Official channels will be listed here when they are active.";
+/** Official Instagram destination supplied for production. */
+export const INSTAGRAM_URL =
+  "https://www.instagram.com/shades.uk?stkn=cHRzcDN6MGduW2Rq&utm_source=qr";
 
 /** Shop, Help, Company, and Social. Rendered expanded from 768px and as accordions below that. */
 export const footerSections = [
   { id: "shop", label: "Shop", links: footerNav.shop },
   { id: "help", label: "Help", links: footerNav.help },
   { id: "company", label: "Company", links: footerNav.company },
-  { id: "social", label: "Social", note: footerSocialNote },
+  { id: "social", label: "Social", links: [{ href: INSTAGRAM_URL, label: "Instagram" }] },
 ] as const;
 
 export function productPath(slug: string): string {

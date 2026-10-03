@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Homepage } from "@/components/home/Homepage";
-import { INDEX_FOLLOW, storefrontMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { INDEX_FOLLOW, organizationJsonLd, storefrontMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
 import { assertDemoCatalogueIntegrity } from "@/services/catalogue";
 import {
@@ -62,6 +63,8 @@ export default async function HomePage() {
     : getEditorialProductFrom(catalogue.products);
 
   return (
+    <>
+    <JsonLd data={organizationJsonLd()} />
     <Homepage
       featured={featured}
       bestSellers={bestSellers}
@@ -71,5 +74,6 @@ export default async function HomePage() {
       catalogueSource={catalogue.source}
       catalogueUnavailable={catalogue.unavailable}
     />
+    </>
   );
 }

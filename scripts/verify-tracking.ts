@@ -82,8 +82,21 @@ if (
 }
 
 const reference = createOrderReference();
-if (!isOrderReference(reference) || parseOrderReferenceInput("SHU10294") !== null) {
-  throw new Error("order_reference must stay non-guessable SHU- + Crockford.");
+if (!/^[0-9]{4}$/.test(reference) || !isOrderReference(reference) || parseOrderReferenceInput("SHU10294") !== null) {
+  throw new Error("New order_reference must be 4 digits. The sequential mock must not parse.");
+}
+const fourDigit = parseGuestTrackingRequest({ orderReference: "4827", email: "guest@example.com" });
+if (!fourDigit.ok || fourDigit.orderReference !== "4827") {
+  throw new Error("A 4-digit reference with email must parse.");
+}
+if (
+  guestTrackingVerified({
+    orderReference: "4827",
+    requestEmail: "guest@example.com",
+    orderEmail: "other@example.com",
+  })
+) {
+  throw new Error("A 4-digit reference must not open an order without the checkout email.");
 }
 
 const valid = parseGuestTrackingRequest({

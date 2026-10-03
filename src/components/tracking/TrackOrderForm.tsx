@@ -101,6 +101,7 @@ export function TrackOrderForm({
     return (
       <TrackOrderResult
         order={order}
+        onOrderChange={setOrder}
         onTrackAnother={() => {
           void clearGuestTrackingGrantAction()
             .catch(() => undefined)

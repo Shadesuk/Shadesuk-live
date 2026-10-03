@@ -45,6 +45,9 @@ export function ProductSection({
           <ProductRail products={products} imagePriorityCount={imagePriorityCount} list={list} />
         ) : (
           <div className={cx(mobileCount === 2 && styles.mobileTwo)}>
+            {mobileCount === 2 && products.length > mobileCount ? (
+              <p className={`text-small ${styles.swipeHint}`}>Swipe to see more</p>
+            ) : null}
             <ProductGrid
               products={products}
               imagePriorityCount={imagePriorityCount}
