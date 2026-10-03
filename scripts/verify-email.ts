@@ -249,6 +249,83 @@ if (Object.values(orderVariables).some((value) => String(value).includes("cid:")
   throw new Error("Template variables must not invent a CID or product image URL.");
 }
 
+const multiItemVariables = toOrderConfirmationVariables({
+  recipientEmail: "ada@shadesuk.example",
+  customerFirstName: "Ada",
+  customerLastName: "Lovelace",
+  orderReference: "SHU1A2B3C4D5E",
+  placedAt: "2026-09-21T10:00:00.000Z",
+  currency: "GBP",
+  subtotalMinor: 10800,
+  shippingMinor: 465,
+  totalMinor: 11265,
+  items: [
+    {
+      productName: "Frame 01",
+      colourName: "Black",
+      variantName: null,
+      quantity: 2,
+      unitPriceMinor: 4900,
+      lineTotalMinor: 9800,
+    },
+    {
+      productName: "Frame 02",
+      colourName: "Tortoise",
+      variantName: "Medium",
+      quantity: 1,
+      unitPriceMinor: 5900,
+      lineTotalMinor: 5900,
+    },
+  ],
+  deliveryAddress: null,
+});
+if (
+  multiItemVariables.PRODUCT_NAME !== "Frame 01; Frame 02" ||
+  multiItemVariables.PRODUCT_VARIANT !== "Black; Tortoise / Medium" ||
+  multiItemVariables.PRODUCT_QUANTITY !== "2; 1" ||
+  typeof multiItemVariables.PRODUCT_PRICE !== "string" ||
+  !String(multiItemVariables.PRODUCT_PRICE).includes("49") ||
+  !String(multiItemVariables.PRODUCT_PRICE).includes("59")
+) {
+  throw new Error("Multi-item orders must send every order_items row in the published PRODUCT_* keys.");
+}
+const multiShipmentVariables = toShipmentConfirmationVariables({
+  recipientEmail: "ada@shadesuk.example",
+  customerFirstName: "Ada",
+  customerLastName: "Lovelace",
+  orderReference: "SHU1A2B3C4D5E",
+  shipmentStatus: "dispatched",
+  carrierName: "Royal Mail",
+  trackingNumber: "AB123",
+  trackingUrl: "https://example.com/track/AB123",
+  shippedAt: "2026-09-22T10:00:00.000Z",
+  trackOrderUrl: trackOrderCtaUrl(),
+  items: [
+    {
+      productName: "Frame 01",
+      colourName: "Black",
+      variantName: null,
+      quantity: 2,
+      unitPriceMinor: 4900,
+      lineTotalMinor: 9800,
+    },
+    {
+      productName: "Frame 02",
+      colourName: "Tortoise",
+      variantName: "Medium",
+      quantity: 1,
+      unitPriceMinor: 5900,
+      lineTotalMinor: 5900,
+    },
+  ],
+});
+if (
+  multiShipmentVariables.PRODUCT_NAME !== "Frame 01; Frame 02" ||
+  multiShipmentVariables.PRODUCT_QUANTITY !== "2; 1"
+) {
+  throw new Error("Shipment emails must include every confirmed order line.");
+}
+
 const shipmentVariables = toShipmentConfirmationVariables({
   recipientEmail: "ada@shadesuk.example",
   customerFirstName: "Ada",

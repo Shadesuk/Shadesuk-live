@@ -100,21 +100,20 @@ export function recipientAddress(email: string): string | null {
 }
 
 /**
- * Published templates expose a single product row (`PRODUCT_*`,
- * `cid:product-image-1`). Map the first confirmed order line. Empty when the
- * order has no items. No CID attachment and no invented image URL.
+ * Published templates expose one `PRODUCT_*` slot, not a repeating each-block.
+ * Checkout can persist many `order_items`, so every confirmed line is joined
+ * into those existing keys. HTML email collapses newlines, so items are
+ * separated with "; ". No CID attachment and no invented image URL.
  */
+const PRODUCT_LINE_SEPARATOR = "; ";
+
 function productLine(items: OrderConfirmationItem[]): {
   name: string;
   variant: string;
   quantity: string;
   price: string;
 } {
-  const item = items[0];
-  if (!item) {
-    return { name: "", variant: "", quantity: "", price: "" };
-  }
-  return {
+  const lines = items.map((item) => ({
     name: item.productName.trim(),
     variant: [item.colourName, item.variantName]
       .map((part) => part?.trim())
@@ -122,6 +121,19 @@ function productLine(items: OrderConfirmationItem[]): {
       .join(" / "),
     quantity: String(item.quantity),
     price: formatGbpMinor(item.unitPriceMinor),
+  }));
+  const only = lines[0];
+  if (!only) {
+    return { name: "", variant: "", quantity: "", price: "" };
+  }
+  if (lines.length === 1) {
+    return only;
+  }
+  return {
+    name: lines.map((line) => line.name).join(PRODUCT_LINE_SEPARATOR),
+    variant: lines.map((line) => line.variant).join(PRODUCT_LINE_SEPARATOR),
+    quantity: lines.map((line) => line.quantity).join(PRODUCT_LINE_SEPARATOR),
+    price: lines.map((line) => line.price).join(PRODUCT_LINE_SEPARATOR),
   };
 }
 
