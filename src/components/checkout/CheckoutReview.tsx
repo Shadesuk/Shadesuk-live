@@ -94,6 +94,7 @@ export function CheckoutReview({
       unmount = await mountPayPalCheckout({
         container: slot,
         clientId: config.clientId,
+        clientToken: config.clientToken,
         mode: config.mode,
         createOrder: async () => {
           setPaymentBusy(true);
