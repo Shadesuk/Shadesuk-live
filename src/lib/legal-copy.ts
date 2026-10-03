@@ -1,8 +1,6 @@
 import { PRODUCT_DISCLOSURE_COPY } from "@/components/pdp/ProductDisclosure";
 import {
-  ALL_MAJOR_CARDS,
   COUNTRY_UNSUPPORTED,
-  SECURE_CARD_PAYMENT,
   SHIPPING_BODY,
   SHIPPING_MANUAL_NOTE,
   SHIPPING_MINIMUM,
@@ -134,7 +132,28 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "How do I find an existing order?",
         paragraphs: [
-          "Use Track order with the order reference and the email used at checkout. A guessable number on its own will not open an order.",
+          "Use Track order with the four-digit order reference and the email used at checkout. The reference on its own will not open an order.",
+        ],
+        link: { href: routes.trackOrder, label: "Track order" },
+      },
+      {
+        question: "Can I cancel an order?",
+        paragraphs: [
+          "You can request cancellation from your account order, or from Track order after your email is verified, within 12 hours of placing the order and only before we confirm dispatch. Whichever of those happens first closes the request.",
+          "That operational window does not remove the 14-day cancellation right under the Consumer Contracts Regulations 2013, or other statutory UK consumer rights.",
+        ],
+        link: { href: routes.refunds, label: "Returns / Refunds" },
+      },
+    ],
+  },
+  {
+    id: "account",
+    title: "Account",
+    items: [
+      {
+        question: "Do I need an account to track an order?",
+        paragraphs: [
+          "No. Track order asks for the order reference and the email used at checkout. An account shows the same orders when you were signed in at checkout.",
         ],
         link: { href: routes.trackOrder, label: "Track order" },
       },
@@ -185,8 +204,8 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "How do I pay?",
         paragraphs: [
-          "Card payment is not live on this storefront yet. When checkout takes payment, card details will be handled by the payment provider. SHADESUK will not store raw card numbers.",
-          `The planned checkout language is “${SECURE_CARD_PAYMENT}” and “${ALL_MAJOR_CARDS}”. That is intended copy, not a claim that charges are being taken today.`,
+          "Checkout takes payment with PayPal. SHADESUK does not store raw card numbers. PayPal handles the payment.",
+          "An order is confirmed only after our server verifies the payment. A browser message on its own is not proof that the order is paid.",
         ],
       },
     ],
@@ -199,8 +218,17 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: "Can I return an item?",
         paragraphs: [
           "UK consumer rights apply to these purchases. A commercial returns process does not remove those rights.",
+          "Return postage is not prepaid. Where the law requires us to cover the cost, including faulty or not-as-described goods, we will. This page does not invent a restocking fee.",
         ],
         link: { href: routes.refunds, label: "Returns / Refunds policy" },
+      },
+      {
+        question: "What if the parcel arrives damaged?",
+        paragraphs: [
+          "Tell us promptly, with photographs of the product and packaging where you have them. An unboxing video is useful evidence. It is not the only proof we will look at.",
+          "We aim to review that evidence within 2–3 business days. The outcome is recorded against the order. This does not remove statutory UK consumer rights.",
+        ],
+        link: { href: routes.contact, label: "Contact" },
       },
     ],
   },
@@ -316,6 +344,31 @@ export const REFUND_POLICY: PolicyDocument = {
       paragraphs: [
         "If an item is faulty, not as described, or not fit for purpose, tell us using Track order with the email used at checkout.",
         "A worn pair may still be returnable where the law requires it. We will not treat a hygiene preference as a waiver of statutory rights.",
+      ],
+    },
+    {
+      id: "cancel-window",
+      title: "Requesting cancellation before dispatch",
+      paragraphs: [
+        "You can ask us to cancel an order within 12 hours of placing it, and only before we confirm dispatch, whichever comes first. The request is decided on the server, from Account or from Track order after your email is verified.",
+        "That operational window does not remove the 14-day cancellation right or any other statutory UK consumer right. Final legal wording is still subject to review.",
+      ],
+    },
+    {
+      id: "damage",
+      title: "If a delivery arrives damaged",
+      paragraphs: [
+        "Report delivery damage promptly. Photographs of the product, the packaging, and any unboxing evidence you already have help us verify what happened. A video can be useful. It is not presented here as the only valid proof.",
+        "We aim to review that report within 2–3 business days and record the outcome. Damage is checked against the evidence. It is not treated as automatically the customer's fault.",
+      ],
+      link: { href: routes.contact, label: "Contact" },
+    },
+    {
+      id: "return-postage",
+      title: "Return postage",
+      paragraphs: [
+        "Return postage is not prepaid. Where UK law requires us to cover return costs, including goods that are faulty or not as described, those costs are ours.",
+        "A change-of-mind return, if one is later offered, may require you to pay return postage. This page does not invent a restocking fee.",
       ],
     },
     {
@@ -507,7 +560,7 @@ export const COOKIE_POLICY: PolicyDocument = {
       title: "What we use cookies for",
       paragraphs: [
         "Essential cookies keep your bag, remember checkout progress, keep an account session, and slow repeated order-tracking attempts.",
-        "We do not currently set advertising cookies, and we do not currently set a separate analytics cookie.",
+        "Advertising cookies are not set. Analytics cookies stay off until you choose Accept all or turn analytics on in Cookie settings.",
       ],
     },
     {
@@ -522,6 +575,7 @@ export const COOKIE_POLICY: PolicyDocument = {
         "shadesuk_guest_checkout — guest checkout progress. HttpOnly. About 24 hours.",
         "shadesuk_track_rl — order-tracking rate limit. HttpOnly. About 12 hours.",
         "Account session cookies — keep you signed in. HttpOnly. Set only if you use account.",
+        "shadesuk_cookie_consent — records Accept all, Reject non-essential, or a saved analytics preference. Not HttpOnly. About 180 days. Necessary so the choice survives a refresh.",
       ],
     },
     {
@@ -529,7 +583,7 @@ export const COOKIE_POLICY: PolicyDocument = {
       title: "Your controls",
       paragraphs: [
         "You can block or delete cookies in your browser. Blocking essential cookies will stop the bag, checkout, or account from working as intended.",
-        "There is no marketing cookie to opt out of, because none is set.",
+        "Use Cookie settings in the footer to accept all, reject non-essential cookies, or change an analytics choice later. Advertising cookies are not set.",
       ],
     },
   ],

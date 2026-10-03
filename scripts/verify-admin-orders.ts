@@ -147,7 +147,10 @@ if (sanitizeAdminOrderSearch('ref","()\\') !== "ref") {
   throw new Error("Search sanitiser must strip PostgREST control characters.");
 }
 if (adminOrderSearchReference("shu-0123456789ab") !== "SHU-0123456789AB") {
-  throw new Error("Reference lookup must accept a canonical order reference.");
+  throw new Error("Reference lookup must accept a legacy order reference.");
+}
+if (adminOrderSearchReference("4827") !== "4827") {
+  throw new Error("Reference lookup must accept a 4-digit order reference.");
 }
 
 if (adminOrderCustomerLabel("Ada West", true, ADMIN_ORDER_GUEST) !== "Ada West · Guest order") {

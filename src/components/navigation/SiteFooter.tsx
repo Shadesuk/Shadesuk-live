@@ -6,8 +6,10 @@ import {
 } from "@/lib/checkout-copy";
 import { footerSections } from "@/lib/navigation";
 import { enabledPaymentMethods } from "@/lib/payment-methods";
+import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
 import { BrandMark } from "./BrandMark";
 import { NavLink } from "./NavLink";
+import linkStyles from "./NavLink.module.css";
 import styles from "./SiteFooter.module.css";
 
 const paymentLine = `${SECURE_CARD_PAYMENT}. ${ALL_MAJOR_CARDS}.`;
@@ -23,7 +25,18 @@ function FooterLinkList({
     <ul className={styles.list}>
       {links.map((item) => (
         <li key={item.href}>
-          <NavLink href={item.href}>{item.label}</NavLink>
+          {item.href.startsWith("http") ? (
+            <a
+              className={linkStyles.link}
+              href={item.href}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {item.label}
+            </a>
+          ) : (
+            <NavLink href={item.href}>{item.label}</NavLink>
+          )}
         </li>
       ))}
     </ul>
@@ -31,22 +44,13 @@ function FooterLinkList({
 }
 
 function DesktopGroup({ section }: { section: FooterSection }) {
-  if ("links" in section) {
-    return (
-      <nav className={styles.group} aria-labelledby={`footer-${section.id}`}>
-        <h2 id={`footer-${section.id}`} className={`text-micro ${styles.heading}`}>
-          {section.label}
-        </h2>
-        <FooterLinkList links={section.links} />
-      </nav>
-    );
-  }
-
   return (
-    <div className={styles.group}>
-      <h2 className={`text-micro ${styles.heading}`}>{section.label}</h2>
-      <p className={`text-small ${styles.note}`}>{section.note}</p>
-    </div>
+    <nav className={styles.group} aria-labelledby={`footer-${section.id}`}>
+      <h2 id={`footer-${section.id}`} className={`text-micro ${styles.heading}`}>
+        {section.label}
+      </h2>
+      <FooterLinkList links={section.links} />
+    </nav>
   );
 }
 
@@ -57,13 +61,9 @@ function MobileGroup({ section }: { section: FooterSection }) {
         <span className={`text-micro ${styles.summaryLabel}`}>{section.label}</span>
       </summary>
       <div className={styles.panel}>
-        {"links" in section ? (
-          <nav aria-label={section.label}>
-            <FooterLinkList links={section.links} />
-          </nav>
-        ) : (
-          <p className={`text-small ${styles.note}`}>{section.note}</p>
-        )}
+        <nav aria-label={section.label}>
+          <FooterLinkList links={section.links} />
+        </nav>
       </div>
     </details>
   );
@@ -127,6 +127,7 @@ export function SiteFooter({ reduced = false }: { reduced?: boolean }) {
           <p className={`text-small ${styles.legal}`}>
             © {year} SHADESUK. All rights reserved.
           </p>
+          <CookieSettingsButton />
           <p
             className={`text-small ${styles.legal}${reduced ? "" : ` ${styles.desktopPayment}`}`}
           >

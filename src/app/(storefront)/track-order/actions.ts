@@ -8,7 +8,9 @@ import { clientAddressFromHeaders } from "@/lib/request-address";
 import { clearGuestTrackingGrant } from "@/lib/tracking-grant-cookie";
 import { bindTrackingLimiterId } from "@/lib/tracking-limiter-cookie";
 import { lookupGuestOrder } from "@/services/guest-tracking";
+import { cancelGuestOrder } from "@/services/order-cancellation";
 import type { GuestTrackingActionResult } from "@/types/tracking";
+import type { CancelOrderActionResult } from "@/app/(storefront)/account/orders/actions";
 
 export async function trackGuestOrderAction(input: {
   orderReference: string;
@@ -31,6 +33,22 @@ export async function trackGuestOrderAction(input: {
     ip,
     limiterId,
   });
+}
+
+export async function cancelGuestOrderAction(formData: FormData): Promise<CancelOrderActionResult> {
+  if (!(await cartActionOriginAllowed())) {
+    return { status: "error" };
+  }
+  const orderReference = formData.get("orderReference");
+  const reason = formData.get("reason");
+  if (typeof orderReference !== "string" || (reason != null && typeof reason !== "string")) {
+    return { status: "error" };
+  }
+  if (hasForbiddenOwnershipKey({ orderReference, reason })) {
+    return { status: "error" };
+  }
+  const result = await cancelGuestOrder({ orderReference, reason });
+  return { status: result.status, reason: result.reason };
 }
 
 export async function clearGuestTrackingGrantAction(): Promise<void> {

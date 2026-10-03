@@ -71,6 +71,8 @@ const ALLOWED_KEYS = new Set([
   "count",
 ]);
 
+import { hasAnalyticsConsent } from "@/lib/cookie-consent";
+
 const BLOCKED_KEY =
   /email|password|token|secret|phone|address|postcode|name_first|first_name|last_name|full_name/i;
 
@@ -115,6 +117,9 @@ export function track(name: AnalyticsEventName, payload?: AnalyticsPayload): voi
   if (!provider) {
     return;
   }
+  if (typeof window !== "undefined" && !hasAnalyticsConsent()) {
+    return;
+  }
   try {
     provider.track(name, sanitizeAnalyticsPayload(payload));
   } catch {
@@ -132,6 +137,9 @@ export function trackPurchaseOnce(
 ): void {
   const id = orderId.trim();
   if (!id || reportedPurchases.has(id)) {
+    return;
+  }
+  if (typeof window !== "undefined" && !hasAnalyticsConsent()) {
     return;
   }
   reportedPurchases.add(id);

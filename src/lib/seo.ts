@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { INSTAGRAM_URL } from "@/lib/navigation";
 import { site } from "@/lib/site";
 import { getProductBrandName } from "@/lib/product-display";
 import type { Product } from "@/types/catalogue";
@@ -138,6 +139,51 @@ export function privatePathMetadata(
     index: false,
     follow: false,
   });
+}
+
+export function organizationJsonLd(): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: site.name,
+    url: site.url,
+    logo: absoluteUrl("/brand/shadesuk-wordmark.jpg"),
+    sameAs: [INSTAGRAM_URL],
+  };
+}
+
+export function breadcrumbJsonLd(
+  items: Array<{ name: string; path: string }>,
+): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: absoluteUrl(item.path),
+    })),
+  };
+}
+
+export function faqJsonLd(
+  groups: Array<{ items: Array<{ question: string; paragraphs: string[] }> }>,
+): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: groups.flatMap((group) =>
+      group.items.map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: item.paragraphs.join(" "),
+        },
+      })),
+    ),
+  };
 }
 
 export function productOfferAvailability(

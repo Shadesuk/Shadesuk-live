@@ -82,6 +82,7 @@ async function sendTemplateEmail(input: {
       {
         from: formatResendFromHeader(config),
         to,
+        ...(config.replyTo ? { replyTo: config.replyTo } : {}),
         template: {
           // Env value: published Resend template id or alias.
           id: templateId,

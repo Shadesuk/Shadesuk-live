@@ -234,6 +234,12 @@ export function adminOrderEventLabel(eventType: string): string {
   if (eventType === ADMIN_ORDER_EVENT_TYPES.shipmentUpdated) {
     return "Shipment updated";
   }
+  if (eventType === "order_cancellation_requested") {
+    return "Cancellation requested";
+  }
+  if (eventType === "order_cancellation_refund") {
+    return "Cancellation refund";
+  }
   return "Event recorded";
 }
 

@@ -391,7 +391,7 @@ export async function saveAdminFulfilment(input: {
         .select("id")
         .maybeSingle();
       if (updated.error || !updated.data) {
-        return { status: "error" };
+        return shipmentMutationResult(updated.error);
       }
       const event = await supabase.from("order_events").insert({
         order_id: input.orderId,
@@ -431,7 +431,7 @@ export async function saveAdminFulfilment(input: {
       .select("id")
       .maybeSingle();
     if (created.error || !created.data || typeof created.data.id !== "string") {
-      return { status: "error" };
+      return shipmentMutationResult(created.error);
     }
     const event = await supabase.from("order_events").insert({
       order_id: input.orderId,
@@ -459,6 +459,15 @@ export async function saveAdminFulfilment(input: {
   } catch {
     return { status: "error" };
   }
+}
+
+function shipmentMutationResult(
+  error: { message?: string } | null | undefined,
+): AdminOrderMutationResult {
+  if ((error?.message ?? "").includes("order_not_dispatchable")) {
+    return { status: "invalid", errors: { status: ADMIN_DISPATCH_BLOCKED_ERROR } };
+  }
+  return { status: "error" };
 }
 
 function shipmentWritePayload(
@@ -565,6 +574,7 @@ async function syncOrderStatusWithShipment(
       .update({ status: next, updated_at: new Date().toISOString() })
       .eq("id", orderId)
       .eq("status", current)
+      .eq("payment_status", AWAITING_FULFILMENT_PAYMENT_STATUS)
       .select("id")
       .maybeSingle();
     if (updated.error || !updated.data) {
@@ -655,7 +665,7 @@ export async function dispatchAdminOrder(input: {
     if (shipmentId) {
       const updated = await supabase.from("shipments").update(payload).eq("id", shipmentId).select("id").maybeSingle();
       if (updated.error || !updated.data) {
-        return { status: "error" };
+        return shipmentMutationResult(updated.error);
       }
     } else {
       const inserted = await supabase
@@ -678,11 +688,11 @@ export async function dispatchAdminOrder(input: {
         }
         const updated = await supabase.from("shipments").update(payload).eq("id", raced.id).select("id").maybeSingle();
         if (updated.error || !updated.data) {
-          return { status: "error" };
+          return shipmentMutationResult(updated.error);
         }
         shipmentId = raced.id;
       } else if (inserted.error || !inserted.data || typeof inserted.data.id !== "string") {
-        return { status: "error" };
+        return shipmentMutationResult(inserted.error);
       } else {
         shipmentId = inserted.data.id;
         created = true;

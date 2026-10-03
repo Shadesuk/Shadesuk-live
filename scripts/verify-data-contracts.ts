@@ -3,6 +3,7 @@ import {
   CART_MERGE_POLICY,
   createGuestCartSessionId,
   createOrderReference,
+  takeUniqueOrderReference,
   customerPaymentState,
   deriveBrandSource,
   emailsMatch,
@@ -342,14 +343,31 @@ if (CART_MERGE_POLICY.soldOut !== "drop_with_notice") {
 }
 
 const reference = createOrderReference();
-if (!isOrderReference(reference) || reference === "SHU10294") {
-  throw new Error("order_reference must be non-guessable SHU- + Crockford.");
+if (!/^[0-9]{4}$/.test(reference) || !isOrderReference(reference)) {
+  throw new Error("New order_reference must be a 4-digit code.");
+}
+if (parseOrderReferenceInput("4827") !== "4827") {
+  throw new Error("Four-digit order reference must parse.");
+}
+if (parseOrderReferenceInput("12345") !== null || parseOrderReferenceInput("827") !== null) {
+  throw new Error("Only an exact 4-digit reference is public.");
 }
 if (parseOrderReferenceInput("shu-0123456789ab") !== "SHU-0123456789AB") {
-  throw new Error("Order reference parse/normalise failed.");
+  throw new Error("Legacy order reference parse/normalise failed.");
 }
 if (parseOrderReferenceInput("SHU10294") !== null) {
   throw new Error("Sequential UI mock must not parse as a valid reference.");
+}
+let collisionTries = 0;
+const retried = takeUniqueOrderReference(() => {
+  collisionTries += 1;
+  return collisionTries < 2;
+});
+if (!retried || collisionTries < 2) {
+  throw new Error("Order reference collision must retry.");
+}
+if (takeUniqueOrderReference(() => true, undefined, 3) !== null) {
+  throw new Error("Order reference allocation must stop after the attempt budget.");
 }
 
 if (normalizeEmail("  Syed@Example.COM ") !== "syed@example.com") {

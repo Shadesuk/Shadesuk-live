@@ -1,3 +1,4 @@
+import { evaluateCancellationEligibility } from "./cancellation";
 import { minorToMajorGbp, STORE_CURRENCY } from "../money";
 import type { CustomerPaymentState } from "../payment/stub";
 import { customerPaymentState } from "../payment/stub";
@@ -67,6 +68,8 @@ export type CustomerOrderView = {
   shipment: CustomerShipmentView | null;
   events: CustomerVisibleOrderEventView[];
   cancelled: boolean;
+  /** Server policy. Omitted means the surface must not offer cancellation. */
+  cancellationEligible?: boolean;
 };
 
 /**
@@ -99,6 +102,7 @@ export type GuestOrderTrackingView = {
   deliveryAddress: GuestDeliveryAddressView | null;
   shipment: CustomerShipmentView | null;
   cancelled: boolean;
+  cancellationEligible?: boolean;
 };
 
 export function toOrderItemSnapshotView(row: OrderItemRow): OrderItemSnapshotView {
@@ -138,7 +142,8 @@ export function toGuestOrderTrackingView(input: {
     currency: STORE_CURRENCY,
     deliveryAddress: toGuestDeliveryAddress(input.order.delivery_address),
     shipment: input.shipment,
-    cancelled: input.order.payment_status === "cancelled",
+    cancelled: isCancelledPayment(input.order.payment_status),
+    cancellationEligible: orderCancellationEligible(input.order, input.shipment),
   };
 }
 
@@ -167,7 +172,8 @@ export function toCustomerOrderView(input: {
     paymentState: customerPaymentState(input.order.payment_status),
     shipment: input.shipment,
     events: toCustomerVisibleOrderEvents(input.events ?? []),
-    cancelled: input.order.payment_status === "cancelled",
+    cancelled: isCancelledPayment(input.order.payment_status),
+    cancellationEligible: orderCancellationEligible(input.order, input.shipment),
   };
 }
 
@@ -188,9 +194,26 @@ export function toCustomerOrderListItem(input: {
     quantity: first?.quantity ?? 0,
     total: minorToMajorGbp(input.order.total_minor),
     currency: STORE_CURRENCY,
-    cancelled: input.order.payment_status === "cancelled",
+    cancelled: isCancelledPayment(input.order.payment_status),
     shipmentStatus: input.shipmentStatus ?? null,
   };
+}
+
+function isCancelledPayment(status: OrderRow["payment_status"]): boolean {
+  return status === "cancelled" || status === "refunded";
+}
+
+function orderCancellationEligible(
+  order: OrderRow,
+  shipment: CustomerShipmentView | null,
+): boolean {
+  return evaluateCancellationEligibility({
+    createdAt: order.created_at,
+    paymentStatus: order.payment_status,
+    orderStatus: order.status,
+    shipmentStatus: shipment?.status ?? null,
+    shippedAt: shipment?.shippedAt ?? null,
+  }).eligible;
 }
 
 function toCustomerVisibleOrderEvents(

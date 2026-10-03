@@ -244,8 +244,9 @@ SQL: `orders.order_reference` unique `text`, no format check.
 **Generator (importable now):**
 
 ```text
-SHU- + 12 Crockford base32 characters
-Regex: ^SHU-[0-9A-HJKMNP-TV-Z]{12}$
+New public references are 4 digits (`4827`). Legacy `SHU-` + 12 Crockford references remain valid for existing orders.
+Regex: ^[0-9]{4}$ or ^SHU-[0-9A-HJKMNP-TV-Z]{12}$
+A 4-digit code is guessable. Guest tracking still requires the checkout email.
 ```
 
 Not sequential, not the order UUID, not SKU, not a payment id.

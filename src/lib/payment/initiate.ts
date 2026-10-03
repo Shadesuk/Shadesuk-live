@@ -1,10 +1,16 @@
 import "server-only";
 
+import { ORDER_REFERENCE_ALLOCATION_ATTEMPTS } from "@/contracts/order/reference";
 import {
   buildPendingPaymentAttempt,
+  type PendingPaymentAttempt,
   type PendingPaymentLine,
 } from "@/lib/payment/pending-attempt";
-import type { PendingPaymentStore } from "@/lib/payment/pending-store";
+import {
+  OrderReferenceCollisionError,
+  type PendingPaymentStore,
+  type PersistedPendingPayment,
+} from "@/lib/payment/pending-store";
 import { createPayPalOrder } from "@/lib/paypal/create-order";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import type { CheckoutFieldErrors, PublicCheckoutDraft } from "@/types/checkout";
@@ -41,38 +47,52 @@ export async function commitPendingPayPalPayment(input: {
   store: PendingPaymentStore;
   createProviderOrder?: typeof createPayPalOrder;
 }): Promise<CommitPendingPaymentResult> {
-  const built = buildPendingPaymentAttempt({
-    draft: input.draft,
-    lines: input.lines,
-    userId: input.userId,
-  });
-  if (!built.ok) {
-    if (built.reason === "invalid") {
-      return { status: "invalid", errors: built.errors };
-    }
-    return { status: built.reason };
-  }
-
-  const { attempt } = built;
-  if (
-    attempt.payment.status !== "created" ||
-    attempt.order.payment_status !== "created" ||
-    attempt.payment.amount_minor !== attempt.quote.totalMinor ||
-    attempt.paypal.amountMinor !== attempt.quote.totalMinor ||
-    attempt.paypal.currency !== "GBP" ||
-    attempt.payment.currency !== "GBP"
-  ) {
-    return { status: "error" };
-  }
-
-  let persisted;
-  try {
-    persisted = await input.store.insertAttempt({
-      order: attempt.order,
-      items: attempt.items,
-      payment: attempt.payment,
+  let persisted: PersistedPendingPayment | undefined;
+  let attempt: PendingPaymentAttempt | undefined;
+  for (let tries = 0; tries < ORDER_REFERENCE_ALLOCATION_ATTEMPTS; tries += 1) {
+    const built = buildPendingPaymentAttempt({
+      draft: input.draft,
+      lines: input.lines,
+      userId: input.userId,
     });
-  } catch {
+    if (!built.ok) {
+      if (built.reason === "invalid") {
+        return { status: "invalid", errors: built.errors };
+      }
+      return { status: built.reason };
+    }
+
+    attempt = built.attempt;
+    if (
+      attempt.payment.status !== "created" ||
+      attempt.order.payment_status !== "created" ||
+      attempt.payment.amount_minor !== attempt.quote.totalMinor ||
+      attempt.paypal.amountMinor !== attempt.quote.totalMinor ||
+      attempt.paypal.currency !== "GBP" ||
+      attempt.payment.currency !== "GBP"
+    ) {
+      return { status: "error" };
+    }
+
+    try {
+      persisted = await input.store.insertAttempt({
+        order: attempt.order,
+        items: attempt.items,
+        payment: attempt.payment,
+      });
+      break;
+    } catch (error) {
+      if (
+        error instanceof OrderReferenceCollisionError &&
+        tries < ORDER_REFERENCE_ALLOCATION_ATTEMPTS - 1
+      ) {
+        continue;
+      }
+      return { status: "error" };
+    }
+  }
+
+  if (!persisted || !attempt) {
     return { status: "error" };
   }
 

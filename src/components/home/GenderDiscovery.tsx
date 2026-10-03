@@ -53,7 +53,10 @@ export function GenderDiscovery() {
                       className={cx(styles.image, image.crop)}
                     />
                   </div>
-                  <span className="text-h3">{item.label}</span>
+                  <span className="text-h3">
+                    {item.label}
+                    <span aria-hidden="true"> →</span>
+                  </span>
                 </Link>
               </li>
             );

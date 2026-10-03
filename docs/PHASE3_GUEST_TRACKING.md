@@ -4,7 +4,7 @@
 **Status:** Partial — `/track-order` form, server lookup, rate limit, secure result view. No paid orders until the payment handoff.  
 **Stacked on:** [PR #17](https://github.com/Shadesuk/Shadesuk-live/pull/17) (`cursor/phase3-account-auth-6a34`)
 
-This slice adds guest order tracking so the footer **Track Order** link no longer 404s. Guests verify with a non-guessable `order_reference` **and** email. Admin dashboard, payment charge/SDKs/webhooks, and carrier APIs are out of scope.
+This slice adds guest order tracking so the footer **Track Order** link no longer 404s. Guests verify with the public `order_reference` **and** email. New references are 4 digits and are guessable on their own, so the email check stays mandatory. Legacy `SHU-` references still resolve. Admin dashboard, payment charge/SDKs/webhooks, and carrier APIs are out of scope.
 
 ## Wired
 

@@ -9,6 +9,7 @@ import { routes } from "@/lib/navigation";
 import type { MenuBrandLink } from "@/lib/menu-brands";
 import type { SearchDiscoveryLink } from "@/lib/search-query";
 import type { PublicCart } from "@/types/cart";
+import { CookieConsent } from "@/components/consent/CookieConsent";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
 import { ChromeProvider, useChromeLocks } from "./ChromeContext";
@@ -49,6 +50,7 @@ export function SiteChrome({
             <SiteFooter reduced={checkout} />
           </div>
         </div>
+        <CookieConsent />
         <BagDrawer />
       </CartProvider>
     </ChromeProvider>

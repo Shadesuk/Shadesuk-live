@@ -17,6 +17,7 @@ export type ResendConfig = {
   apiKey: string;
   fromEmail: string;
   fromName: string;
+  replyTo?: string;
   templates: Record<ResendTemplateKind, string>;
 };
 
@@ -38,6 +39,7 @@ export function resolveResendConfig(): ResendConfigResult {
   const shipmentConfirmationTemplateId = readEnv(
     process.env.RESEND_SHIPMENT_CONFIRMATION_TEMPLATE_ID,
   );
+  const replyTo = readEnv(process.env.RESEND_REPLY_TO);
 
   const issues: string[] = [];
   if (!apiKey) {
@@ -54,6 +56,9 @@ export function resolveResendConfig(): ResendConfigResult {
   if (!shipmentConfirmationTemplateId) {
     issues.push("RESEND_SHIPMENT_CONFIRMATION_TEMPLATE_ID is not set");
   }
+  if (replyTo && !isFromEmail(replyTo)) {
+    issues.push("RESEND_REPLY_TO is not a valid email address");
+  }
 
   if (issues.length > 0) {
     return { ok: false, issues };
@@ -65,6 +70,7 @@ export function resolveResendConfig(): ResendConfigResult {
       apiKey,
       fromEmail,
       fromName,
+      replyTo: replyTo || undefined,
       templates: {
         order_confirmation: orderConfirmationTemplateId,
         shipment_confirmation: shipmentConfirmationTemplateId,

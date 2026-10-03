@@ -164,8 +164,10 @@ export type { CartItemRow, CartRow, CartStatus } from "./cart/schema";
 export {
   createOrderReference,
   isOrderReference,
+  LEGACY_ORDER_REFERENCE_PATTERN,
   ORDER_REFERENCE_PATTERN,
   parseOrderReferenceInput,
+  takeUniqueOrderReference,
 } from "./order/reference";
 export {
   consumeGuestTrackingEmailCompare,
