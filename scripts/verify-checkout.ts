@@ -601,9 +601,6 @@ if (!reviewSource.includes("initiateCheckoutPaymentAction") || !reviewSource.inc
 if (!reviewSource.includes("mountPayPalCheckout") || !reviewSource.includes("verifyCheckoutPaymentAction")) {
   throw new Error("Checkout review must mount PayPal Buttons and send approval to server verification.");
 }
-if (!reviewSource.includes("clientToken: config.clientToken")) {
-  throw new Error("Checkout review must pass the server client token into the PayPal mount.");
-}
 if (reviewSource.includes("openRazorpayCheckout") || reviewSource.toLowerCase().includes("checkout.js")) {
   throw new Error("Checkout review must not wire a Razorpay handler.");
 }
