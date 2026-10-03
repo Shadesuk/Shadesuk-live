@@ -27,6 +27,7 @@ import { gbpMinorToPayPalValue, payPalValueToGbpMinor } from "../src/lib/paypal/
 import {
   PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION,
   buildPayPalClientTokenForm,
+  paypalClientTokenBindDomains,
   paypalClientTokenHosts,
 } from "../src/lib/paypal/client";
 import { parseCreatedOrder } from "../src/lib/paypal/create-order";
@@ -92,14 +93,22 @@ if (
 if (paypalClientTokenHosts(["http://localhost:3000"])[0] !== "localhost:3000") {
   throw new Error("Local client-token hosts must keep the port.");
 }
-const clientTokenForm = buildPayPalClientTokenForm(["www.shadesuk.com"]);
+if (paypalClientTokenBindDomains(["https://www.shadesuk.com"], "live").join(",") !== "shadesuk.com") {
+  throw new Error("Live client-token domains must be the registered root domain.");
+}
+if (paypalClientTokenBindDomains(["http://localhost:3000", "https://www.shadesuk.com"], "sandbox").length !== 0) {
+  throw new Error("Sandbox client-token grants must omit domains[].");
+}
+const clientTokenForm = buildPayPalClientTokenForm(["shadesuk.com"]);
 if (
   !clientTokenForm.includes("grant_type=client_credentials") ||
   !clientTokenForm.includes("response_type=client_token") ||
+  !clientTokenForm.includes("intent=sdk_init") ||
   !clientTokenForm.includes("domains") ||
-  !clientTokenForm.includes("www.shadesuk.com")
+  !clientTokenForm.includes("shadesuk.com") ||
+  clientTokenForm.includes("www.shadesuk.com")
 ) {
-  throw new Error("Client-token form must use the official client_token grant and domain bind.");
+  throw new Error("Client-token form must use sdk_init and the registered root domain.");
 }
 
 const parseExpected = {
