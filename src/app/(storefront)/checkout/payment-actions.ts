@@ -5,7 +5,7 @@ import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import { isUuid } from "@/lib/ids";
 import { clearPaymentAttemptId } from "@/lib/payment/attempt-cookie";
-import { getPayPalBrowserClientToken, paypalClientTokenHosts } from "@/lib/paypal/client";
+import { getPayPalBrowserClientToken, paypalClientTokenBindDomains } from "@/lib/paypal/client";
 import { resolvePayPalServerConfig } from "@/lib/paypal/config";
 import { site } from "@/lib/site";
 import {
@@ -61,16 +61,14 @@ export async function loadPayPalCheckoutConfigAction(): Promise<PayPalCheckoutCo
   }
 
   const requestHeaders = await headers();
-  const token = await getPayPalBrowserClientToken(
-    paypalClientTokenHosts([
-      site.url,
-      requestHeaders.get("origin") ?? "",
-      requestHeaders.get("x-forwarded-host")?.split(",")[0]?.trim() ??
-        requestHeaders.get("host") ??
-        "",
-    ]),
-    config.config,
+  const domains = paypalClientTokenBindDomains(
+    [site.url, requestHeaders.get("origin") ?? ""],
+    config.config.mode,
   );
+  if (config.config.mode === "live" && domains.length === 0) {
+    return { status: "unavailable" };
+  }
+  const token = await getPayPalBrowserClientToken(domains, config.config);
   if (!token.ok) {
     if (config.config.mode === "live") {
       return { status: "unavailable" };

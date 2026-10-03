@@ -55,13 +55,55 @@ export function paypalClientTokenHosts(origins: readonly string[]): string[] {
   return [...hosts];
 }
 
+/**
+ * Live client-token grants accept the registered root domain only
+ * (`shadesuk.com`, not `www.shadesuk.com`, localhost, or preview hosts).
+ * Sandbox must omit `domains[]` — PayPal rejects localhost.
+ */
+export function paypalClientTokenBindDomains(
+  origins: readonly string[],
+  mode: "sandbox" | "live",
+): string[] {
+  if (mode !== "live") {
+    return [];
+  }
+  const roots = new Set<string>();
+  for (const host of paypalClientTokenHosts(origins)) {
+    const root = paypalRegistrableDomain(host);
+    if (root) {
+      roots.add(root);
+    }
+  }
+  return [...roots];
+}
+
+function paypalRegistrableDomain(host: string): string | null {
+  const hostname = host.split(":")[0]?.toLowerCase() ?? "";
+  if (
+    !hostname ||
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".vercel.app") ||
+    hostname.endsWith(".now.sh") ||
+    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
+  ) {
+    return null;
+  }
+  const parts = hostname.split(".");
+  if (parts.length < 2) {
+    return null;
+  }
+  return parts.slice(-2).join(".");
+}
+
 /** Official v6 browser-safe token grant. Not the REST access token used by paypalFetchJson. */
-export function buildPayPalClientTokenForm(hosts: readonly string[]): string {
+export function buildPayPalClientTokenForm(domains: readonly string[]): string {
   const params = new URLSearchParams();
   params.set("grant_type", "client_credentials");
   params.set("response_type", "client_token");
-  if (hosts.length > 0) {
-    params.set("domains[]", hosts.join(","));
+  params.set("intent", "sdk_init");
+  if (domains.length > 0) {
+    params.set("domains[]", domains.join(","));
   }
   return params.toString();
 }
@@ -148,9 +190,6 @@ export async function getPayPalBrowserClientToken(
   }
   const { config: cfg } = resolved;
   const boundHosts = paypalClientTokenHosts(hosts);
-  if (boundHosts.length === 0) {
-    return { ok: false, error: "PayPal client token is missing a checkout host." };
-  }
   const hostKey = boundHosts.join(",");
   const now = Date.now();
   if (
