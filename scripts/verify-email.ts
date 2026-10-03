@@ -60,6 +60,12 @@ for (const name of [
 if (envExample.includes("NEXT_PUBLIC_RESEND")) {
   throw new Error("Resend secrets must never use a NEXT_PUBLIC_ prefix.");
 }
+if (!envExample.includes("order-confirmation-1")) {
+  throw new Error(".env.example must document the published order-confirmation alias.");
+}
+if (!envExample.includes("ORDER_NUMBER") || !envExample.includes("AWB_NUMBER") || !envExample.includes("cid:product-image-1")) {
+  throw new Error(".env.example must document the published variable contract and CID removal.");
+}
 
 const emailDir = resolve(root, "src/lib/email");
 const emailFiles = [
@@ -103,11 +109,51 @@ if (!service.includes("sendOrderConfirmation") || !service.includes("sendShipmen
 if (!service.includes("template:") || !service.includes("idempotencyKey")) {
   throw new Error("Email service must send Resend templates and accept a caller idempotency key.");
 }
+if (!service.includes("id: templateId")) {
+  throw new Error("Resend send must pass the env template id/alias as template.id.");
+}
+if (
+  service.includes("attachments") ||
+  service.includes("content_id") ||
+  service.includes("contentId") ||
+  service.includes("cid:")
+) {
+  throw new Error("Email service must not attach CID images that the architecture cannot produce.");
+}
 if (service.includes("crypto.randomUUID") || service.includes("randomUUID(")) {
   throw new Error("Email service must not generate random application-level identifiers.");
 }
 
 const reserved = new Set(["FIRST_NAME", "LAST_NAME", "EMAIL", "UNSUBSCRIBE_URL"]);
+const publishedOrderKeys = [
+  "ORDER_NUMBER",
+  "ORDER_DATE",
+  "TRACK_ORDER_URL",
+  "PRODUCT_NAME",
+  "PRODUCT_VARIANT",
+  "PRODUCT_QUANTITY",
+  "PRODUCT_PRICE",
+  "SUBTOTAL",
+  "SHIPPING",
+  "TOTAL",
+] as const;
+const publishedShipmentKeys = [
+  "ORDER_NUMBER",
+  "SHIPMENT_DATE",
+  "TRACKING_URL",
+  "CARRIER_NAME",
+  "AWB_NUMBER",
+  "PRODUCT_NAME",
+  "PRODUCT_VARIANT",
+  "PRODUCT_QUANTITY",
+  "PRODUCT_PRICE",
+] as const;
+if (ORDER_CONFIRMATION_VARIABLE_KEYS.join(",") !== publishedOrderKeys.join(",")) {
+  throw new Error("Order confirmation variables must match the published template keys exactly.");
+}
+if (SHIPMENT_CONFIRMATION_VARIABLE_KEYS.join(",") !== publishedShipmentKeys.join(",")) {
+  throw new Error("Shipment confirmation variables must match the published template keys exactly.");
+}
 for (const key of [...ORDER_CONFIRMATION_VARIABLE_KEYS, ...SHIPMENT_CONFIRMATION_VARIABLE_KEYS]) {
   if (reserved.has(key)) {
     throw new Error(`Template variable ${key} is reserved by Resend.`);
@@ -158,17 +204,126 @@ const orderVariables = toOrderConfirmationVariables({
     country: "GB",
   },
 });
-if (orderVariables.CUSTOMER_NAME !== "Ada Lovelace") {
-  throw new Error("Order confirmation must pass customer name from the payload.");
+if (Object.keys(orderVariables).sort().join(",") !== [...publishedOrderKeys].sort().join(",")) {
+  throw new Error("Order confirmation must send only the published template variables.");
 }
-if (orderVariables.ORDER_REFERENCE !== "SHU1A2B3C4D5E") {
-  throw new Error("Order confirmation must pass the order reference.");
+if (orderVariables.ORDER_NUMBER !== "SHU1A2B3C4D5E") {
+  throw new Error("ORDER_NUMBER must come from orders.order_reference.");
 }
-if (typeof orderVariables.ORDER_TOTAL !== "string" || !orderVariables.ORDER_TOTAL.includes("53.65")) {
-  throw new Error("Order confirmation total must be formatted GBP from minor units.");
+if (
+  typeof orderVariables.ORDER_DATE !== "string" ||
+  orderVariables.ORDER_DATE.includes("T") ||
+  !orderVariables.ORDER_DATE.includes("21") ||
+  !orderVariables.ORDER_DATE.includes("2026")
+) {
+  throw new Error("ORDER_DATE must be a UK display date from orders.created_at.");
 }
-if (typeof orderVariables.ORDER_ITEMS_SUMMARY !== "string" || !orderVariables.ORDER_ITEMS_SUMMARY.includes("Frame 01")) {
-  throw new Error("Order confirmation must summarise existing order items, not invent catalogue data.");
+if (orderVariables.TRACK_ORDER_URL !== trackOrderCtaUrl() || !String(orderVariables.TRACK_ORDER_URL).endsWith("/track-order")) {
+  throw new Error("TRACK_ORDER_URL must be the site Track Order page.");
+}
+if (String(orderVariables.TRACK_ORDER_URL).includes("?") || String(orderVariables.TRACK_ORDER_URL).includes("SHU")) {
+  throw new Error("Track Order CTA must not put the order reference in the URL.");
+}
+if (orderVariables.PRODUCT_NAME !== "Frame 01") {
+  throw new Error("PRODUCT_NAME must come from order_items.product_name.");
+}
+if (orderVariables.PRODUCT_VARIANT !== "Black") {
+  throw new Error("PRODUCT_VARIANT must come from order_items.colour_name / variant_name.");
+}
+if (orderVariables.PRODUCT_QUANTITY !== "1") {
+  throw new Error("PRODUCT_QUANTITY must come from order_items.quantity.");
+}
+if (typeof orderVariables.PRODUCT_PRICE !== "string" || !orderVariables.PRODUCT_PRICE.includes("49")) {
+  throw new Error("PRODUCT_PRICE must be formatted GBP from order_items.unit_price_minor.");
+}
+if (typeof orderVariables.SUBTOTAL !== "string" || !orderVariables.SUBTOTAL.includes("49")) {
+  throw new Error("SUBTOTAL must be formatted GBP from orders.subtotal_minor.");
+}
+if (typeof orderVariables.SHIPPING !== "string" || !orderVariables.SHIPPING.includes("4.65")) {
+  throw new Error("SHIPPING must be formatted GBP from orders.shipping_minor.");
+}
+if (typeof orderVariables.TOTAL !== "string" || !orderVariables.TOTAL.includes("53.65")) {
+  throw new Error("TOTAL must be formatted GBP from orders.total_minor.");
+}
+if (Object.values(orderVariables).some((value) => String(value).includes("cid:"))) {
+  throw new Error("Template variables must not invent a CID or product image URL.");
+}
+
+const multiItemVariables = toOrderConfirmationVariables({
+  recipientEmail: "ada@shadesuk.example",
+  customerFirstName: "Ada",
+  customerLastName: "Lovelace",
+  orderReference: "SHU1A2B3C4D5E",
+  placedAt: "2026-09-21T10:00:00.000Z",
+  currency: "GBP",
+  subtotalMinor: 10800,
+  shippingMinor: 465,
+  totalMinor: 11265,
+  items: [
+    {
+      productName: "Frame 01",
+      colourName: "Black",
+      variantName: null,
+      quantity: 2,
+      unitPriceMinor: 4900,
+      lineTotalMinor: 9800,
+    },
+    {
+      productName: "Frame 02",
+      colourName: "Tortoise",
+      variantName: "Medium",
+      quantity: 1,
+      unitPriceMinor: 5900,
+      lineTotalMinor: 5900,
+    },
+  ],
+  deliveryAddress: null,
+});
+if (
+  multiItemVariables.PRODUCT_NAME !== "Frame 01; Frame 02" ||
+  multiItemVariables.PRODUCT_VARIANT !== "Black; Tortoise / Medium" ||
+  multiItemVariables.PRODUCT_QUANTITY !== "2; 1" ||
+  typeof multiItemVariables.PRODUCT_PRICE !== "string" ||
+  !String(multiItemVariables.PRODUCT_PRICE).includes("49") ||
+  !String(multiItemVariables.PRODUCT_PRICE).includes("59")
+) {
+  throw new Error("Multi-item orders must send every order_items row in the published PRODUCT_* keys.");
+}
+const multiShipmentVariables = toShipmentConfirmationVariables({
+  recipientEmail: "ada@shadesuk.example",
+  customerFirstName: "Ada",
+  customerLastName: "Lovelace",
+  orderReference: "SHU1A2B3C4D5E",
+  shipmentStatus: "dispatched",
+  carrierName: "Royal Mail",
+  trackingNumber: "AB123",
+  trackingUrl: "https://example.com/track/AB123",
+  shippedAt: "2026-09-22T10:00:00.000Z",
+  trackOrderUrl: trackOrderCtaUrl(),
+  items: [
+    {
+      productName: "Frame 01",
+      colourName: "Black",
+      variantName: null,
+      quantity: 2,
+      unitPriceMinor: 4900,
+      lineTotalMinor: 9800,
+    },
+    {
+      productName: "Frame 02",
+      colourName: "Tortoise",
+      variantName: "Medium",
+      quantity: 1,
+      unitPriceMinor: 5900,
+      lineTotalMinor: 5900,
+    },
+  ],
+});
+if (
+  multiShipmentVariables.PRODUCT_NAME !== "Frame 01; Frame 02" ||
+  multiShipmentVariables.PRODUCT_QUANTITY !== "2; 1"
+) {
+  throw new Error("Shipment emails must include every confirmed order line.");
 }
 
 const shipmentVariables = toShipmentConfirmationVariables({
@@ -193,30 +348,28 @@ const shipmentVariables = toShipmentConfirmationVariables({
     },
   ],
 });
-if (shipmentVariables.ORDER_REFERENCE !== "SHU1A2B3C4D5E") {
-  throw new Error("Shipment confirmation must pass the order reference.");
+if (Object.keys(shipmentVariables).sort().join(",") !== [...publishedShipmentKeys].sort().join(",")) {
+  throw new Error("Shipment confirmation must send only the published template variables.");
 }
-if (shipmentVariables.SHIPMENT_STATUS !== "Dispatched") {
-  throw new Error("Shipment confirmation must pass the shipment status label.");
-}
-if (shipmentVariables.CARRIER_NAME !== "Royal Mail" || shipmentVariables.TRACKING_NUMBER !== "AB123") {
-  throw new Error("Shipment confirmation must pass carrier and tracking reference.");
-}
-if (shipmentVariables.TRACKING_URL !== "https://example.com/track/AB123") {
-  throw new Error("Shipment confirmation must pass a safe https tracking URL.");
+if (shipmentVariables.ORDER_NUMBER !== "SHU1A2B3C4D5E") {
+  throw new Error("Shipment ORDER_NUMBER must come from orders.order_reference.");
 }
 if (
-  shipmentVariables.TRACK_ORDER_URL !== trackOrderCtaUrl() ||
-  shipmentVariables.TRACK_ORDER_LABEL !== "Track order" ||
-  !String(shipmentVariables.TRACK_ORDER_URL).endsWith("/track-order")
+  typeof shipmentVariables.SHIPMENT_DATE !== "string" ||
+  shipmentVariables.SHIPMENT_DATE.includes("T") ||
+  !shipmentVariables.SHIPMENT_DATE.includes("22") ||
+  !shipmentVariables.SHIPMENT_DATE.includes("2026")
 ) {
-  throw new Error("Shipment confirmation must include a Track Order CTA on this site.");
+  throw new Error("SHIPMENT_DATE must be a UK display date from shipments.shipped_at.");
 }
-if (String(shipmentVariables.TRACK_ORDER_URL).includes("?") || String(shipmentVariables.TRACK_ORDER_URL).includes("SHU")) {
-  throw new Error("Track Order CTA must not put the order reference in the URL.");
+if (shipmentVariables.CARRIER_NAME !== "Royal Mail" || shipmentVariables.AWB_NUMBER !== "AB123") {
+  throw new Error("Shipment email must pass carrier_name and tracking_number as CARRIER_NAME / AWB_NUMBER.");
 }
-if (typeof shipmentVariables.ORDER_ITEMS_SUMMARY !== "string" || !shipmentVariables.ORDER_ITEMS_SUMMARY.includes("Frame 01")) {
-  throw new Error("Shipment confirmation must include the shipped order lines.");
+if (shipmentVariables.TRACKING_URL !== "https://example.com/track/AB123") {
+  throw new Error("TRACKING_URL must come from shipments.tracking_url when it is https.");
+}
+if (shipmentVariables.PRODUCT_NAME !== "Frame 01" || shipmentVariables.PRODUCT_VARIANT !== "Black") {
+  throw new Error("Shipment product fields must come from the confirmed order lines.");
 }
 if (toShipmentConfirmationVariables({
   recipientEmail: "ada@shadesuk.example",
@@ -245,8 +398,8 @@ if (toShipmentConfirmationVariables({
   shippedAt: null,
   trackOrderUrl: "https://evil.example/track-order?ref=SHU1A2B3C4D5E",
   items: [],
-}).TRACK_ORDER_URL !== "") {
-  throw new Error("Track Order CTA must stay on the site track-order path without a query string.");
+}).AWB_NUMBER !== "") {
+  throw new Error("Missing AWB / tracking number must be sent as an empty AWB_NUMBER, not invented.");
 }
 if (!isShipmentConfirmationStatus("dispatched") || !isShipmentConfirmationStatus("tracking_unavailable")) {
   throw new Error("Dispatch and tracking-unavailable are shipment confirmation events.");
@@ -257,6 +410,9 @@ if (isShipmentConfirmationStatus("pending") || isShipmentConfirmationStatus("exc
 
 if (formatResendFromHeader({ fromName: "SHADESUK", fromEmail: "orders@example.com" }) !== "SHADESUK <orders@example.com>") {
   throw new Error("From header must use RESEND_FROM_NAME and RESEND_FROM_EMAIL.");
+}
+if (formatResendFromHeader({ fromName: "SHADESUK", fromEmail: "orders@shadesuk.com" }) !== "SHADESUK <orders@shadesuk.com>") {
+  throw new Error("Production From header must be SHADESUK <orders@shadesuk.com>.");
 }
 
 if (redactSecrets("key re_123abc Bearer secret") !== "key [redacted] [redacted]") {
@@ -643,6 +799,17 @@ async function verifyEmailEvents() {
 
   const webhookRoute = read("src/app/api/webhooks/resend/route.ts");
   const webhookProcessor = read("src/lib/email/webhook.ts");
+  if (!webhookRoute.includes("export async function POST") || !webhookRoute.includes("methodNotAllowed")) {
+    throw new Error("Resend webhook must be POST-only with 405 for other methods.");
+  }
+  for (const method of ["GET", "HEAD", "PUT", "PATCH", "DELETE"] as const) {
+    if (!webhookRoute.includes(`export async function ${method}`)) {
+      throw new Error(`Resend webhook must reject ${method} with 405.`);
+    }
+  }
+  if (webhookRoute.includes("JSON.stringify") && webhookRoute.includes("console")) {
+    throw new Error("Resend webhook must not log raw payloads.");
+  }
   for (const source of [webhookRoute, webhookProcessor]) {
     if (
       source.includes('.from("orders")') ||

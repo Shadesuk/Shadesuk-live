@@ -6,8 +6,9 @@ import { site } from "@/lib/site";
  * Server-only Resend configuration. Keys are never prefixed with
  * `NEXT_PUBLIC_` so Next.js cannot inline them into the browser bundle.
  *
- * Template ids/aliases are not in this repository. Supply the published
- * Resend dashboard values via env; do not invent them in code.
+ * `RESEND_*_TEMPLATE_ID` is passed as `template.id` to the official SDK.
+ * Resend documents that field as the published template id or alias.
+ * Supply the dashboard value via env; do not invent it in code.
  */
 
 export type ResendTemplateKind = "order_confirmation" | "shipment_confirmation";

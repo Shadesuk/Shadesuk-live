@@ -83,6 +83,7 @@ async function sendTemplateEmail(input: {
         from: formatResendFromHeader(config),
         to,
         template: {
+          // Env value: published Resend template id or alias.
           id: templateId,
           variables: input.variables,
         },
