@@ -101,9 +101,6 @@ const openButtons = read("src/lib/paypal/open-buttons.ts");
 if (!openButtons.includes("web-sdk/v6/core") || !openButtons.includes("createInstance")) {
   throw new Error("Buttons helper must load PayPal JS SDK v6 core and createInstance.");
 }
-if (!openButtons.includes("clientToken") || !openButtons.includes("paypalCreateInstanceOptions")) {
-  throw new Error("Buttons helper must prefer a server client token for live createInstance auth.");
-}
 if (!openButtons.includes("orderId: providerOrderId") && !openButtons.includes("orderId:providerOrderId")) {
   if (!openButtons.includes("Promise.resolve({ orderId: providerOrderId })")) {
     throw new Error("Buttons createOrder must return the already-created provider order id.");

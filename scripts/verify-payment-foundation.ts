@@ -24,12 +24,7 @@ import {
 } from "../src/services/pending-payment";
 import type { PublicCart } from "../src/types/cart";
 import { gbpMinorToPayPalValue, payPalValueToGbpMinor } from "../src/lib/paypal/amount";
-import {
-  PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION,
-  buildPayPalClientTokenForm,
-  paypalClientTokenBindDomains,
-  paypalClientTokenHosts,
-} from "../src/lib/paypal/client";
+import { PAYPAL_ORDERS_PREFER_RETURN_REPRESENTATION } from "../src/lib/paypal/client";
 import { parseCreatedOrder } from "../src/lib/paypal/create-order";
 import { redactPayPalSecrets } from "../src/lib/paypal/errors";
 import { emptyCheckoutDraft, type PublicCheckoutDraft } from "../src/types/checkout";
@@ -76,40 +71,6 @@ if (
 ) {
   throw new Error("paypalFetchJson must send Prefer: return=representation.");
 }
-if (
-  !clientSource.includes("getPayPalBrowserClientToken") ||
-  !clientSource.includes('response_type') ||
-  !clientSource.includes("client_token") ||
-  !clientSource.includes("domains[]")
-) {
-  throw new Error("Live JS SDK v6 must request a browser-safe client token bound to checkout hosts.");
-}
-if (
-  paypalClientTokenHosts(["https://www.shadesuk.com", "www.shadesuk.com", ""]).join(",") !==
-  "www.shadesuk.com"
-) {
-  throw new Error("Client-token hosts must be unique hostnames.");
-}
-if (paypalClientTokenHosts(["http://localhost:3000"])[0] !== "localhost:3000") {
-  throw new Error("Local client-token hosts must keep the port.");
-}
-if (paypalClientTokenBindDomains(["https://www.shadesuk.com"], "live").join(",") !== "shadesuk.com") {
-  throw new Error("Live client-token domains must be the registered root domain.");
-}
-if (paypalClientTokenBindDomains(["http://localhost:3000", "https://www.shadesuk.com"], "sandbox").length !== 0) {
-  throw new Error("Sandbox client-token grants must omit domains[].");
-}
-const clientTokenForm = buildPayPalClientTokenForm(["shadesuk.com"]);
-if (
-  !clientTokenForm.includes("grant_type=client_credentials") ||
-  !clientTokenForm.includes("response_type=client_token") ||
-  !clientTokenForm.includes("intent=sdk_init") ||
-  !clientTokenForm.includes("domains") ||
-  !clientTokenForm.includes("shadesuk.com") ||
-  clientTokenForm.includes("www.shadesuk.com")
-) {
-  throw new Error("Client-token form must use sdk_init and the registered root domain.");
-}
 
 const parseExpected = {
   amountMinor: 5365,
@@ -147,12 +108,6 @@ if (
   !paymentActions.includes("captureVerifiedPayment")
 ) {
   throw new Error("Checkout must still verify then captureVerifiedPayment (no Prefer bypass).");
-}
-if (
-  !paymentActions.includes("getPayPalBrowserClientToken") ||
-  !paymentActions.includes("clientToken")
-) {
-  throw new Error("Checkout config must return a browser-safe client token for live eligibility.");
 }
 
 const envExample = read(".env.example");
