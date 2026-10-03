@@ -18,6 +18,8 @@ export type PayPalBrowserMode = "sandbox" | "live";
 
 export type OpenPayPalButtonsInput = {
   clientId: string;
+  /** Browser-safe v6 token. Preferred over clientId for live eligibility. */
+  clientToken?: string;
   providerOrderId: string;
   paymentId: string;
   /** Must match server PAYPAL_MODE from initiation — never hardcode live. */
@@ -56,11 +58,36 @@ type PayPalSdkInstance = {
 
 type PayPalNamespace = {
   createInstance: (options: {
-    clientId: string;
+    clientId?: string;
+    clientToken?: string;
     components: string[];
     pageType?: string;
   }) => Promise<PayPalSdkInstance>;
 };
+
+function paypalCreateInstanceOptions(input: {
+  clientId: string;
+  clientToken?: string;
+}): {
+  clientId?: string;
+  clientToken?: string;
+  components: string[];
+  pageType: "checkout";
+} {
+  const clientToken = input.clientToken?.trim() ?? "";
+  if (clientToken) {
+    return {
+      clientToken,
+      components: ["paypal-payments"],
+      pageType: "checkout",
+    };
+  }
+  return {
+    clientId: input.clientId.trim(),
+    components: ["paypal-payments"],
+    pageType: "checkout",
+  };
+}
 
 declare global {
   interface Window {
@@ -85,10 +112,11 @@ export async function openPayPalButtons(
   }
 
   const clientId = input.clientId.trim();
+  const clientToken = input.clientToken?.trim() ?? "";
   const providerOrderId = input.providerOrderId.trim();
   const paymentId = input.paymentId.trim();
   const mode: PayPalBrowserMode = input.mode === "live" ? "live" : "sandbox";
-  if (!clientId || !providerOrderId || !paymentId) {
+  if ((!clientId && !clientToken) || !providerOrderId || !paymentId) {
     return { status: "unavailable", reason: "missing_input" };
   }
 
@@ -99,11 +127,9 @@ export async function openPayPalButtons(
 
   let sdk: PayPalSdkInstance;
   try {
-    sdk = await window.paypal.createInstance({
-      clientId,
-      components: ["paypal-payments"],
-      pageType: "checkout",
-    });
+    sdk = await window.paypal.createInstance(
+      paypalCreateInstanceOptions({ clientId, clientToken }),
+    );
   } catch {
     return { status: "unavailable", reason: "sdk_error" };
   }
@@ -192,6 +218,8 @@ async function loadPayPalSdkScript(mode: PayPalBrowserMode): Promise<boolean> {
 export type MountPayPalCheckoutInput = {
   container: HTMLElement;
   clientId: string;
+  /** Browser-safe v6 token. Preferred over clientId for live eligibility. */
+  clientToken?: string;
   mode: PayPalBrowserMode;
   createOrder: () => Promise<{ orderId: string } | null>;
   onApprove: (paypalOrderId: string) => Promise<void>;
@@ -214,8 +242,9 @@ export async function mountPayPalCheckout(input: MountPayPalCheckoutInput): Prom
     return noop;
   }
   const clientId = input.clientId.trim();
+  const clientToken = input.clientToken?.trim() ?? "";
   const mode: PayPalBrowserMode = input.mode === "live" ? "live" : "sandbox";
-  if (!clientId) {
+  if (!clientId && !clientToken) {
     input.onError("sdk");
     return noop;
   }
@@ -227,11 +256,9 @@ export async function mountPayPalCheckout(input: MountPayPalCheckoutInput): Prom
 
   let sdk: PayPalSdkInstance;
   try {
-    sdk = await window.paypal.createInstance({
-      clientId,
-      components: ["paypal-payments"],
-      pageType: "checkout",
-    });
+    sdk = await window.paypal.createInstance(
+      paypalCreateInstanceOptions({ clientId, clientToken }),
+    );
   } catch {
     input.onError("sdk");
     return noop;

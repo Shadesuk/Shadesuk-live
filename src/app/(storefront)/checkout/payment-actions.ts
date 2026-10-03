@@ -1,10 +1,13 @@
 "use server";
 
+import { headers } from "next/headers";
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import { isUuid } from "@/lib/ids";
 import { clearPaymentAttemptId } from "@/lib/payment/attempt-cookie";
+import { getPayPalBrowserClientToken, paypalClientTokenHosts } from "@/lib/paypal/client";
 import { resolvePayPalServerConfig } from "@/lib/paypal/config";
+import { site } from "@/lib/site";
 import {
   closeCheckoutPaymentAttempt,
   initiatePendingPayPalPayment,
@@ -39,13 +42,14 @@ export type CheckoutPaymentVerifyResult =
   | { status: "error" };
 
 export type PayPalCheckoutConfigResult =
-  | { status: "ok"; clientId: string; mode: "sandbox" | "live" }
+  | { status: "ok"; clientId: string; clientToken?: string; mode: "sandbox" | "live" }
   | { status: "unavailable" };
 
 /**
- * Public Client ID and the server mode for the official PayPal button.
+ * Public Client ID, optional browser-safe client token, and server mode.
  * Does not create an order and never returns the client secret.
- * `mode` follows PAYPAL_MODE. This recovery does not switch production to live.
+ * Live JS SDK v6 eligibility requires the client token. Sandbox can fall
+ * back to Client ID if the token grant is unavailable.
  */
 export async function loadPayPalCheckoutConfigAction(): Promise<PayPalCheckoutConfigResult> {
   if (!(await cartActionOriginAllowed())) {
@@ -55,9 +59,33 @@ export async function loadPayPalCheckoutConfigAction(): Promise<PayPalCheckoutCo
   if (!config.ok) {
     return { status: "unavailable" };
   }
+
+  const requestHeaders = await headers();
+  const token = await getPayPalBrowserClientToken(
+    paypalClientTokenHosts([
+      site.url,
+      requestHeaders.get("origin") ?? "",
+      requestHeaders.get("x-forwarded-host")?.split(",")[0]?.trim() ??
+        requestHeaders.get("host") ??
+        "",
+    ]),
+    config.config,
+  );
+  if (!token.ok) {
+    if (config.config.mode === "live") {
+      return { status: "unavailable" };
+    }
+    return {
+      status: "ok",
+      clientId: config.config.clientId,
+      mode: config.config.mode,
+    };
+  }
+
   return {
     status: "ok",
     clientId: config.config.clientId,
+    clientToken: token.clientToken,
     mode: config.config.mode,
   };
 }
