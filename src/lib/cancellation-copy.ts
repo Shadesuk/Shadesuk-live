@@ -3,7 +3,10 @@ export const CANCEL_ORDER_REASON_LABEL = "Reason (optional)";
 export const CANCEL_ORDER_HINT =
   "You can request cancellation within 12 hours of placing the order, and only before it is dispatched. This does not remove your statutory UK consumer rights.";
 export const CANCEL_ORDER_PENDING = "Cancelling order";
-export const CANCEL_ORDER_DONE = "This order is cancelled. If a payment was taken, the refund is requested back to the original PayPal payment.";
+export const CANCEL_ORDER_DONE =
+  "This order is cancelled. If a payment was taken, the refund is processed separately.";
+export const REFUND_PENDING_CUSTOMER_NOTICE =
+  "If a payment was taken, the refund is processed separately.";
 export const CANCEL_ORDER_ALREADY = "This order is already cancelled.";
 export const CANCEL_ORDER_WINDOW =
   "This order can no longer be cancelled online. Your statutory UK consumer rights are unchanged. Use Contact if you need help.";
