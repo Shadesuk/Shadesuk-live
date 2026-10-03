@@ -112,8 +112,17 @@ export function AdminOrdersTable({
                 </span>
                 <span className="text-small">
                   <span className="visually-hidden">{ADMIN_ORDER_COL_STATUS} </span>
-                  {reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)}
-                  {isAwaitingFulfilment(order) ? ` · ${ADMIN_ORDERS_AWAITING_FULFILMENT}` : ""}
+                  {order.cancelledAt
+                    ? "Cancelled"
+                    : reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)}
+                  {isAwaitingFulfilment({
+                    paymentStatus: order.paymentStatus,
+                    orderStatus: order.orderStatus,
+                    cancelledAt: order.cancelledAt,
+                    refundStatus: order.refundStatus,
+                  })
+                    ? ` · ${ADMIN_ORDERS_AWAITING_FULFILMENT}`
+                    : ""}
                 </span>
                 <span className={`text-small ${styles.amount}`}>
                   <span className="visually-hidden">{ADMIN_ORDER_COL_AMOUNT} </span>

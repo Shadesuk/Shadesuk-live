@@ -81,11 +81,15 @@ export function AdminFulfilmentForm({
   shipment,
   paymentStatus,
   orderStatus,
+  cancelledAt = null,
+  refundStatus = null,
 }: {
   orderId: string;
   shipment: AdminShipmentView | null;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
+  cancelledAt?: string | null;
+  refundStatus?: string | null;
 }) {
   const [state, action, pending] = useActionState(saveAdminFulfilmentAction, idle);
   const values = state.values;
@@ -96,6 +100,8 @@ export function AdminFulfilmentForm({
     paymentStatus,
     orderStatus,
     shipmentStatus: shipment?.status ?? null,
+    cancelledAt,
+    refundStatus,
   });
   return (
     <form className={styles.form} action={action} noValidate>

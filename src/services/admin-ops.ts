@@ -215,6 +215,7 @@ async function countAwaitingFulfilment(supabase: QueryClient): Promise<number | 
     .from("orders")
     .select("id", { count: "exact", head: true })
     .eq("payment_status", AWAITING_FULFILMENT_PAYMENT)
+    .is("cancelled_at", null)
     .in("status", [...AWAITING_FULFILMENT_ORDER_STATUS_LIST]);
   return exactCount(count, error);
 }
@@ -300,6 +301,7 @@ async function loadAwaitingFulfilment(
       { count: "exact" },
     )
     .eq("payment_status", AWAITING_FULFILMENT_PAYMENT)
+    .is("cancelled_at", null)
     .in("status", [...AWAITING_FULFILMENT_ORDER_STATUS_LIST])
     .order("created_at", { ascending: true })
     .range(from, to);

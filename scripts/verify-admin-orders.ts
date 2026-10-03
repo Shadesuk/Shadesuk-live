@@ -291,6 +291,28 @@ if (canDispatchOrder({ paymentStatus: "authorized", orderStatus: "processing", s
 if (canDispatchOrder({ paymentStatus: "captured", orderStatus: "processing", shipmentStatus: "in_transit" })) {
   throw new Error("Dispatch must not rewind a shipment that is already in transit.");
 }
+if (
+  canDispatchOrder({
+    paymentStatus: "captured",
+    orderStatus: "placed",
+    shipmentStatus: null,
+    cancelledAt: "2026-10-03T12:00:00.000Z",
+    refundStatus: "refund_pending",
+  })
+) {
+  throw new Error("A cancelled order must stay undispatchable while payment is still captured.");
+}
+if (
+  canDispatchOrder({
+    paymentStatus: "captured",
+    orderStatus: "placed",
+    shipmentStatus: "pending",
+    refundStatus: "refunded",
+    cancelledAt: "2026-10-03T12:00:00.000Z",
+  })
+) {
+  throw new Error("A refunded cancellation must stay undispatchable.");
+}
 if (!isIdempotentDispatch(
   { carrierName: "Royal Mail", trackingNumber: "AB123", trackingUrl: "https://example.com/track", status: "dispatched" },
   { carrierName: "Royal Mail", trackingNumber: "AB123", trackingUrl: "https://example.com/track", shipmentStatus: "dispatched" },

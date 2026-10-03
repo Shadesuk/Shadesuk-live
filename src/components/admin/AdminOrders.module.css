@@ -311,6 +311,18 @@
   }
 }
 
+.dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  border: 1px solid var(--color-border);
+  padding: var(--space-24);
+  background: var(--color-surface);
+  color: inherit;
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .row {
     transition: none;

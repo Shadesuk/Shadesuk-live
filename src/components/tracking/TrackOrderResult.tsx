@@ -27,6 +27,7 @@ export function TrackOrderResult({ order, onTrackAnother, onOrderChange }: Track
                   ...order,
                   cancelled: true,
                   cancellationEligible: false,
+                  refundPending: true,
                 })
               }
             />

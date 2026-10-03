@@ -22,6 +22,14 @@ export const PAYMENT_STATUSES = [
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
+/** Manual refund obligation. Distinct from payment_status and from order status. */
+export const REFUND_STATUSES = ["refund_pending", "refunded"] as const;
+export type RefundStatus = (typeof REFUND_STATUSES)[number];
+
+export function isRefundStatus(value: unknown): value is RefundStatus {
+  return value === "refund_pending" || value === "refunded";
+}
+
 export type OrderRow = {
   id: string;
   order_reference: string;
@@ -38,6 +46,10 @@ export type OrderRow = {
   delivery_address: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  /** Present once a cancellation has been accepted. Payment may still be captured. */
+  cancelled_at?: string | null;
+  /** Null means this cancellation does not owe a refund. */
+  refund_status?: RefundStatus | null;
 };
 
 export type OrderItemRow = {

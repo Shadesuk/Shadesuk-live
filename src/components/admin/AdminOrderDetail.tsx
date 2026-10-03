@@ -3,7 +3,7 @@ import {
   adminPaymentStatusLabel,
 } from "@/contracts/admin/dashboard";
 import { isCommittedPurchase } from "@/contracts/order/lifecycle";
-import { isAwaitingFulfilment } from "@/contracts/fulfilment/dispatch";
+import { isAwaitingFulfilment, isDispatchConfirmationOrderStatus } from "@/contracts/fulfilment/dispatch";
 import {
   adminOrderCustomerLabel,
   adminShipmentStatusLabel,
@@ -45,12 +45,24 @@ import {
   ADMIN_ORDER_TRACKING_EVENTS_EMPTY,
   ADMIN_ORDER_TRACKING_NUMBER,
   ADMIN_ORDER_TRACKING_URL,
+  ADMIN_REFUND_AMOUNT,
+  ADMIN_REFUND_DUE,
+  ADMIN_REFUND_MARKED_AT,
+  ADMIN_REFUND_MARKED_BODY,
+  ADMIN_REFUND_PAYMENT_REFERENCE,
+  ADMIN_REFUND_PENDING_BODY,
+  ADMIN_REFUND_SECTION,
+  ADMIN_REFUND_URGENCY_APPROACHING,
+  ADMIN_REFUND_URGENCY_OVERDUE,
+  ADMIN_REFUND_URGENCY_PENDING,
 } from "@/lib/admin-copy";
 import { formatAdminDateTime } from "@/lib/admin-format";
 import { formatGbpMinor } from "@/lib/money";
 import { routes } from "@/lib/navigation";
 import { safeHttpUrl } from "@/lib/tracking-url";
+import { refundDueAt, refundObligationUrgency } from "@/contracts/order/cancellation";
 import { loadAdminOrderDetail } from "@/services/admin-orders";
+import { AdminMarkRefundedForm } from "./AdminMarkRefundedForm";
 import { AdminFulfilmentForm, AdminOrderStatusForm } from "./AdminOrderForms";
 import { AdminOrderNotFound } from "./AdminOrderNotFound";
 import { AdminPageHeader } from "./AdminPageHeader";
@@ -73,13 +85,25 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
     [colour, variant].filter(Boolean).join(" · ");
   const trackingUrl = safeHttpUrl(order.shipment?.trackingUrl);
   const provisional = !isCommittedPurchase(order.paymentStatus);
+  const dispatchLocked = Boolean(order.cancelledAt) || order.refundStatus != null;
+  const statusTargets = dispatchLocked
+    ? order.statusTargets.filter((status) => !isDispatchConfirmationOrderStatus(status))
+    : order.statusTargets;
+  const urgency = order.cancelledAt ? refundObligationUrgency(order.cancelledAt, new Date()) : null;
+  const due = order.cancelledAt ? refundDueAt(order.cancelledAt) : null;
+  const urgencyLabel =
+    urgency === "overdue"
+      ? ADMIN_REFUND_URGENCY_OVERDUE
+      : urgency === "approaching"
+        ? ADMIN_REFUND_URGENCY_APPROACHING
+        : ADMIN_REFUND_URGENCY_PENDING;
 
   return (
     <div data-admin-order-detail data-order-id={order.id}>
       <AdminPageHeader
         kicker="Orders"
         title={formatOrderHeading(order.orderReference)}
-        description={`${formatAdminDateTime(order.createdAt)} · ${reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)} · ${adminPaymentStatusLabel(order.paymentStatus)}`}
+        description={`${formatAdminDateTime(order.createdAt)} · ${order.cancelledAt ? "Cancelled" : reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)} · ${adminPaymentStatusLabel(order.paymentStatus)}`}
         action={
           <ButtonLink href={routes.adminOrders} variant="tertiary">
             {ADMIN_ORDER_BACK}
@@ -233,7 +257,9 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
               <div>
                 <dt>{ADMIN_ORDER_COL_STATUS}</dt>
                 <dd className="text-body">
-                  {reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)}
+                  {order.cancelledAt
+                    ? "Cancelled"
+                    : reportedAdminOrderStatusLabel(order.orderStatus, order.paymentStatus)}
                 </dd>
               </div>
               <div>
@@ -241,11 +267,71 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
                 <dd className="text-body">{adminPaymentStatusLabel(order.paymentStatus)}</dd>
               </div>
             </dl>
+            {order.refundStatus || order.cancelledAt ? (
+              <section className={styles.section} aria-labelledby="order-refund-heading">
+                <h2 id="order-refund-heading" className={styles.sectionTitle}>
+                  {ADMIN_REFUND_SECTION}
+                </h2>
+                {order.refundStatus === "refund_pending" ? (
+                  <>
+                    <p className={`text-small ${styles.quietBody}`}>{ADMIN_REFUND_PENDING_BODY}</p>
+                    <dl className={styles.dl}>
+                      <div>
+                        <dt>{ADMIN_REFUND_AMOUNT}</dt>
+                        <dd className="text-body">
+                          {formatGbpMinor(order.refundAmountMinor ?? order.totalMinor)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{ADMIN_REFUND_PAYMENT_REFERENCE}</dt>
+                        <dd className={`text-body ${styles.breakUrl}`}>
+                          {order.refundPaymentReference || "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{ADMIN_REFUND_DUE}</dt>
+                        <dd className="text-body">
+                          {due ? formatAdminDateTime(due.toISOString()) : "—"}
+                          {urgency ? ` · ${urgencyLabel}` : ""}
+                        </dd>
+                      </div>
+                    </dl>
+                    <AdminMarkRefundedForm orderId={order.id} />
+                  </>
+                ) : order.refundStatus === "refunded" ? (
+                  <>
+                    <p className={`text-small ${styles.quietBody}`}>{ADMIN_REFUND_MARKED_BODY}</p>
+                    <dl className={styles.dl}>
+                      <div>
+                        <dt>{ADMIN_REFUND_AMOUNT}</dt>
+                        <dd className="text-body">
+                          {formatGbpMinor(order.refundAmountMinor ?? order.totalMinor)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{ADMIN_REFUND_PAYMENT_REFERENCE}</dt>
+                        <dd className={`text-body ${styles.breakUrl}`}>
+                          {order.refundPaymentReference || "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{ADMIN_REFUND_MARKED_AT}</dt>
+                        <dd className="text-body">
+                          {order.refundMarkedAt ? formatAdminDateTime(order.refundMarkedAt) : "—"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </>
+                ) : (
+                  <p className={`text-small ${styles.quietBody}`}>This order is cancelled.</p>
+                )}
+              </section>
+            ) : null}
             {provisional ? null : (
               <AdminOrderStatusForm
                 orderId={order.id}
                 current={order.orderStatus}
-                targets={order.statusTargets}
+                targets={statusTargets}
               />
             )}
           </section>
@@ -253,7 +339,12 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
             <h2 id="order-fulfilment-heading" className={styles.sectionTitle}>
               {ADMIN_ORDER_FULFILMENT}
             </h2>
-            {isAwaitingFulfilment(order) ? (
+            {isAwaitingFulfilment({
+              paymentStatus: order.paymentStatus,
+              orderStatus: order.orderStatus,
+              cancelledAt: order.cancelledAt,
+              refundStatus: order.refundStatus,
+            }) ? (
               <p className={`text-small ${styles.quietBody}`}>{ADMIN_ORDERS_AWAITING_FULFILMENT}</p>
             ) : null}
             {order.shipment ? (
@@ -311,6 +402,8 @@ export function AdminOrderDetail({ order }: { order: AdminOrderDetailView }) {
                 shipment={order.shipment}
                 paymentStatus={order.paymentStatus}
                 orderStatus={order.orderStatus}
+                cancelledAt={order.cancelledAt}
+                refundStatus={order.refundStatus}
               />
             )}
           </section>

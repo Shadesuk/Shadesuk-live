@@ -8,7 +8,7 @@ One branch: `cursor/production-handoff-1d7a`. Not merged. Live PayPal cutover wa
 
 The existing PayPal checkout, Resend order/shipment email, admin fulfilment, and guest-tracking security were inspected and left in place. This branch fills the gaps that were not already satisfied:
 
-- Server-authoritative order cancellation (12 hours or before shipping confirmation, whichever is first), including a database lock against concurrent dispatch and a PayPal refund attempt after the order is marked refunded.
+- Server-authoritative order cancellation (12 hours or before shipping confirmation, whichever is first), including a database lock against concurrent dispatch. A captured cancellation records a manual refund obligation. It does not call PayPal.
 - New public order references are 4-digit codes. Internal ids stay UUIDs. Legacy `SHU-` references still resolve. Guest lookup still requires the checkout email.
 - UK cookie consent with Accept all, Reject non-essential, and Manage preferences. Analytics does not run before consent.
 - Returns, damage, cancellation, and PayPal FAQ copy, without inventing a support email.
@@ -20,7 +20,7 @@ The existing PayPal checkout, Resend order/shipment email, admin fulfilment, and
 ### Payment and email
 
 - `src/lib/payment/initiate.ts`, `src/lib/payment/pending-store.ts` — retry when a new reference collides.
-- `src/lib/paypal/refund-capture.ts` — refund a captured PayPal payment. Used only after cancellation commits.
+- PayPal checkout, capture, and webhook files were not changed by the manual-refund patch. The automatic refund client was removed from the cancellation path.
 - `src/lib/email/config.ts`, `src/lib/email/service.ts`, `.env.example` — optional `RESEND_REPLY_TO`. No second provider. `PAYPAL_MODE` stays sandbox.
 
 ### Orders
@@ -28,9 +28,12 @@ The existing PayPal checkout, Resend order/shipment email, admin fulfilment, and
 - `src/contracts/order/reference.ts` — 4-digit generator plus legacy parser.
 - `src/contracts/order/cancellation.ts` — eligibility policy.
 - `src/contracts/order/dto.ts` — cancelled includes refunded; surfaces receive `cancellationEligible`.
-- `src/services/order-cancellation.ts` — account and guest entry points.
-- `src/services/admin-orders.ts` — dispatch treats `order_not_dispatchable` as a blocked fulfilment write, and status sync requires `payment_status = captured`.
-- `supabase/migrations/20261003104500_order_cancellation_guard.sql` — row locks, cancellation RPC, shipment trigger.
+- `src/services/order-cancellation.ts` — account and guest entry points. No PayPal call.
+- `src/services/order-refund.ts` — admin-only Mark as Refunded.
+- `src/services/admin-orders.ts` — dispatch treats `order_not_dispatchable` as a blocked fulfilment write. Cancelled and refund-tracked orders stay blocked while payment can still be captured.
+- `src/services/admin-refunds.ts`, `src/components/admin/AdminPendingRefunds.tsx`, `src/components/admin/AdminMarkRefundedForm.tsx` — persistent pending-refund alert and confirmation.
+- `supabase/migrations/20261003104500_order_cancellation_guard.sql` — original row locks and shipment trigger.
+- `supabase/migrations/20261003123000_manual_refund_obligation.sql` — replaces cancellation so it does not refund, and blocks dispatch of cancelled orders.
 - `src/components/order/CancelOrderForm.tsx` and account/guest order surfaces.
 
 ### Storefront
@@ -51,22 +54,23 @@ The existing PayPal checkout, Resend order/shipment email, admin fulfilment, and
 
 Migration `20261003104500_order_cancellation_guard.sql` (not applied from this environment):
 
-- Trigger `shipments_require_captured_payment`. A confirming shipment (`dispatched`, `in_transit`, `out_for_delivery`, `delivered`, `tracking_unavailable`, or any `shipped_at`) requires `orders.payment_status = captured`, with the order row locked.
-- Function `cancel_order_if_eligible(uuid, uuid, text, text)`, security definer, executable by `service_role` only.
-- Writes `order_events.event_type = order_cancellation_requested` with actor kind, optional reason, previous payment status, final payment status `refunded`, and `payment_action = refund_required`.
-- No new columns. No change to the order primary key. Existing `order_reference` unique constraint is the uniqueness lock for 4-digit codes. Legacy values are not rewritten.
+- Trigger `shipments_require_captured_payment`. A confirming shipment (`dispatched`, `in_transit`, `out_for_delivery`, `delivered`, `tracking_unavailable`, or any `shipped_at`) requires `orders.payment_status = captured`, with the order row locked. Migration `20261003123000_manual_refund_obligation.sql` also rejects the shipment when `cancelled_at` is set or `refund_status` is `refund_pending` or `refunded`.
+- Function `cancel_order_if_eligible(uuid, uuid, text, text)`, security definer, executable by `service_role` only. The follow-up migration replaces it. A captured order becomes `cancelled_at` plus `refund_status = refund_pending` and keeps `payment_status = captured`. An unpaid `created` or `authorized` order becomes cancelled with no refund obligation. Neither path calls PayPal or sets the payment to refunded.
+- Writes `order_events.event_type = order_cancellation_requested` with actor kind, optional reason, previous payment status, order state `cancelled`, refund status, amount, and payment reference. `payment_action` is `none`.
+- Function `mark_order_refunded(uuid, uuid)`, service role only. It requires a cancelled order already at `refund_pending`, then sets `refunded`, `refund_marked_at`, and `refund_marked_by`. A second call returns `already_refunded` and does not insert another event. The amount and payment reference already stored are left in place. The event is `order_refund_marked`.
+- New columns on `orders`: `cancelled_at`, `refund_status`, `refund_amount_minor`, `refund_payment_reference`, `refund_marked_at`, `refund_marked_by`. No change to the order primary key. Existing `order_reference` unique constraint is the uniqueness lock for 4-digit codes. Legacy values are not rewritten.
 
-Apply this migration before cancellation is used in production.
+Apply both cancellation migrations before cancellation is used in production. The second migration must run after the first.
 
 ## D. Payment changes
 
-EXISTING — VERIFIED, then extended only for cancellation refunds:
+EXISTING — VERIFIED. The manual-refund patch does not change checkout, capture, webhook verification, or payment env names.
 
 - Provider remains PayPal. Variable names remain `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_MODE`, `PAYPAL_WEBHOOK_ID`.
 - `PAYPAL_MODE` was not set to `live`. Sandbox stays until Syed cuts over.
 - Server capture remains authoritative (`capture-verified`, webhook verify, idempotent webhook store). Browser success does not mark an order paid.
 - Duplicate capture, amount, and currency checks were already in the capture path.
-- New: after a cancellation commits, `refundPayPalCapture` calls `POST /v2/payments/captures/{id}/refund` with `PayPal-Request-Id = cancel-refund:{orderId}`. A failed refund does not reopen dispatch. The result is `order_cancellation_refund`.
+- Cancellation does not call the PayPal refund API. `src/lib/paypal/refund-capture.ts` was removed. An admin refunds the captured payment in PayPal, then confirms Mark as Refunded in the admin order.
 
 ## E. Email changes
 
@@ -82,8 +86,11 @@ EXISTING — VERIFIED:
 
 - Cancellation is available on Account → Orders → Order detail, and on Track order after the existing email grant. The server decides eligibility.
 - Window: under 12 hours from `orders.created_at`, and no shipping confirmation. A pending shipment draft does not close the window.
-- Failed, unpaid, and checkout attempts are not cancellable purchases. A second request on an already refunded order does not write another cancellation event.
-- Captured orders move to `payment_status = refunded`, which existing account and guest views already treat as a committed purchase, and which this branch also shows as cancelled.
+- Failed payments and checkout attempts are not cancellable purchases. A second request on an already cancelled order does not write another cancellation event.
+- A captured cancellation stays `payment_status = captured` and sets `refund_status = refund_pending`. Customer copy says the order is cancelled and that any refund is processed separately. It does not say the refund is completed.
+- An unpaid `created` or `authorized` cancellation sets the order cancelled and does not create a refund obligation.
+- The admin dashboard lists every `refund_pending` order, including overdue ones, until Mark as Refunded. The alert is loaded from the database. The deadline shown is three days after `cancelled_at`. Passing that deadline does not change `refund_status`.
+- Mark as Refunded is an admin server action with a confirmation dialog. Customers and guests do not get the action.
 - Public reference for new orders is four digits. UUID stays internal. Emails, admin lists, account orders, and Track order already render `order_reference`, so they pick up the new value without a second template.
 - Guessing `4827` without the checkout email does not return order data. That check was already in guest tracking and is covered by `verify:tracking`.
 
@@ -130,8 +137,8 @@ Not run here:
 ## J. Known limitations
 
 - 4-digit references exhaust at 10,000 unique values. Inserts retry up to 8 times, then checkout fails rather than issuing a duplicate. Legacy `SHU-` references do not consume that space.
-- Cancellation does nothing in production until the new migration is applied.
-- If PayPal refund fails after the order is marked refunded, the order stays undispatchable and the refund event records failure. Someone must refund in PayPal or retry. The order is not shipped.
+- Cancellation does nothing in production until both cancellation migrations are applied.
+- The app does not refund PayPal. A pending refund stays pending, including after the three-day display deadline, until an admin marks it refunded. The order stays undispatchable from cancellation even while `payment_status` is still `captured`. Revenue figures still count captured payments; this patch does not rewrite dashboard revenue.
 - `RESEND_REPLY_TO` is unset in the repo, so Contact still says a public email has not been published. No address was invented.
 - UK legal copy is operational draft language. It is marked as not legal advice and is not a certification.
 - No separate S monogram asset is in the repository.
@@ -166,6 +173,7 @@ Supabase:
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or legacy anon key)
 - `SUPABASE_SECRET_KEY` (or legacy service role). Server only.
 - Apply `supabase/migrations/20261003104500_order_cancellation_guard.sql`
+- Apply `supabase/migrations/20261003123000_manual_refund_obligation.sql` after it
 
 Site:
 
@@ -184,7 +192,9 @@ P0 code paths that already existed (PayPal capture, webhook verification, order 
 | --- | --- |
 | PayPal create / capture / webhook / idempotency | EXISTING — VERIFIED |
 | PayPal live credential cutover | Held for Syed |
-| PayPal refund after cancellation | CHANGED |
+| PayPal checkout / capture / webhook | EXISTING — VERIFIED (not modified by the manual-refund patch) |
+| PayPal refund API on cancellation | REMOVED — cancellation does not call PayPal |
+| Manual refund obligation and admin confirmation | CHANGED |
 | Resend confirmation and shipped templates, idempotency, webhook | EXISTING — VERIFIED |
 | `RESEND_REPLY_TO` | CHANGED |
 | Admin fulfilment and manual shipment | EXISTING — VERIFIED, dispatch guard added |
