@@ -190,6 +190,23 @@ export async function getPayPalBrowserClientToken(
   }
   const { config: cfg } = resolved;
   const boundHosts = paypalClientTokenHosts(hosts);
+  const attempts = boundHosts.length > 0 ? [boundHosts, [] as string[]] : [[] as string[]];
+  let lastError = "PayPal client-token grant failed.";
+
+  for (const attemptHosts of attempts) {
+    const minted = await requestPayPalBrowserClientToken(cfg, attemptHosts);
+    if (minted.ok) {
+      return minted;
+    }
+    lastError = minted.error;
+  }
+  return { ok: false, error: lastError };
+}
+
+async function requestPayPalBrowserClientToken(
+  cfg: PayPalServerConfig,
+  boundHosts: readonly string[],
+): Promise<{ ok: true; clientToken: string } | { ok: false; error: string }> {
   const hostKey = boundHosts.join(",");
   const now = Date.now();
   if (
