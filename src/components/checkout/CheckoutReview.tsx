@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { InlineError } from "@/components/ui/InlineError";
 import { PaymentMethods } from "@/components/payment/PaymentMethods";
+import { IndiaPayment } from "@/components/checkout/IndiaPayment";
 import {
   BACK,
   EDIT,
@@ -23,6 +24,7 @@ import {
   PAYMENT_CONFIRM_ERROR,
   PAYMENT_DECLINED,
   PAYMENT_HEADING,
+  PAYMENT_INDIA_UNAVAILABLE,
   PAYMENT_NETWORK,
   PAYMENT_NEXT_BODY,
   PAYMENT_START_ERROR,
@@ -35,7 +37,7 @@ import {
   UK_STANDARD_DELIVERY,
   UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
-import { formatGbp, formatGbpMinor } from "@/lib/money";
+import { formatGbp, formatGbpMinor, formatInrMinor } from "@/lib/money";
 import { mountPayPalCheckout } from "@/lib/paypal/open-buttons";
 import { displayLineTotal, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
@@ -44,6 +46,12 @@ import type { PublicCheckoutDraft } from "@/types/checkout";
 import type { PublicCart } from "@/types/cart";
 import styles from "./CheckoutReview.module.css";
 
+type FrozenCharge = {
+  subtotalMinor: number;
+  shippingMinor: number;
+  totalMinor: number;
+};
+
 type CheckoutReviewProps = {
   cart: PublicCart;
   draft: PublicCheckoutDraft;
@@ -51,6 +59,8 @@ type CheckoutReviewProps = {
   lineLock?: CheckoutQuoteLock | null;
   chargeReady?: boolean;
   hideQuoteStale?: boolean;
+  paymentRail?: "paypal" | "india" | "unavailable";
+  frozenCharge?: FrozenCharge | null;
   pending?: boolean;
   onBack: () => void;
 };
@@ -64,6 +74,8 @@ export function CheckoutReview({
   lineLock = null,
   chargeReady = true,
   hideQuoteStale = false,
+  paymentRail = "paypal",
+  frozenCharge = null,
   pending = false,
   onBack,
 }: CheckoutReviewProps) {
@@ -74,7 +86,10 @@ export function CheckoutReview({
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string>("");
   const [paypalReady, setPaypalReady] = useState(false);
-  const payable = chargeReady && draft.country === "GB" && quote.shippingStatus === "priced";
+  const india = paymentRail === "india";
+  const payable =
+    paymentRail !== "india" && chargeReady && draft.country === "GB" && quote.shippingStatus === "priced";
+  const indiaReady = india && chargeReady && frozenCharge != null && quote.shippingStatus === "priced";
   const addressLines = [
     `${draft.firstName} ${draft.lastName}`.trim(),
     draft.line1,
@@ -240,7 +255,11 @@ export function CheckoutReview({
         </div>
         <p className="text-small">{quote.shippingStatus === "priced" ? (quote.shippingLabel ?? UK_STANDARD_DELIVERY) : "Shipping"}</p>
         <p className="text-small">
-          {quote.shippingStatus === "priced" ? formatGbpMinor(quote.shippingMinor) : SHIPPING_UNAVAILABLE}
+          {quote.shippingStatus === "priced"
+            ? frozenCharge
+              ? formatInrMinor(frozenCharge.shippingMinor)
+              : formatGbpMinor(quote.shippingMinor)
+            : SHIPPING_UNAVAILABLE}
         </p>
         <p className="text-micro">{ESTIMATED_DELIVERY_LABEL}</p>
         <p className="text-small">{quote.estimatedDelivery ?? ESTIMATED_DELIVERY_WINDOW}</p>
@@ -256,8 +275,16 @@ export function CheckoutReview({
         <h3 id="checkout-review-payment" className="text-micro">
           {PAYMENT_HEADING}
         </h3>
-        <PaymentMethods />
-        {payable || hideQuoteStale ? null : (
+        {india ? null : <PaymentMethods />}
+        {india ? (
+          indiaReady && frozenCharge ? (
+            <IndiaPayment amountMinor={frozenCharge.totalMinor} disabled={pending} />
+          ) : (
+            <p className="text-small" role="status">
+              {quote.shippingStatus === "priced" ? PAYMENT_INDIA_UNAVAILABLE : SHIPPING_UNAVAILABLE}
+            </p>
+          )
+        ) : payable || hideQuoteStale ? null : (
           <p className="text-small" role="status">
             {quote.shippingStatus === "priced" ? CHECKOUT_QUOTE_STALE : SHIPPING_UNAVAILABLE}
           </p>

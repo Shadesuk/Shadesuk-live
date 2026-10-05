@@ -38,14 +38,18 @@ if (PAYMENT_PROVIDER_PAYPAL !== "paypal" || STORE_CURRENCY !== "GBP") {
   throw new Error("Production payment must stay PayPal + GBP.");
 }
 
-if (existsSync(resolve(root, "src/lib/razorpay"))) {
-  throw new Error("src/lib/razorpay must be deleted.");
+const razorpayConfig = read("src/lib/razorpay/config.ts");
+if (!razorpayConfig.includes('import "server-only"') || !razorpayConfig.includes("rzp_live_")) {
+  throw new Error("Razorpay must stay server-only and reject live keys.");
 }
-if (existsSync(resolve(root, "src/app/api/webhooks/razorpay"))) {
-  throw new Error("Razorpay webhook route must be absent (no ghost archive).");
+if (!existsSync(resolve(root, "src/app/api/webhooks/razorpay/route.ts"))) {
+  throw new Error("Razorpay webhook route must verify the raw body.");
+}
+if (read(".env.example").includes("NEXT_PUBLIC_RAZORPAY")) {
+  throw new Error("Razorpay secrets must not use NEXT_PUBLIC_.");
 }
 if (read("package.json").includes('"razorpay"')) {
-  throw new Error("npm razorpay dependency must be removed.");
+  throw new Error("npm razorpay dependency must stay absent.");
 }
 
 if (routes.checkoutConfirmation !== "/checkout/confirmation") {
