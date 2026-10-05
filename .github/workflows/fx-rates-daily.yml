@@ -1,0 +1,55 @@
+# Daily Frankfurter → ShadesUK FX cache.
+# Does not deploy, merge, or touch checkout.
+# Repo secrets (not NEXT_PUBLIC_):
+#   FX_UPDATE_SECRET — same value as the server FX_UPDATE_SECRET
+#   FX_REFRESH_URL — https://<host>/api/internal/fx/refresh
+# A non-200 response fails the job and leaves the last stored rates in place.
+
+name: FX rates
+
+on:
+  schedule:
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Refresh cached FX rates
+        env:
+          FX_REFRESH_URL: ${{ secrets.FX_REFRESH_URL }}
+          FX_UPDATE_SECRET: ${{ secrets.FX_UPDATE_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FX_REFRESH_URL}" ] || [ -z "${FX_UPDATE_SECRET}" ]; then
+            echo "FX_REFRESH_URL and FX_UPDATE_SECRET must be set on the repository."
+            exit 1
+          fi
+          case "${FX_REFRESH_URL}" in
+            https://*/api/internal/fx/refresh) ;;
+            *)
+              echo "FX_REFRESH_URL must be the HTTPS refresh endpoint."
+              exit 1
+              ;;
+          esac
+          code="$(curl --silent --show-error --fail-with-body --max-time 30 \
+            --output /tmp/fx-refresh-body \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "Authorization: Bearer ${FX_UPDATE_SECRET}" \
+            --header "Accept: application/json" \
+            "${FX_REFRESH_URL}")" || true
+          echo "FX refresh HTTP ${code}"
+          if [ -f /tmp/fx-refresh-body ]; then
+            cat /tmp/fx-refresh-body
+            echo
+          fi
+          if [ "${code}" != "200" ]; then
+            echo "FX refresh did not persist a new batch. Last stored rates stay."
+            exit 1
+          fi
