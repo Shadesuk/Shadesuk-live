@@ -289,7 +289,6 @@ export function CheckoutReview({
               })
             : SHIPPING_UNAVAILABLE}
         </p>
-        {disclosure ? <p className="text-small">{disclosure}</p> : null}
         <p className="text-micro">{ESTIMATED_DELIVERY_LABEL}</p>
         <p className="text-small">{quote.estimatedDelivery ?? ESTIMATED_DELIVERY_WINDOW}</p>
         <p className="text-small">{draft.email}</p>
@@ -307,7 +306,10 @@ export function CheckoutReview({
         {india ? null : <PaymentMethods />}
         {india ? (
           indiaReady && frozenCharge ? (
-            <IndiaPayment amountMinor={frozenCharge.totalMinor} disabled={pending} />
+            <>
+              {disclosure ? <p className="text-small">{disclosure}</p> : null}
+              <IndiaPayment amountMinor={frozenCharge.totalMinor} disabled={pending} />
+            </>
           ) : (
             <p className="text-small" role="status">
               {quote.shippingStatus === "priced"
@@ -324,6 +326,7 @@ export function CheckoutReview({
         )}
         {payable ? (
           <>
+            {disclosure ? <p className="text-small">{disclosure}</p> : null}
             <div
               ref={paypalSlotRef}
               className={styles.paypalSlot}

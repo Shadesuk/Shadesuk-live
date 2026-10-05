@@ -312,6 +312,7 @@ export function CheckoutPage({
               country={step === "review" ? draft.country : activeCountry}
               lineLock={frozenCharge ? draft.quoteLock : reviewLock}
               frozenCharge={frozenCharge}
+              onChangeDelivery={step === "review" ? () => void goTo("address") : undefined}
               collapsible
             />
           </div>
@@ -368,6 +369,7 @@ export function CheckoutPage({
             country={step === "review" ? draft.country : activeCountry}
             lineLock={frozenCharge ? draft.quoteLock : reviewLock}
             frozenCharge={frozenCharge}
+            onChangeDelivery={step === "review" ? () => void goTo("address") : undefined}
           />
         </div>
       </div>

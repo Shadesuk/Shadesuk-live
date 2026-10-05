@@ -141,7 +141,7 @@ export function SiteHeader({
         )}
 
         <div className={styles.utils}>
-          <CountrySelector value={country} onChange={setCountry} />
+          {reduced ? null : <CountrySelector value={country} onChange={setCountry} />}
           {reduced ? null : (
             <UtilityButton
               onClick={() => setSearchOpen(true)}

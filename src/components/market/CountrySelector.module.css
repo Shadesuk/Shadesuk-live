@@ -8,6 +8,9 @@
 }
 
 .trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
   min-height: 44px;
   padding: 0;
   border: 0;
@@ -16,6 +19,17 @@
   font: inherit;
   cursor: pointer;
   text-align: left;
+  transition: color 120ms ease-out;
+}
+
+.trigger:hover,
+.trigger:active {
+  color: var(--color-navy);
+}
+
+.arrow {
+  flex: 0 0 auto;
+  color: var(--color-navy);
 }
 
 .trigger:focus-visible {
@@ -70,11 +84,41 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 120ms ease-out;
 }
 
-.row[aria-selected="true"],
+.row:hover,
+.row:active,
 .row[data-active="true"] {
+  background: var(--color-stone);
+}
+
+.row[aria-selected="true"] {
   color: var(--color-navy);
+}
+
+.sheetHeader {
+  display: none;
+}
+
+.sheetTitle {
+  margin: 0;
+}
+
+.close {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-8);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .mark {
@@ -94,6 +138,16 @@
     flex-direction: column;
     width: auto;
     border: 0;
+  }
+
+  .sheetHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-12);
+    min-height: 44px;
+    padding: 0 var(--space-16);
+    border-bottom: 1px solid var(--color-stone);
   }
 
   .list {

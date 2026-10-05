@@ -26,6 +26,7 @@ export function CountrySelector({
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const listId = useId();
   const labelId = useId();
   const selected = supportedCountry(value) ?? supportedCountry(CHECKOUT_COUNTRY_GB);
@@ -36,7 +37,9 @@ export function CountrySelector({
     }
     return SUPPORTED_COUNTRIES.filter(
       (country) =>
-        country.name.toLowerCase().includes(needle) || country.code.toLowerCase().includes(needle),
+        country.name.toLowerCase().includes(needle) ||
+        country.code.toLowerCase().includes(needle) ||
+        country.currency.toLowerCase().includes(needle),
     );
   }, [query]);
 
@@ -48,6 +51,13 @@ export function CountrySelector({
     }
     searchRef.current?.focus();
   }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    listRef.current?.querySelector<HTMLElement>("[data-active='true']")?.scrollIntoView({ block: "nearest" });
+  }, [open, active, countries]);
 
   useEffect(() => {
     if (!open) {
@@ -105,7 +115,7 @@ export function CountrySelector({
         aria-expanded={open}
         aria-controls={listId}
         aria-labelledby={showLabel ? labelId : undefined}
-        aria-label={showLabel ? undefined : `Country, ${selected?.name ?? "United Kingdom"}`}
+        aria-label={showLabel ? undefined : `Country, ${selected?.name ?? "United Kingdom"}, ${selected?.currency ?? "GBP"}`}
         disabled={disabled}
         onClick={() => {
           if (open) {
@@ -118,15 +128,29 @@ export function CountrySelector({
           setOpen(true);
         }}
       >
-        {selected?.name ?? "United Kingdom"}
+        <span>{selected ? `${selected.code}, ${selected.currency}` : "GB, GBP"}</span>
+        <svg className={styles.arrow} viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+          <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
       </button>
       {open ? (
         <div className={styles.panel} onKeyDown={onKey}>
+          <div className={styles.sheetHeader}>
+            <h2 className={`text-micro ${styles.sheetTitle}`}>Country</h2>
+            <button type="button" className={styles.close} onClick={() => setOpen(false)}>
+              Close
+            </button>
+          </div>
           <input
             ref={searchRef}
             className={styles.search}
             value={query}
             placeholder="Search countries"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-activedescendant={countries[active] ? `${listId}-${countries[active].code}` : undefined}
             aria-label="Search countries"
             autoComplete="off"
             onChange={(event) => {
@@ -134,14 +158,16 @@ export function CountrySelector({
               setActive(0);
             }}
           />
-          <ul id={listId} className={styles.list} role="listbox" aria-label={label}>
+          <ul id={listId} ref={listRef} className={styles.list} role="listbox" aria-label={label}>
             {countries.map((country, index) => {
               const isSelected = country.code === selected?.code;
               return (
                 <li key={country.code} role="presentation">
                   <button
+                    id={`${listId}-${country.code}`}
                     type="button"
                     role="option"
+                    tabIndex={-1}
                     aria-selected={isSelected}
                     className={styles.row}
                     data-active={index === active || undefined}
@@ -160,7 +186,9 @@ export function CountrySelector({
                         </svg>
                       ) : null}
                     </span>
-                    <span>{country.name}</span>
+                    <span>
+                      {country.name}, {country.currency}
+                    </span>
                   </button>
                 </li>
               );

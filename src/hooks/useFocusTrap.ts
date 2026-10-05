@@ -13,7 +13,10 @@ const FOCUSABLE = [
 
 function getFocusable(root: HTMLElement) {
   return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-    (element) => !element.hasAttribute("disabled") && element.tabIndex !== -1,
+    (element) =>
+      !element.hasAttribute("disabled") &&
+      element.tabIndex !== -1 &&
+      element.getClientRects().length > 0,
   );
 }
 

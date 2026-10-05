@@ -127,7 +127,7 @@ export function SiteFooter({ reduced = false }: { reduced?: boolean }) {
         {reduced ? null : <MobilePaymentTrust />}
 
         <div className={styles.bottom}>
-          <CountrySelector value={country} onChange={setCountry} />
+          {reduced ? null : <CountrySelector value={country} onChange={setCountry} />}
           <p className={`text-small ${styles.legal}`}>
             © {year} SHADESUK. All rights reserved.
           </p>

@@ -8,6 +8,7 @@ import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { useMarket } from "@/components/market/MarketProvider";
 import { presentCheckoutAmount } from "@/lib/market/prices";
 import { resolvePaymentRoute } from "@/lib/payment/payment-route";
+import { supportedCountry } from "@/contracts/countries";
 import {
   ORDER_SUMMARY_HEADING,
   SUBTOTAL_LABEL,
@@ -23,6 +24,8 @@ type CheckoutSummaryProps = {
   lineLock?: CheckoutQuoteLock | null;
   frozenCharge?: { subtotalMinor: number; shippingMinor: number; totalMinor: number } | null;
   collapsible?: boolean;
+  country?: string;
+  onChangeDelivery?: () => void;
 };
 
 export function CheckoutSummary({
@@ -32,7 +35,8 @@ export function CheckoutSummary({
   frozenCharge = null,
   collapsible = false,
   country = "GB",
-}: CheckoutSummaryProps & { country?: string }) {
+  onChangeDelivery,
+}: CheckoutSummaryProps) {
   const { rates } = useMarket();
   const route = resolvePaymentRoute(country);
   const displayCurrency = frozenCharge ? "INR" : (route?.displayCurrency ?? "GBP");
@@ -89,6 +93,14 @@ export function CheckoutSummary({
         })}
       </ul>
       <div className={styles.totals}>
+        {onChangeDelivery ? (
+          <p className={`text-small ${styles.delivering}`}>
+            Delivering to {supportedCountry(country)?.name ?? country}.{" "}
+            <button type="button" className={styles.change} onClick={onChangeDelivery}>
+              Change
+            </button>
+          </p>
+        ) : null}
         <div className={styles.row}>
           <p className="text-small">{SUBTOTAL_LABEL}</p>
           <p className="text-small">{subtotalLabel}</p>

@@ -170,8 +170,14 @@ if (lookupUi.includes("onManual()")) {
 if (!lookupUi.includes('autoCapitalize={unitedKingdom ? "characters" : "off"}')) {
   throw new Error("Only the UK postcode search may force capital letters.");
 }
-if (!lookupUi.includes("unitedKingdom && result.suggestions.length === 1")) {
-  throw new Error("Only a single UK postcode may be retrieved automatically.");
+if (lookupUi.includes("unitedKingdom && result.suggestions.length === 1")) {
+  throw new Error("A UK search must not resolve until the shopper selects a suggestion.");
+}
+if (!lookupUi.includes("new AbortController()")) {
+  throw new Error("Address lookup must cancel a stale request with AbortController.");
+}
+if (lookupUi.includes("disabled={disabled || pending}")) {
+  throw new Error("Address search must keep the field editable while a lookup is in flight.");
 }
 const checkoutAddress = read("src/components/checkout/CheckoutAddress.tsx");
 const countryAt = checkoutAddress.indexOf("AddressCountryField");

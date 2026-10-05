@@ -20,6 +20,7 @@ import {
   quoteLockForCountry,
 } from "../src/lib/checkout-quote-lock";
 import { authoritativeCheckoutQuote, quoteIsChargeable } from "../src/lib/checkout-quote";
+import { formatChargeMinor, presentCheckoutAmount } from "../src/lib/market/prices";
 import { encodeCheckoutDraftCookie, decodeCheckoutDraftCookie } from "../src/lib/checkout-draft";
 import { lookupAddresses, getAddressProvider } from "../src/lib/address-lookup";
 import { postcodesIoAddressLookupProvider } from "../src/lib/address-providers/postcodes-io";
@@ -130,6 +131,41 @@ function pricedCatalogue(zoneId: string, amountMinor: number): ShippingCatalogue
 }
 
 void (async () => {
+  const eurDisplay = presentCheckoutAmount({
+    gbpMinor: 6500,
+    chargeMinor: null,
+    displayCurrency: "EUR",
+    chargeCurrency: "EUR",
+    rates: [{ currency: "EUR", rate: "1.1762" }],
+    cents: true,
+  });
+  const eurShipping = presentCheckoutAmount({
+    gbpMinor: 465,
+    chargeMinor: null,
+    displayCurrency: "EUR",
+    chargeCurrency: "EUR",
+    rates: [{ currency: "EUR", rate: "1.1762" }],
+    cents: true,
+  });
+  const eurLocked = presentCheckoutAmount({
+    gbpMinor: 6500,
+    chargeMinor: 7645,
+    displayCurrency: "EUR",
+    chargeCurrency: "EUR",
+    rates: [{ currency: "EUR", rate: "1.1762" }],
+    cents: true,
+  });
+  expect(
+    "Display conversion",
+    eurDisplay !== formatChargeMinor(6500, "EUR") &&
+      eurDisplay.includes("76") &&
+      !eurDisplay.includes("65.00") &&
+      eurShipping !== formatChargeMinor(465, "EUR") &&
+      !eurShipping.includes("4.65") &&
+      eurLocked === formatChargeMinor(7645, "EUR"),
+    "A checkout amount with no charge lock converts GBP through FX. A locked charge keeps its cents.",
+  );
+
   const ukShipping = resolveShippingOptions("GB");
   const ukLock = createCheckoutQuoteLock({
     countryCode: "GB",

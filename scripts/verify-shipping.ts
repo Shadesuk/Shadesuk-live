@@ -21,6 +21,7 @@ if (uk.status !== "priced" || uk.options.length !== 1) {
 const method = uk.options[0];
 if (
   !method ||
+  method.methodId !== "uk-standard" ||
   method.amountMinor !== 465 ||
   method.amountMinor !== UK_STANDARD_DELIVERY_MINOR ||
   method.label !== UK_STANDARD_DELIVERY ||
@@ -31,10 +32,25 @@ if (
   throw new Error("UK shipping must stay £4.65 and 2+ weeks.");
 }
 
-for (const country of ["DE", "FR", "US", "AE", "SA", "IN", "JP", "AU"]) {
+const seededMethod: Record<string, string> = {
+  DE: "europe-standard",
+  FR: "europe-standard",
+  IT: "europe-standard",
+  US: "usa-standard",
+  AE: "gcc-standard",
+  SA: "gcc-standard",
+  IN: "india-standard",
+  JP: "international-standard",
+  AU: "international-standard",
+};
+for (const country of Object.keys(seededMethod)) {
   const resolved = resolveShippingOptions(country);
-  if (resolved.status !== "priced" || resolved.options[0]?.amountMinor !== 465) {
-    throw new Error(`${country} must use the £4.65 standard rate.`);
+  if (
+    resolved.status !== "priced" ||
+    resolved.options[0]?.amountMinor !== 465 ||
+    resolved.options[0]?.methodId !== seededMethod[country]
+  ) {
+    throw new Error(`${country} must use the seeded £4.65 method ${seededMethod[country]}.`);
   }
   const quote = authoritativeCheckoutQuote({ subtotalMinor: 4900, country, shippingMinor: 1, totalMinor: 1, currency: "USD" });
   if (quote.shippingStatus !== "priced" || quote.shippingMinor !== 465 || quote.totalMinor !== 5365 || quote.currency !== "GBP") {
@@ -101,6 +117,9 @@ if (!address.includes("allowManual={Boolean(priced)}") || !address.includes("if 
 }
 if (!address.includes("resolveShippingOptions") || !address.includes("SHIPPING_UNAVAILABLE")) {
   throw new Error("The delivery step must show seeded shipping or unavailable.");
+}
+if (read("src/lib/shipping/options.ts").includes("standard-465")) {
+  throw new Error("Shipping must store a seeded method id, not standard-465.");
 }
 
 console.log("Shipping OK: £4.65 for every supported country, unknown countries unsupported");

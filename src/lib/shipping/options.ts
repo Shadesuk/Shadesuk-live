@@ -1,8 +1,9 @@
-import { supportedCountry } from "@/contracts/countries";
+import { isEuMember, supportedCountry } from "@/contracts/countries";
 import { STORE_CURRENCY } from "@/contracts/money";
 import {
   UK_SHIPPING_ESTIMATED_DELIVERY,
   UK_SHIPPING_METHOD_CODE,
+  UK_SHIPPING_METHOD_ID,
   UK_SHIPPING_METHOD_LABEL,
   UK_SHIPPING_RATE_MINOR,
   V1_COUNTRIES,
@@ -108,19 +109,59 @@ export function resolveShippingOptions(
       return { status: "priced", countryCode, zoneId: membership.zoneId, options };
     }
   }
-  return standardDelivery(countryCode, membership?.zoneId || "standard");
+  return standardDelivery(countryCode, membership?.zoneId);
 }
 
-/** £4.65 and 2+ weeks for every supported destination that has no own rate row. */
-function standardDelivery(countryCode: string, zoneId: string): ShippingOptionsResult {
+/**
+ * Seeded method ids from the shipping migrations. £4.65 / 2+ weeks.
+ * uk-standard, europe-standard, usa-standard, gcc-standard, india-standard,
+ * international-standard.
+ */
+const SEEDED_SHIPPING_METHOD_BY_ZONE = {
+  uk: UK_SHIPPING_METHOD_ID,
+  europe: "europe-standard",
+  usa: "usa-standard",
+  gcc: "gcc-standard",
+  india: "india-standard",
+  international: "international-standard",
+} as const;
+
+type SeededShippingZone = keyof typeof SEEDED_SHIPPING_METHOD_BY_ZONE;
+
+function seededZone(countryCode: string): SeededShippingZone {
+  if (countryCode === "GB") {
+    return "uk";
+  }
+  if (isEuMember(countryCode)) {
+    return "europe";
+  }
+  if (countryCode === "US") {
+    return "usa";
+  }
+  if (countryCode === "AE" || countryCode === "SA") {
+    return "gcc";
+  }
+  if (countryCode === "IN") {
+    return "india";
+  }
+  return "international";
+}
+
+function isSeededZone(zoneId: string): zoneId is SeededShippingZone {
+  return Object.prototype.hasOwnProperty.call(SEEDED_SHIPPING_METHOD_BY_ZONE, zoneId);
+}
+
+/** £4.65 and 2+ weeks, stored against the seeded method for that zone. */
+function standardDelivery(countryCode: string, zoneId?: string): ShippingOptionsResult {
+  const zone = zoneId && isSeededZone(zoneId) ? zoneId : seededZone(countryCode);
   return {
     status: "priced",
     countryCode,
-    zoneId,
+    zoneId: zone,
     options: [
       {
-        methodId: "standard-465",
-        zoneId,
+        methodId: SEEDED_SHIPPING_METHOD_BY_ZONE[zone],
+        zoneId: zone,
         code: UK_SHIPPING_METHOD_CODE,
         label: countryCode === "GB" ? UK_SHIPPING_METHOD_LABEL : "Standard Delivery",
         estimatedDelivery: UK_SHIPPING_ESTIMATED_DELIVERY,

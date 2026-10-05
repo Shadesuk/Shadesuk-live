@@ -135,9 +135,6 @@ export function presentCheckoutAmount(input: {
   ) {
     return formatChargeMinor(input.chargeMinor, input.chargeCurrency);
   }
-  if (input.cents && input.displayCurrency === input.chargeCurrency) {
-    return formatChargeMinor(input.gbpMinor, input.displayCurrency);
-  }
   return formatDisplayGbpMinor(input.gbpMinor, input.displayCurrency, input.rates);
 }
 
