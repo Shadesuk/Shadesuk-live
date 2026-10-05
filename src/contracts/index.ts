@@ -256,6 +256,14 @@ export type {
 } from "./markets";
 
 export {
+  getLocalizedPrice,
+  isV1CurrencyCode,
+  multiplyMinorByRateHalfUp,
+  parsePositiveDecimalRate,
+} from "./pricing";
+export type { DecimalRate, LocalizedPrice, LocalizedPriceReason, LocalizedPriceResult } from "./pricing";
+
+export {
   isManualFulfilmentV1,
   toCustomerShipmentView,
   TRACKING_UNAVAILABLE_COPY,
