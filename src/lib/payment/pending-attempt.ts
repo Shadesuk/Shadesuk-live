@@ -2,6 +2,7 @@ import { createOrderReference } from "@/contracts/order/reference";
 import type { PaymentStatus } from "@/contracts/order/schema";
 import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
+import { isPayPalChargeCurrency, resolvePaymentRoute, type PayPalChargeCurrency } from "@/lib/payment/payment-route";
 import {
   checkoutQuoteFromLock,
   liveTotalUndercutsLock,
@@ -81,7 +82,7 @@ export type PendingOrderItemInsert = {
 export type PendingPaymentInsert = {
   provider: typeof PAYMENT_PROVIDER_PAYPAL;
   amount_minor: number;
-  currency: typeof STORE_CURRENCY;
+  currency: PayPalChargeCurrency;
   status: Extract<PaymentStatus, "created">;
   fx_rate_id: string | null;
   fx_version: number | null;
@@ -101,7 +102,7 @@ export type PendingPaymentAttempt = {
   payment: PendingPaymentInsert;
   paypal: {
     amountMinor: number;
-    currency: typeof STORE_CURRENCY;
+    currency: PayPalChargeCurrency;
     /** Mapped to purchase_units[].invoice_id when length ≤ 127. */
     invoiceId: string;
   };
@@ -222,6 +223,15 @@ export function buildPendingPaymentAttempt(input: {
     return { ok: false, reason: "blocked" };
   }
 
+  const route = resolvePaymentRoute(country);
+  if (!route || route.provider !== "paypal" || !isPayPalChargeCurrency(route.paymentCurrency)) {
+    return { ok: false, reason: "blocked" };
+  }
+  if (route.paymentCurrency !== "GBP" && (!held || held.chargeCurrency !== route.paymentCurrency || !held.fxRateId)) {
+    return { ok: false, reason: "blocked" };
+  }
+  const chargeAmountMinor = held && route.paymentCurrency !== "GBP" ? held.chargeTotalMinor : quote.totalMinor;
+
   const shippingOption = resolveShippingOptions(country);
   const facts = paypalChargeFacts({
     lock: held,
@@ -279,14 +289,14 @@ export function buildPendingPaymentAttempt(input: {
     })),
     payment: {
       provider: PAYMENT_PROVIDER_PAYPAL,
-      amount_minor: quote.totalMinor,
-      currency: STORE_CURRENCY,
+      amount_minor: chargeAmountMinor,
+      currency: route.paymentCurrency,
       status: "created",
       ...facts,
     },
     paypal: {
-      amountMinor: quote.totalMinor,
-      currency: STORE_CURRENCY,
+      amountMinor: chargeAmountMinor,
+      currency: route.paymentCurrency,
       invoiceId: reference,
     },
   };

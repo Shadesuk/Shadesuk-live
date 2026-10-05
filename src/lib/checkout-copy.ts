@@ -56,7 +56,7 @@ export const ADDRESS_LINE_1_REQUIRED = "Enter address line 1.";
 export const CITY_REQUIRED = "Enter a city or town.";
 export const POSTCODE_REQUIRED = "Enter a postcode.";
 export const POSTCODE_INVALID = "Enter a valid postcode.";
-export const COUNTRY_UNSUPPORTED = "Delivery is currently available in the United Kingdom.";
+export const COUNTRY_UNSUPPORTED = "Delivery is not available for that country.";
 
 export const SHIPPING_HEADING = "Delivery";
 export const SHIPPING_MINIMUM = "Minimum 2-week delivery timeframe.";

@@ -1,4 +1,5 @@
 import { STORE_CURRENCY } from "@/contracts/money";
+import { isPayPalChargeCurrency, type PayPalChargeCurrency } from "@/lib/payment/payment-route";
 
 /**
  * PayPal Orders v2 Money `value` is a decimal string.
@@ -17,11 +18,11 @@ export function gbpMinorToPayPalValue(amountMinor: number): string | null {
   return `${major}.${String(frac).padStart(2, "0")}`;
 }
 
-export function payPalValueToGbpMinor(
+export function payPalValueToChargeMinor(
   value: unknown,
   currency: unknown,
-): number | null {
-  if (typeof currency !== "string" || currency.trim().toUpperCase() !== STORE_CURRENCY) {
+): { amountMinor: number; currency: PayPalChargeCurrency } | null {
+  if (typeof currency !== "string" || !isPayPalChargeCurrency(currency.trim().toUpperCase())) {
     return null;
   }
   if (typeof value !== "string") {
@@ -37,5 +38,16 @@ export function payPalValueToGbpMinor(
   if (!Number.isInteger(major) || !Number.isInteger(frac) || frac < 0 || frac > 99) {
     return null;
   }
-  return major * 100 + frac;
+  return {
+    amountMinor: major * 100 + frac,
+    currency: currency.trim().toUpperCase() as PayPalChargeCurrency,
+  };
+}
+
+export function payPalValueToGbpMinor(value: unknown, currency: unknown): number | null {
+  const parsed = payPalValueToChargeMinor(value, currency);
+  if (!parsed || parsed.currency !== STORE_CURRENCY) {
+    return null;
+  }
+  return parsed.amountMinor;
 }

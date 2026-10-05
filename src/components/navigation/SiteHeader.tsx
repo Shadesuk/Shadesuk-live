@@ -14,6 +14,8 @@ import { MobileNavDrawer } from "./MobileNavDrawer";
 import { NavLink } from "./NavLink";
 import { ShopMenu } from "./ShopMenu";
 import { UtilityButton } from "./UtilityButton";
+import { CountrySelector } from "@/components/market/CountrySelector";
+import { useMarket } from "@/components/market/MarketProvider";
 import styles from "./SiteHeader.module.css";
 
 export function SiteHeader({
@@ -28,6 +30,7 @@ export function SiteHeader({
   signedIn?: boolean;
 }) {
   const { acquirePageLock, releasePageLock } = useChrome();
+  const { country, setCountry } = useMarket();
   const { cart, open: bagOpen, openBag, closeBag } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
@@ -138,6 +141,7 @@ export function SiteHeader({
         )}
 
         <div className={styles.utils}>
+          <CountrySelector value={country} onChange={setCountry} />
           {reduced ? null : (
             <UtilityButton
               onClick={() => setSearchOpen(true)}

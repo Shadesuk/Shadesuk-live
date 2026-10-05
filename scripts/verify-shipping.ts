@@ -31,17 +31,17 @@ if (
   throw new Error("UK shipping must stay £4.65 and 2+ weeks.");
 }
 
-for (const country of ["DE", "FR", "US", "AE", "SA", "IN"]) {
+for (const country of ["DE", "FR", "US", "AE", "SA", "IN", "JP", "AU"]) {
   const resolved = resolveShippingOptions(country);
-  if (resolved.status !== "unavailable") {
-    throw new Error(`${country} must stay unavailable until a rate is seeded.`);
+  if (resolved.status !== "priced" || resolved.options[0]?.amountMinor !== 465) {
+    throw new Error(`${country} must use the £4.65 standard rate.`);
   }
-  const quote = authoritativeCheckoutQuote({ subtotalMinor: 4900, country, shippingMinor: 465 });
-  if (quote.shippingStatus === "priced" || quote.shippingMinor !== 0 || quote.totalMinor !== 4900) {
-    throw new Error(`${country} must not be charged the UK shipping price.`);
+  const quote = authoritativeCheckoutQuote({ subtotalMinor: 4900, country, shippingMinor: 1, totalMinor: 1, currency: "USD" });
+  if (quote.shippingStatus !== "priced" || quote.shippingMinor !== 465 || quote.totalMinor !== 5365 || quote.currency !== "GBP") {
+    throw new Error(`${country} must ignore client shipping and stay on the GBP catalogue rate.`);
   }
-  if (quoteIsChargeable(quote)) {
-    throw new Error(`${country} subtotal must not be chargeable without priced shipping.`);
+  if (!quoteIsChargeable(quote)) {
+    throw new Error(`${country} standard shipping must be chargeable.`);
   }
 }
 
@@ -68,13 +68,13 @@ if (summary.includes("SHIPPING_UNAVAILABLE}") && summary.includes("totalValue"))
   }
 }
 const checkoutPage = read("src/components/checkout/CheckoutPage.tsx");
-if (!checkoutPage.includes("checkoutQuoteFromCart(view, address.country)")) {
+if (!checkoutPage.includes("checkoutQuoteFromCart(view, activeCountry)")) {
   throw new Error("The summary must follow the country selected on the delivery step.");
 }
 
-const japan = resolveShippingOptions("JP");
-if (japan.status !== "unsupported") {
-  throw new Error("An unknown country must not receive a shipping zone.");
+const unknown = resolveShippingOptions("ZZ");
+if (unknown.status !== "unsupported") {
+  throw new Error("An unknown country must not receive a shipping price.");
 }
 
 const tampered = authoritativeCheckoutQuote({
@@ -103,4 +103,4 @@ if (!address.includes("resolveShippingOptions") || !address.includes("SHIPPING_U
   throw new Error("The delivery step must show seeded shipping or unavailable.");
 }
 
-console.log("Shipping OK: UK 465, unpriced countries unavailable, payment stays GB-only");
+console.log("Shipping OK: £4.65 for every supported country, unknown countries unsupported");

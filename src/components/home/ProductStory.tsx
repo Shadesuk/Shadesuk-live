@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { Section } from "@/components/layout/Section";
-import { formatGbp } from "@/lib/money";
+import { DisplayPrice } from "@/components/market/DisplayPrice";
 import {
   getImageFallbackLabel,
   getPrimaryImage,
@@ -47,7 +47,9 @@ export function ProductStory({ product }: ProductStoryProps) {
           <h2 id="product-story-heading" className="text-h2">
             <Link href={href}>{product.name}</Link>
           </h2>
-          <p className="text-small">{formatGbp(product.price)}</p>
+          <p className="text-small">
+            <DisplayPrice amountMajor={product.price} />
+          </p>
           <ButtonLink href={href}>View product</ButtonLink>
         </div>
       </ContentWidth>

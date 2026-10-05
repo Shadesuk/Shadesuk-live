@@ -20,7 +20,7 @@ import {
   razorpayCheckoutSignatureMatches,
   razorpayWebhookSignatureMatches,
 } from "../src/lib/razorpay/signature";
-import { V1_SHIPPING_CATALOGUE, type ShippingCatalogue } from "../src/lib/shipping/options";
+import { resolveShippingOptions, V1_SHIPPING_CATALOGUE, type ShippingCatalogue } from "../src/lib/shipping/options";
 import { emptyCheckoutDraft, type PublicCheckoutDraft } from "../src/types/checkout";
 import type { PendingPaymentLine } from "../src/lib/payment/pending-attempt";
 
@@ -175,13 +175,18 @@ async function assertOrderCreate() {
   }
 }
 
+const liveIndia = resolveShippingOptions("IN");
+if (liveIndia.status !== "priced" || liveIndia.options[0]?.amountMinor !== 465) {
+  throw new Error("India must use the £4.65 standard rate.");
+}
 const unpriced = buildIndiaCharge({
   draft: draftWith(india, "IN"),
   lines: [line(100)],
   now: india.frozenAt,
+  shippingQuote: { status: "unavailable", countryCode: "IN", zoneId: "india" },
 });
 if (unpriced.ok || unpriced.reason !== "blocked") {
-  throw new Error("Unpriced India shipping must fail closed.");
+  throw new Error("An explicitly unpriced India quote must fail closed.");
 }
 const expired = buildIndiaCharge({
   draft: draftWith(india, "IN"),

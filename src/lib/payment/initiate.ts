@@ -12,6 +12,8 @@ import {
   type PersistedPendingPayment,
 } from "@/lib/payment/pending-store";
 import { createPayPalOrder } from "@/lib/paypal/create-order";
+import { isPayPalChargeCurrency, type PayPalChargeCurrency } from "@/lib/payment/payment-route";
+import { STORE_CURRENCY } from "@/contracts/money";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import type { CheckoutFieldErrors, PublicCheckoutDraft } from "@/types/checkout";
 
@@ -23,7 +25,7 @@ export type CommitPendingPaymentResult =
       paymentId: string;
       providerOrderId: string;
       amountMinor: number;
-      currency: "GBP";
+      currency: PayPalChargeCurrency;
       paymentStatus: "created";
       orderPaymentStatus: "created";
       orderStatus: "checkout";
@@ -66,10 +68,14 @@ export async function commitPendingPayPalPayment(input: {
     if (
       attempt.payment.status !== "created" ||
       attempt.order.payment_status !== "created" ||
-      attempt.payment.amount_minor !== attempt.quote.totalMinor ||
-      attempt.paypal.amountMinor !== attempt.quote.totalMinor ||
-      attempt.paypal.currency !== "GBP" ||
-      attempt.payment.currency !== "GBP"
+      attempt.order.currency !== STORE_CURRENCY ||
+      attempt.paypal.amountMinor !== attempt.payment.amount_minor ||
+      attempt.paypal.currency !== attempt.payment.currency ||
+      !isPayPalChargeCurrency(attempt.payment.currency) ||
+      (attempt.payment.currency === STORE_CURRENCY &&
+        attempt.payment.amount_minor !== attempt.quote.totalMinor) ||
+      (attempt.payment.currency !== STORE_CURRENCY &&
+        (!attempt.payment.fx_rate_id || !attempt.payment.quote_frozen_at))
     ) {
       return { status: "error" };
     }
@@ -107,8 +113,8 @@ export async function commitPendingPayPalPayment(input: {
 
   const createProviderOrder = input.createProviderOrder ?? createPayPalOrder;
   const provider = await createProviderOrder({
-    amountMinor: attempt.quote.totalMinor,
-    currency: attempt.quote.currency,
+    amountMinor: attempt.paypal.amountMinor,
+    currency: attempt.paypal.currency,
     customId: persisted.payment.id,
     invoiceId: attempt.paypal.invoiceId,
   });
@@ -123,8 +129,8 @@ export async function commitPendingPayPalPayment(input: {
   }
 
   if (
-    provider.order.amountMinor !== attempt.quote.totalMinor ||
-    provider.order.currency !== attempt.quote.currency
+    provider.order.amountMinor !== attempt.paypal.amountMinor ||
+    provider.order.currency !== attempt.paypal.currency
   ) {
     try {
       await input.store.markInitiationFailed(
@@ -154,8 +160,8 @@ export async function commitPendingPayPalPayment(input: {
       orderReference: persisted.order.order_reference,
       paymentId: attached.id,
       providerOrderId: provider.order.providerOrderId,
-      amountMinor: attempt.quote.totalMinor,
-      currency: "GBP",
+      amountMinor: attempt.paypal.amountMinor,
+      currency: attempt.paypal.currency,
       paymentStatus: "created",
       orderPaymentStatus: "created",
       orderStatus: "checkout",

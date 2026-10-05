@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MappedStorefrontProduct } from "@/contracts";
 import { Button } from "@/components/ui/Button";
-import { formatGbp } from "@/lib/money";
+import { DisplayPrice } from "@/components/market/DisplayPrice";
 import { cx } from "@/lib/cx";
 import {
   getAvailabilityLabel,
@@ -164,12 +164,18 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
         <div className={styles.info}>
           {brandName ? <p className={`text-micro ${styles.brand}`}>{brandName}</p> : null}
           <h1 className="text-h2">{product.name}</h1>
-          <p className={`text-h3 ${styles.price}`}>{formatGbp(product.price)}</p>
+          <p className={`text-h3 ${styles.price}`}>
+            <DisplayPrice amountMajor={product.price} />
+          </p>
           {compare != null ? (
             <>
-              <p className={`text-small ${styles.compare}`}>{formatGbp(compare)}</p>
+              <p className={`text-small ${styles.compare}`}>
+                <DisplayPrice amountMajor={compare} />
+              </p>
               {save > 0 ? (
-                <p className={`text-micro ${styles.save}`}>Save {formatGbp(save)}</p>
+                <p className={`text-micro ${styles.save}`}>
+                  Save <DisplayPrice amountMajor={save} />
+                </p>
               ) : null}
             </>
           ) : null}
@@ -337,7 +343,7 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
         >
           <div className={styles.stickyCopy}>
             <p className="text-small">
-              {product.name} — {formatGbp(product.price)}
+              {product.name} — <DisplayPrice amountMajor={product.price} />
             </p>
           </div>
           <Button

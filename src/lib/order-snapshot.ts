@@ -33,9 +33,11 @@ export function paypalChargeFacts(input: {
     shipping_method_id: lock?.shippingMethodId ?? input.shippingMethodId,
     shipping_label: lock?.shippingLabel ?? input.quote.shippingLabel,
     estimated_delivery: lock?.estimatedDelivery ?? input.quote.estimatedDelivery,
-    charge_subtotal_minor: input.quote.subtotalMinor,
-    charge_shipping_minor: input.quote.shippingMinor,
-  };
+  charge_subtotal_minor:
+    lock && lock.chargeCurrency !== "GBP" ? lock.chargeSubtotalMinor : input.quote.subtotalMinor,
+  charge_shipping_minor:
+    lock && lock.chargeCurrency !== "GBP" ? lock.chargeShippingMinor : input.quote.shippingMinor,
+};
 }
 
 /**
@@ -60,7 +62,9 @@ export function paypalAttemptSatisfiesChargeSnapshot(attempt: PendingPaymentAtte
     /^[A-Z]{2}$/.test(country) &&
     attempt.order.currency === "GBP" &&
     attempt.payment.provider === "paypal" &&
-    attempt.payment.currency === "GBP" &&
+    (attempt.payment.currency === "GBP" ||
+      attempt.payment.currency === "EUR" ||
+      attempt.payment.currency === "USD") &&
     attempt.order.subtotal_minor >= 0 &&
     attempt.order.shipping_minor >= 0 &&
     attempt.order.total_minor > 0 &&
@@ -69,7 +73,10 @@ export function paypalAttemptSatisfiesChargeSnapshot(attempt: PendingPaymentAtte
     chargeShipping >= 0 &&
     attempt.payment.amount_minor > 0 &&
     attempt.payment.amount_minor === chargeSubtotal + chargeShipping &&
-    attempt.payment.amount_minor === attempt.order.total_minor &&
+    (attempt.payment.currency === "GBP"
+      ? attempt.payment.amount_minor === attempt.order.total_minor &&
+        attempt.payment.fx_rate_id == null
+      : Boolean(attempt.payment.fx_rate_id && attempt.payment.quote_frozen_at)) &&
     addressKeys.length > 0 &&
     attempt.items.length > 0 &&
     optionalText.every((value) => value == null || value.trim() !== "")

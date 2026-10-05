@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { cartIssueMessage } from "@/lib/cart-copy";
-import { formatGbp } from "@/lib/money";
+import { DisplayPrice } from "@/components/market/DisplayPrice";
 import { ADD_TO_BAG_QUANTITY_MAX } from "@/lib/add-to-bag";
 import type { PublicCartItem } from "@/types/cart";
 import styles from "./CartLine.module.css";
@@ -89,7 +89,9 @@ export function CartLine({
               +
             </button>
           </div>
-          <p className={`text-small ${styles.price}`}>{formatGbp(item.lineTotal)}</p>
+          <p className={`text-small ${styles.price}`}>
+            <DisplayPrice amountMajor={item.lineTotal} />
+          </p>
         </div>
         <Button variant="tertiary" onClick={() => void remove()} disabled={disabled}>
           Remove

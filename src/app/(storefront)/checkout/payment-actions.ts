@@ -26,7 +26,7 @@ export type CheckoutPaymentStartResult =
       /** Matches server PAYPAL_MODE — selects SDK script host. Never hardcode live on the client. */
       mode: "sandbox" | "live";
       amountMinor: number;
-      currency: "GBP";
+      currency: "GBP" | "EUR" | "USD";
     }
   | { status: "invalid" }
   | { status: "empty" }
@@ -149,7 +149,7 @@ export async function initiateCheckoutPaymentAction(
     clientId: config.config.clientId,
     mode: config.config.mode,
     amountMinor: started.amountMinor,
-    currency: "GBP",
+    currency: started.currency,
   };
 }
 

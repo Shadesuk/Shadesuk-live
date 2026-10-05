@@ -441,11 +441,14 @@ const unitedStates = validateCheckoutAddress({
 if (hasCheckoutFieldErrors(unitedStates)) {
   throw new Error("A seeded United States address must pass.");
 }
+if (hasCheckoutFieldErrors(validateCheckoutAddress({ ...validAddressInput(), country: "JP", postcode: "1000001" }))) {
+  throw new Error("Japan is a supported delivery country.");
+}
 if (
-  validateCheckoutAddress({ ...validAddressInput(), country: "JP" }).country !==
-  "Delivery is currently available in the United Kingdom."
+  validateCheckoutAddress({ ...validAddressInput(), country: "ZZ" }).country !==
+  "Delivery is not available for that country."
 ) {
-  throw new Error("A country outside the seeded markets must be rejected.");
+  throw new Error("A country outside the supported list must be rejected.");
 }
 if (formatUkPostcode("sw1a1aa") !== "SW1A 1AA") {
   throw new Error("UK postcodes must format with an inward-code space.");

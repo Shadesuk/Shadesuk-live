@@ -2,7 +2,7 @@ import "server-only";
 
 import {
   FRANKFURTER_DEFAULT_BASE_URL,
-  FX_QUOTE_CURRENCIES,
+  FX_STORED_QUOTE_CURRENCIES,
   parseFrankfurterLatestRates,
   type FxObservation,
   type FxObservationFailure,
@@ -43,7 +43,7 @@ export function resolveFrankfurterBaseUrl(env: NodeJS.ProcessEnv = process.env):
 
 export function frankfurterLatestUrl(baseUrl = FRANKFURTER_DEFAULT_BASE_URL): string {
   const root = baseUrl.replace(/\/$/, "");
-  const quotes = FX_QUOTE_CURRENCIES.join(",");
+  const quotes = FX_STORED_QUOTE_CURRENCIES.join(",");
   return `${root}/v2/rates?base=GBP&quotes=${quotes}`;
 }
 

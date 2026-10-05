@@ -3,6 +3,7 @@ import "server-only";
 import type { PaymentStatus } from "@/contracts/order/schema";
 import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
+import { isPayPalChargeCurrency, type PayPalChargeCurrency } from "@/lib/payment/payment-route";
 import { isUuid } from "@/lib/ids";
 import { capturePayPalOrder } from "@/lib/paypal/capture-order";
 import { fetchPayPalOrder } from "@/lib/paypal/fetch-order";
@@ -42,7 +43,7 @@ export type VerifyPayPalClientReturnResult =
       providerOrderId: string;
       providerPaymentId: string;
       amountMinor: number;
-      currency: "GBP";
+      currency: PayPalChargeCurrency;
       paymentStatus: Extract<PaymentStatus, "created" | "authorized">;
       orderPaymentStatus: Extract<PaymentStatus, "created" | "authorized">;
     }
@@ -95,7 +96,7 @@ export async function verifyPayPalClientReturn(
   if (!expectedProviderOrderId || paypalOrderId !== expectedProviderOrderId) {
     return { outcome: "rejected", reason: "provider_order_mismatch" };
   }
-  if (loaded.payment.currency !== STORE_CURRENCY || loaded.order.currency !== STORE_CURRENCY) {
+  if (loaded.order.currency !== STORE_CURRENCY || !isPayPalChargeCurrency(loaded.payment.currency)) {
     return { outcome: "rejected", reason: "currency_mismatch" };
   }
 
@@ -109,7 +110,7 @@ export async function verifyPayPalClientReturn(
   if (captured.ok) {
     providerPaymentId = captured.capture.providerPaymentId;
     providerAmountMinor = captured.capture.amountMinor;
-    if (captured.capture.currency !== STORE_CURRENCY) {
+    if (captured.capture.currency !== loaded.payment.currency) {
       return { outcome: "rejected", reason: "currency_mismatch" };
     }
   } else if (captured.alreadyCaptured) {
@@ -164,7 +165,7 @@ export async function verifyPayPalClientReturn(
     providerOrderId: expectedProviderOrderId,
     providerPaymentId,
     amountMinor: loaded.payment.amount_minor,
-    currency: "GBP",
+    currency: loaded.payment.currency,
     paymentStatus,
     orderPaymentStatus,
   };
@@ -192,7 +193,7 @@ async function reconcileFetched(
       result: { outcome: "rejected", reason: "provider_order_mismatch" },
     };
   }
-  if (order.currency !== STORE_CURRENCY) {
+  if (order.currency !== loaded.payment.currency) {
     return { outcome: "reject", result: { outcome: "rejected", reason: "currency_mismatch" } };
   }
   if (order.customId && order.customId !== loaded.payment.id) {

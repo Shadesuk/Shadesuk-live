@@ -16,7 +16,9 @@ import {
   SHIPPING_MINIMUM,
   SHIPPING_UNAVAILABLE,
 } from "@/lib/checkout-copy";
-import { formatGbpMinor } from "@/lib/money";
+import { useMarket } from "@/components/market/MarketProvider";
+import { presentCheckoutAmount } from "@/lib/market/prices";
+import { resolvePaymentRoute } from "@/lib/payment/payment-route";
 import { resolveShippingOptions } from "@/lib/shipping/options";
 import { normalizeCountry } from "@/lib/checkout-validate";
 import { routes } from "@/lib/navigation";
@@ -56,8 +58,10 @@ export function CheckoutAddress({
   retrieve,
 }: CheckoutAddressProps) {
   const [submitted, setSubmitted] = useState(false);
+  const { rates, setCountry } = useMarket();
   const shipping = resolveShippingOptions(value.country);
   const priced = shipping.status === "priced" ? shipping.options[0] : null;
+  const route = resolvePaymentRoute(value.country);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,6 +96,7 @@ export function CheckoutAddress({
             return;
           }
           onQueryChange("");
+          setCountry(country);
           onChange({
             ...value,
             country,
@@ -130,7 +135,15 @@ export function CheckoutAddress({
         {priced ? (
           <>
             <p className="text-small">{priced.label}</p>
-            <p className="text-small">{formatGbpMinor(priced.amountMinor)}</p>
+            <p className="text-small">
+              {presentCheckoutAmount({
+                gbpMinor: priced.amountMinor,
+                displayCurrency: route?.displayCurrency ?? "GBP",
+                chargeCurrency: route?.paymentCurrency ?? "GBP",
+                rates,
+                cents: route?.displayCurrency === route?.paymentCurrency,
+              })}
+            </p>
             <p className="text-micro">{ESTIMATED_DELIVERY_LABEL}</p>
             <p className="text-small">{priced.estimatedDelivery}</p>
             {value.country === "GB" ? (

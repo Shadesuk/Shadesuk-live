@@ -39,13 +39,17 @@ import {
   PAYPAL_PAYMENT_CAPTURE_DECLINED,
 } from "../src/lib/payment/handle-webhook";
 import type { PaymentWebhookStore } from "../src/lib/payment/webhook-store";
-import { resolveShippingOptions, type ShippingCatalogue } from "../src/lib/shipping/options";
-import { V1_SHIPPING_CATALOGUE } from "../src/lib/shipping/options";
+import { resolveShippingOptions, V1_SHIPPING_CATALOGUE, type ShippingCatalogue } from "../src/lib/shipping/options";
 import { emptyCheckoutDraft, type PublicCheckoutDraft } from "../src/types/checkout";
 import { GET as paypalWebhookGet } from "../src/app/api/webhooks/paypal/route";
 import { GET as razorpayWebhookGet } from "../src/app/api/webhooks/razorpay/route";
 
 const root = resolve(process.cwd());
+
+function standardRate(country: string): boolean {
+  const resolved = resolveShippingOptions(country);
+  return resolved.status === "priced" && resolved.options[0]?.amountMinor === 465;
+}
 
 type Result = "PASS" | "FAIL" | "BLOCKED";
 type Row = { id: string; result: Result; detail: string };
@@ -167,13 +171,15 @@ void (async () => {
     const quote = authoritativeCheckoutQuote({ subtotalMinor: 4900, country, shippingMinor: 9999, totalMinor: 1, currency: "EUR" });
     const rail = checkoutPaymentRail({ country });
     expect(
-      `Fail-closed shipping ${country}`,
-      resolved.status === "unavailable" &&
-        quote.shippingMinor === 0 &&
-        quote.shippingStatus !== "priced" &&
-        !quoteIsChargeable(quote) &&
-        quote.currency === "GBP",
-      `${country} has no seeded rate. Client shipping and currency were ignored. Rail is ${rail}.`,
+      `Standard shipping ${country}`,
+      resolved.status === "priced" &&
+        resolved.options[0]?.amountMinor === 465 &&
+        quote.shippingMinor === 465 &&
+        quote.shippingStatus === "priced" &&
+        quoteIsChargeable(quote) &&
+        quote.currency === "GBP" &&
+        (country === "IN" ? rail === "india" : rail === "paypal"),
+      `${country} uses £4.65. Client shipping and currency were ignored. Rail is ${rail}.`,
     );
   }
   const deProvider = getAddressProvider("DE");
@@ -189,13 +195,14 @@ void (async () => {
         countryCode: "DE",
         lines: [{ variantId: VARIANT_ID, quantity: 1, unitPriceMinor: 4900 }],
         now: NOW,
-      }) === null,
-    "Mapping is Geoapify, EUR, PayPal. The production catalogue has no Europe rate, so no quote lock and no invented EUR price.",
+      }) === null &&
+      resolveShippingOptions("DE").status === "priced",
+    "Mapping is Geoapify, EUR, PayPal. Shipping is £4.65. A EUR lock without an FX row is refused.",
   );
   record(
     "B DE full checkout",
     "BLOCKED",
-    "OPS: seed a Europe shipping rate before a DE address can be charged. Do not invent one. Deliverable checkout validation is still GB-only.",
+    "Offline route is EUR on PayPal with £4.65 shipping. A live charge still needs an EUR fx_rates row and migration 20261005220000. No purchase was made.",
   );
   expect(
     "C AE Geoapify / USD / PayPal",
@@ -203,13 +210,18 @@ void (async () => {
       aeProvider !== postcodesIoAddressLookupProvider &&
       providerFor("AE")?.provider === "paypal" &&
       providerFor("AE")?.currency === "USD" &&
-      resolveShippingOptions("AE").status === "unavailable",
-    "Mapping is Geoapify, USD, PayPal. GCC shipping is unpriced, so payment stays closed.",
+      standardRate("AE") &&
+      createCheckoutQuoteLock({
+        countryCode: "AE",
+        lines: [{ variantId: VARIANT_ID, quantity: 1, unitPriceMinor: 4900 }],
+        now: NOW,
+      }) === null,
+    "Mapping is Geoapify, USD charge on PayPal, AED display. Shipping is £4.65. A USD lock without an FX row is refused.",
   );
   record(
     "C AE full checkout",
     "BLOCKED",
-    "OPS: seed a GCC shipping rate before an AE address can be charged. Do not invent one.",
+    "Offline route charges USD on PayPal and displays AED from the USD peg. A live charge still needs a USD fx_rates row and migration 20261005220000. No purchase was made.",
   );
   expect(
     "D IN Geoapify / INR / Razorpay",
@@ -222,12 +234,12 @@ void (async () => {
         lines: [line(4900)],
         now: NOW,
       }).ok === false,
-    "India stays on Razorpay. Unpriced shipping blocks the charge and does not fall through to PayPal.",
+    "India stays on Razorpay. Shipping is £4.65. A charge without an INR lock does not fall through to PayPal.",
   );
   record(
     "D IN full checkout",
     "BLOCKED",
-    "OPS: seed an India shipping rate and an active INR FX row before Razorpay can start. No live Razorpay charge was made.",
+    "Offline route is INR on Razorpay with £4.65 shipping. A live charge still needs an INR fx_rates row and migration 20261005220000. No purchase was made.",
   );
 
   const fxRefresh = await runFxRefresh({
@@ -286,8 +298,9 @@ void (async () => {
       addressUi.includes("allowManual={Boolean(priced)}") &&
       manualButton > lookupError &&
       lookupUi.includes("ENTER_ADDRESS_MANUALLY") &&
-      resolveShippingOptions("DE").status !== "priced",
-    "UK is priced, so a Postcodes.io failure still shows manual entry. Unpriced DE does not. Geoapify without a key returns no address.",
+      resolveShippingOptions("DE").status === "priced" &&
+      resolveShippingOptions("ZZ").status === "unsupported",
+    "Supported countries keep manual entry when lookup fails. An unknown country is not priced. Geoapify without a key returns no address.",
   );
   record(
     "F live Geoapify",
@@ -308,7 +321,7 @@ void (async () => {
     quoteLockForCountry(deLock, "GB") === null &&
       checkoutService.includes("draft.quoteLock = null") &&
       checkoutService.includes("checkoutQuoteFromCart(cart, draft.country)") &&
-      resolveShippingOptions("DE").status === "unavailable" &&
+      standardRate("DE") &&
       providerFor("GB")?.currency === "GBP" &&
       providerFor("DE")?.currency === "EUR",
     "A country change drops the quote lock. Shipping, currency, and provider are resolved for the new country.",
@@ -350,10 +363,13 @@ void (async () => {
 
   expect(
     "Edge unsupported country",
-    resolveShippingOptions("JP").status === "unsupported" &&
-      resolvePaymentProvider({ country: "JP" }).ok === false &&
-      getAddressProvider("JP") === null,
-    "Japan has no zone, no provider, and no address lookup.",
+    resolveShippingOptions("ZZ").status === "unsupported" &&
+      resolvePaymentProvider({ country: "ZZ" }).ok === false &&
+      getAddressProvider("ZZ") === null &&
+      resolveShippingOptions("JP").status === "priced" &&
+      providerFor("JP")?.provider === "paypal" &&
+      providerFor("JP")?.currency === "USD",
+    "An unknown country has no zone, provider, or address lookup. Japan displays JPY and charges USD on PayPal.",
   );
 
   expect(
@@ -480,21 +496,27 @@ void (async () => {
   const paypalBranch = review.slice(review.indexOf("{payable ? ("));
   expect(
     "Audit routing",
-    review.includes('paymentRail !== "india"') &&
+    review.includes("paypalCurrency") &&
+      review.includes("chargeDisclosure") &&
       review.includes("if (!slot || pending || !payable)") &&
       indiaBranch.includes("<IndiaPayment") &&
       !indiaBranch.includes("mountPayPalCheckout") &&
       !indiaBranch.includes("data-paypal-button") &&
       paypalBranch.includes("data-paypal-button") &&
       indiaUi.includes('configured === "unavailable"') &&
-      resolveShippingOptions("DE").status === "unavailable" &&
-      resolveShippingOptions("US").status === "unavailable" &&
+      resolveShippingOptions("DE").status === "priced" &&
+      resolveShippingOptions("US").status === "priced" &&
       buildPendingPaymentAttempt({
         draft: draft(null, "DE"),
         lines: [line(4900)],
         now: NOW,
+      }).ok === false &&
+      buildPendingPaymentAttempt({
+        draft: draft(null, "US"),
+        lines: [line(4900)],
+        now: NOW,
       }).ok === false,
-    "The India branch renders IndiaPayment and does not mount PayPal. PayPal stays behind the non-India payable gate. DE and US cannot start a payment attempt.",
+    "The India branch renders IndiaPayment and does not mount PayPal. PayPal stays behind the payable gate. DE and US without an FX lock cannot start a payment attempt.",
   );
 
   const grants = read("supabase/migrations/20261005210000_customer_role_checkout_grants.sql");
@@ -567,7 +589,7 @@ void (async () => {
       indiaLock != null &&
       cheaperIndia?.ok === false &&
       cheaperIndia?.reason === "stale",
-    "A lower live line price blocks PayPal. The same undercut blocks India when a test rate is injected. Production India shipping is still unpriced.",
+    "A lower live line price blocks PayPal. The same undercut blocks India. Production India shipping is the £4.65 standard rate.",
   );
 
   printRows();

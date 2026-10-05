@@ -5,7 +5,9 @@ import Link from "next/link";
 import type { PublicCart } from "@/types/cart";
 import { displayLineTotal, displayLockedChargeMinor, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
-import { formatGbp, formatGbpMinor, formatInrMinor } from "@/lib/money";
+import { useMarket } from "@/components/market/MarketProvider";
+import { presentCheckoutAmount } from "@/lib/market/prices";
+import { resolvePaymentRoute } from "@/lib/payment/payment-route";
 import {
   ORDER_SUMMARY_HEADING,
   SUBTOTAL_LABEL,
@@ -29,16 +31,27 @@ export function CheckoutSummary({
   lineLock = null,
   frozenCharge = null,
   collapsible = false,
-}: CheckoutSummaryProps) {
-  const subtotalLabel = frozenCharge
-    ? formatInrMinor(frozenCharge.subtotalMinor)
-    : formatGbpMinor(quote.subtotalMinor);
-  const shippingLabel = frozenCharge
-    ? formatInrMinor(frozenCharge.shippingMinor)
-    : quote.shippingStatus === "priced"
-      ? formatGbpMinor(quote.shippingMinor)
+  country = "GB",
+}: CheckoutSummaryProps & { country?: string }) {
+  const { rates } = useMarket();
+  const route = resolvePaymentRoute(country);
+  const displayCurrency = frozenCharge ? "INR" : (route?.displayCurrency ?? "GBP");
+  const chargeCurrency = frozenCharge ? "INR" : (route?.paymentCurrency ?? "GBP");
+  const money = (gbpMinor: number, chargeMinor?: number | null) =>
+    presentCheckoutAmount({
+      gbpMinor,
+      chargeMinor,
+      displayCurrency,
+      chargeCurrency,
+      rates,
+      cents: displayCurrency === chargeCurrency,
+    });
+  const subtotalLabel = money(quote.subtotalMinor, frozenCharge?.subtotalMinor);
+  const shippingLabel =
+    quote.shippingStatus === "priced" || frozenCharge
+      ? money(quote.shippingMinor, frozenCharge?.shippingMinor)
       : SHIPPING_UNAVAILABLE;
-  const totalLabel = frozenCharge ? formatInrMinor(frozenCharge.totalMinor) : formatGbpMinor(quote.totalMinor);
+  const totalLabel = money(quote.totalMinor, frozenCharge?.totalMinor);
   const content = (
     <>
       <ul className={styles.lines}>
@@ -68,7 +81,9 @@ export function CheckoutSummary({
                 {variant ? <p className="text-micro">{variant}</p> : null}
                 <p className="text-small">Qty {item.quantity}</p>
               </div>
-              <p className={`text-small ${styles.price}`}>{formatSummaryLine(lineLock, item, Boolean(frozenCharge))}</p>
+              <p className={`text-small ${styles.price}`}>
+                {money(Math.round(displayLineTotal(lineLock, item) * 100), frozenCharge ? displayLockedChargeMinor(lineLock, item) : null)}
+              </p>
             </li>
           );
         })}
@@ -114,14 +129,3 @@ export function CheckoutSummary({
   );
 }
 
-function formatSummaryLine(
-  lock: CheckoutQuoteLock | null,
-  item: { variantId?: string; quantity: number; lineTotal: number },
-  indiaCharge: boolean,
-): string {
-  if (!indiaCharge) {
-    return formatGbp(displayLineTotal(lock, item));
-  }
-  const chargeMinor = displayLockedChargeMinor(lock, item);
-  return chargeMinor == null ? formatGbp(displayLineTotal(lock, item)) : formatInrMinor(chargeMinor);
-}

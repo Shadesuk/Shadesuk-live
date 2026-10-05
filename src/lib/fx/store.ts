@@ -3,13 +3,13 @@ import "server-only";
 import { CATALOGUE_BASE_CURRENCY } from "@/contracts/markets";
 import { parsePositiveDecimalRate } from "@/contracts/pricing";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { FX_QUOTE_CURRENCIES, type FxQuoteCurrency } from "./observations";
+import { FX_STORED_QUOTE_CURRENCIES, type FxStoredQuoteCurrency } from "./observations";
 import type { FxRateInsert } from "./refresh";
 
 export type CachedFxRate = {
   id: string;
   version: number;
-  quoteCurrency: FxQuoteCurrency;
+  quoteCurrency: FxStoredQuoteCurrency;
   rate: string;
   effectiveAt: string;
 };
@@ -69,16 +69,16 @@ export async function loadLatestFxRates(): Promise<CachedFxRate[]> {
 
 export function selectLatestFxRates(rows: readonly FxRateRow[]): CachedFxRate[] {
   const ordered = [...rows].sort((left, right) => versionOf(right) - versionOf(left));
-  const latest = new Map<FxQuoteCurrency, CachedFxRate>();
+  const latest = new Map<FxStoredQuoteCurrency, CachedFxRate>();
   for (const row of ordered) {
     if (row.status !== "active") {
       continue;
     }
     const quote = typeof row.quote_currency === "string" ? row.quote_currency : "";
-    if (!(FX_QUOTE_CURRENCIES as readonly string[]).includes(quote)) {
+    if (!(FX_STORED_QUOTE_CURRENCIES as readonly string[]).includes(quote)) {
       continue;
     }
-    const quoteCurrency = quote as FxQuoteCurrency;
+    const quoteCurrency = quote as FxStoredQuoteCurrency;
     if (latest.has(quoteCurrency)) {
       continue;
     }
@@ -97,7 +97,7 @@ export function selectLatestFxRates(rows: readonly FxRateRow[]): CachedFxRate[] 
       effectiveAt,
     });
   }
-  return FX_QUOTE_CURRENCIES.map((quote) => latest.get(quote)).filter(
+  return FX_STORED_QUOTE_CURRENCIES.map((quote) => latest.get(quote)).filter(
     (row): row is CachedFxRate => row != null,
   );
 }

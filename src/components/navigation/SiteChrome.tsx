@@ -10,6 +10,8 @@ import type { MenuBrandLink } from "@/lib/menu-brands";
 import type { SearchDiscoveryLink } from "@/lib/search-query";
 import type { PublicCart } from "@/types/cart";
 import { CookieConsent } from "@/components/consent/CookieConsent";
+import { MarketProvider } from "@/components/market/MarketProvider";
+import type { PublicFxRate } from "@/lib/market/prices";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
 import { ChromeProvider, useChromeLocks } from "./ChromeContext";
@@ -21,12 +23,18 @@ export function SiteChrome({
   brandLinks = [],
   searchDiscovery = [],
   signedIn = false,
+  initialCountry,
+  countryChosen = false,
+  fxRates = [],
 }: {
   children: ReactNode;
   initialCart: PublicCart;
   brandLinks?: MenuBrandLink[];
   searchDiscovery?: SearchDiscoveryLink[];
   signedIn?: boolean;
+  initialCountry: string;
+  countryChosen?: boolean;
+  fxRates?: readonly PublicFxRate[];
 }) {
   const { pageLocked, value } = useChromeLocks();
   const pathname = usePathname();
@@ -35,6 +43,7 @@ export function SiteChrome({
   return (
     <ChromeProvider value={value}>
       <CartProvider initialCart={initialCart}>
+        <MarketProvider initialCountry={initialCountry} hasChoice={countryChosen} rates={fxRates}>
         <div className={styles.shell}>
           <Suspense fallback={null}>
             <AnalyticsPageView />
@@ -52,6 +61,7 @@ export function SiteChrome({
         </div>
         <CookieConsent />
         <BagDrawer />
+        </MarketProvider>
       </CartProvider>
     </ChromeProvider>
   );

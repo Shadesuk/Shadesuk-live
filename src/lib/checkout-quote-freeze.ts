@@ -1,7 +1,6 @@
 import "server-only";
 
 import { STORE_CURRENCY } from "@/contracts/money";
-import { marketById, marketIdForCountry } from "@/contracts/markets";
 import { loadLatestFxRates } from "@/lib/fx/store";
 import {
   createCheckoutQuoteLock,
@@ -9,9 +8,10 @@ import {
   type QuoteLockFx,
 } from "@/lib/checkout-quote-lock";
 import { normalizeCountry } from "@/lib/checkout-validate";
+import { resolvePaymentRoute } from "@/lib/payment/payment-route";
 
 /**
- * Reads the active FX row when the market currency is not GBP.
+ * Reads the active FX row when the charge currency is not GBP.
  * A missing or unreadable rate does not invent a price.
  */
 export async function freezeCheckoutQuoteLock(input: {
@@ -19,16 +19,15 @@ export async function freezeCheckoutQuoteLock(input: {
   lines: readonly { variantId: string; quantity: number; unitPriceMinor: number }[];
 }): Promise<CheckoutQuoteLock | null> {
   const countryCode = normalizeCountry(input.countryCode);
-  const marketId = marketIdForCountry(countryCode);
-  const market = marketId ? marketById(marketId) : null;
-  if (!market) {
+  const route = resolvePaymentRoute(countryCode);
+  if (!route) {
     return null;
   }
   let fx: QuoteLockFx | null = null;
-  if (market.currency !== STORE_CURRENCY) {
+  if (route.paymentCurrency !== STORE_CURRENCY) {
     try {
       const rates = await loadLatestFxRates();
-      const row = rates.find((rate) => rate.quoteCurrency === market.currency);
+      const row = rates.find((rate) => rate.quoteCurrency === route.paymentCurrency);
       if (!row) {
         return null;
       }

@@ -37,7 +37,9 @@ import {
   UK_STANDARD_DELIVERY,
   UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
-import { formatGbp, formatGbpMinor, formatInrMinor } from "@/lib/money";
+import { useMarket } from "@/components/market/MarketProvider";
+import { chargeDisclosure, presentCheckoutAmount } from "@/lib/market/prices";
+import { isPayPalChargeCurrency, resolvePaymentRoute } from "@/lib/payment/payment-route";
 import { mountPayPalCheckout } from "@/lib/paypal/open-buttons";
 import { displayLineTotal, displayLockedChargeMinor, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
@@ -80,6 +82,8 @@ export function CheckoutReview({
   onBack,
 }: CheckoutReviewProps) {
   const router = useRouter();
+  const { rates } = useMarket();
+  const route = resolvePaymentRoute(draft.country);
   const paypalSlotRef = useRef<HTMLDivElement>(null);
   const paymentIdRef = useRef<string>("");
   const [paymentUi, setPaymentUi] = useState<PaymentUiState>("idle");
@@ -87,8 +91,26 @@ export function CheckoutReview({
   const [paymentError, setPaymentError] = useState<string>("");
   const [paypalReady, setPaypalReady] = useState(false);
   const india = paymentRail === "india";
+  const paypalCurrency =
+    route?.provider === "paypal" && isPayPalChargeCurrency(route.paymentCurrency)
+      ? route.paymentCurrency
+      : null;
   const payable =
-    paymentRail !== "india" && chargeReady && draft.country === "GB" && quote.shippingStatus === "priced";
+    paymentRail !== "india" &&
+    paypalCurrency != null &&
+    chargeReady &&
+    quote.shippingStatus === "priced" &&
+    (paypalCurrency === "GBP" ||
+      Boolean(lineLock && lineLock.chargeCurrency === paypalCurrency && lineLock.fxRateId));
+  const disclosure =
+    route && lineLock
+      ? chargeDisclosure({
+          displayCurrency: route.displayCurrency,
+          chargeCurrency: lineLock.chargeCurrency,
+          chargeMinor: lineLock.chargeTotalMinor,
+          provider: route.provider,
+        })
+      : null;
   const indiaReady = india && chargeReady && frozenCharge != null && quote.shippingStatus === "priced";
   const addressLines = [
     `${draft.firstName} ${draft.lastName}`.trim(),
@@ -120,6 +142,7 @@ export function CheckoutReview({
         container: slot,
         clientId: config.clientId,
         mode: config.mode,
+        currencyCode: paypalCurrency ?? "GBP",
         createOrder: async () => {
           setPaymentBusy(true);
           setPaymentError("");
@@ -190,7 +213,7 @@ export function CheckoutReview({
       cancelled = true;
       unmount();
     };
-  }, [payable, pending, router]);
+  }, [payable, paypalCurrency, pending, router]);
 
   return (
     <div className={styles.review} data-checkout-review>
@@ -229,7 +252,7 @@ export function CheckoutReview({
                   </div>
                   {variant ? <p className="text-micro">{variant}</p> : null}
                   <p className="text-small">Qty {item.quantity}</p>
-                  <p className="text-small">{formatReviewLine(lineLock, item, Boolean(frozenCharge))}</p>
+                  <p className="text-small">{formatReviewLine(lineLock, item, Boolean(frozenCharge), route, rates)}</p>
                 </div>
               </li>
             );
@@ -256,11 +279,17 @@ export function CheckoutReview({
         <p className="text-small">{quote.shippingStatus === "priced" ? (quote.shippingLabel ?? UK_STANDARD_DELIVERY) : "Shipping"}</p>
         <p className="text-small">
           {quote.shippingStatus === "priced"
-            ? frozenCharge
-              ? formatInrMinor(frozenCharge.shippingMinor)
-              : formatGbpMinor(quote.shippingMinor)
+            ? presentCheckoutAmount({
+                gbpMinor: quote.shippingMinor,
+                chargeMinor: frozenCharge?.shippingMinor ?? lineLock?.chargeShippingMinor,
+                displayCurrency: route?.displayCurrency ?? "GBP",
+                chargeCurrency: frozenCharge ? "INR" : (lineLock?.chargeCurrency ?? route?.paymentCurrency ?? "GBP"),
+                rates,
+                cents: true,
+              })
             : SHIPPING_UNAVAILABLE}
         </p>
+        {disclosure ? <p className="text-small">{disclosure}</p> : null}
         <p className="text-micro">{ESTIMATED_DELIVERY_LABEL}</p>
         <p className="text-small">{quote.estimatedDelivery ?? ESTIMATED_DELIVERY_WINDOW}</p>
         <p className="text-small">{draft.email}</p>
@@ -331,10 +360,30 @@ function formatReviewLine(
   lock: CheckoutQuoteLock | null,
   item: { variantId?: string; quantity: number; lineTotal: number },
   indiaCharge: boolean,
+  route: ReturnType<typeof resolvePaymentRoute>,
+  rates: readonly { currency: string; rate: string }[],
 ): string {
-  if (!indiaCharge) {
-    return formatGbp(displayLineTotal(lock, item));
+  const gbpMajor = displayLineTotal(lock, item);
+  const gbpMinor = Math.round(gbpMajor * 100);
+  if (indiaCharge) {
+    const chargeMinor = displayLockedChargeMinor(lock, item);
+    if (chargeMinor != null) {
+      return presentCheckoutAmount({
+        gbpMinor,
+        chargeMinor,
+        displayCurrency: "INR",
+        chargeCurrency: "INR",
+        rates,
+        cents: true,
+      });
+    }
   }
-  const chargeMinor = displayLockedChargeMinor(lock, item);
-  return chargeMinor == null ? formatGbp(displayLineTotal(lock, item)) : formatInrMinor(chargeMinor);
+  return presentCheckoutAmount({
+    gbpMinor,
+    chargeMinor: null,
+    displayCurrency: route?.displayCurrency ?? "GBP",
+    chargeCurrency: route?.paymentCurrency ?? "GBP",
+    rates,
+    cents: route?.displayCurrency === route?.paymentCurrency,
+  });
 }

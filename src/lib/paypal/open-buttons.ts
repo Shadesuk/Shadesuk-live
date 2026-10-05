@@ -22,6 +22,7 @@ export type OpenPayPalButtonsInput = {
   paymentId: string;
   /** Must match server PAYPAL_MODE from initiation — never hardcode live. */
   mode: PayPalBrowserMode;
+  currencyCode?: "GBP" | "EUR" | "USD";
 };
 
 export type OpenPayPalButtonsResult =
@@ -109,7 +110,7 @@ export async function openPayPalButtons(
   }
 
   try {
-    const methods = await sdk.findEligibleMethods({ currencyCode: "GBP" });
+    const methods = await sdk.findEligibleMethods({ currencyCode: input.currencyCode ?? "GBP" });
     if (!methods.isEligible("paypal")) {
       return { status: "unavailable", reason: "not_eligible" };
     }
@@ -197,6 +198,7 @@ export type MountPayPalCheckoutInput = {
   onApprove: (paypalOrderId: string) => Promise<void>;
   onCancel: () => void;
   onError: (kind: "declined" | "network" | "sdk") => void;
+  currencyCode?: "GBP" | "EUR" | "USD";
 };
 
 /**
@@ -238,7 +240,7 @@ export async function mountPayPalCheckout(input: MountPayPalCheckoutInput): Prom
   }
 
   try {
-    const methods = await sdk.findEligibleMethods({ currencyCode: "GBP" });
+    const methods = await sdk.findEligibleMethods({ currencyCode: input.currencyCode ?? "GBP" });
     if (!methods.isEligible("paypal")) {
       input.onError("sdk");
       return noop;

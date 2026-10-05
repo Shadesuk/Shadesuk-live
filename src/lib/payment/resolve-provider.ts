@@ -1,6 +1,6 @@
-import { marketById, marketIdForCountry, resolveConfiguredPaymentProvider } from "@/contracts/markets";
 import { quoteLockExpired, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import { normalizeCountry } from "@/lib/checkout-validate";
+import { resolvePaymentRoute } from "@/lib/payment/payment-route";
 import { resolveShippingOptions } from "@/lib/shipping/options";
 import type { PublicCheckoutDraft } from "@/types/checkout";
 
@@ -22,21 +22,20 @@ export function resolvePaymentProvider(input: {
   country: string;
   currency?: string | null;
 }): ResolvedPaymentProvider {
-  const countryCode = normalizeCountry(input.country);
-  const marketId = marketIdForCountry(countryCode);
-  const market = marketId ? marketById(marketId) : null;
-  if (!market) {
+  const route = resolvePaymentRoute(input.country);
+  if (!route) {
     return { ok: false, reason: "unsupported" };
   }
-  const currency = (input.currency ?? market.currency).trim().toUpperCase();
-  const provider = resolveConfiguredPaymentProvider({ marketId: market.id, currency });
-  if (provider !== "paypal" && provider !== "razorpay") {
+  const requested = input.currency?.trim().toUpperCase() ?? "";
+  if (requested && requested !== route.paymentCurrency) {
     return { ok: false, reason: "unsupported" };
   }
-  if (provider === "razorpay" && (countryCode !== "IN" || currency !== "INR")) {
-    return { ok: false, reason: "unsupported" };
-  }
-  return { ok: true, provider, currency, countryCode };
+  return {
+    ok: true,
+    provider: route.provider,
+    currency: route.paymentCurrency,
+    countryCode: route.countryCode,
+  };
 }
 
 /** UI rail. The checkout shell does not name a provider SDK. */

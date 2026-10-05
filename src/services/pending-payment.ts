@@ -26,7 +26,8 @@ import {
 import { createPayPalOrder } from "@/lib/paypal/create-order";
 import { getOptionalAccountUser } from "@/lib/account-session";
 import { readGuestCartSessionId } from "@/lib/guest-cart-cookie";
-import { normalizeEmailInput, formatUkPostcode } from "@/lib/checkout-validate";
+import { normalizeEmailInput, formatUkPostcode, normalizeCountry } from "@/lib/checkout-validate";
+import { CHECKOUT_COUNTRY_GB } from "@/types/checkout";
 import type { PublicCheckoutDraft } from "@/types/checkout";
 import type { PublicCart } from "@/types/cart";
 import { getPublicCart } from "@/services/cart";
@@ -141,7 +142,10 @@ async function reuseOpenAttempt(input: {
   const ageMs = Date.now() - new Date(open.order.created_at).getTime();
   const fresh = Number.isFinite(ageMs) && ageMs >= 0 && ageMs < PAYMENT_ATTEMPT_MAX_AGE_SECONDS * 1000;
   const email = normalizeEmailInput(input.draft.email);
-  const postcode = formatUkPostcode(input.draft.postcode);
+  const postcode =
+    normalizeCountry(input.draft.country) === CHECKOUT_COUNTRY_GB
+      ? formatUkPostcode(input.draft.postcode)
+      : input.draft.postcode.trim();
   const storedPostcode =
     typeof open.order.delivery_address.postcode === "string"
       ? open.order.delivery_address.postcode
@@ -149,7 +153,8 @@ async function reuseOpenAttempt(input: {
   const matches =
     fresh &&
     open.order.total_minor === built.attempt.quote.totalMinor &&
-    open.payment.amount_minor === built.attempt.quote.totalMinor &&
+    open.payment.amount_minor === built.attempt.paypal.amountMinor &&
+    open.payment.currency === built.attempt.paypal.currency &&
     open.order.customer_email === email &&
     storedPostcode === postcode &&
     sameCheckoutLines(
@@ -170,7 +175,7 @@ async function reuseOpenAttempt(input: {
       paymentId: open.payment.id,
       providerOrderId: open.payment.provider_order_id,
       amountMinor: open.payment.amount_minor,
-      currency: "GBP",
+      currency: built.attempt.paypal.currency,
       paymentStatus: "created",
       orderPaymentStatus: "created",
       orderStatus: "checkout",

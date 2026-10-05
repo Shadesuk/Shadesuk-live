@@ -1,6 +1,7 @@
 "use client";
 
-import { Field, FieldSelect } from "@/components/ui/Field";
+import { Field } from "@/components/ui/Field";
+import { CountrySelector } from "@/components/market/CountrySelector";
 import {
   ADDRESS_COMPLETE_HINT,
   ADDRESS_LINE_1_LABEL,
@@ -12,7 +13,7 @@ import {
   FIRST_NAME_LABEL,
   LAST_NAME_LABEL,
 } from "@/lib/checkout-copy";
-import { checkoutCountryOptions, postalFieldCopy } from "@/lib/checkout-validate";
+import { postalFieldCopy } from "@/lib/checkout-validate";
 import { CHECKOUT_COUNTRY_GB, type CheckoutFieldErrors } from "@/types/checkout";
 import styles from "./AddressForm.module.css";
 
@@ -37,23 +38,20 @@ type AddressCountryFieldProps = {
 
 export function AddressCountryField({ id, value, error, disabled = false, onChange }: AddressCountryFieldProps) {
   return (
-    <FieldSelect
-      id={id}
-      name="country"
-      label={COUNTRY_LABEL}
-      autoComplete="country"
-      value={value || CHECKOUT_COUNTRY_GB}
-      required
-      disabled={disabled}
-      error={error}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {checkoutCountryOptions().map((option) => (
-        <option key={option.code} value={option.code}>
-          {option.name}
-        </option>
-      ))}
-    </FieldSelect>
+    <div>
+      <CountrySelector
+        value={value || CHECKOUT_COUNTRY_GB}
+        onChange={onChange}
+        disabled={disabled}
+        showLabel
+        label={COUNTRY_LABEL}
+      />
+      {error ? (
+        <p className="text-small" id={id} role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
