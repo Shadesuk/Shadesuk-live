@@ -12,6 +12,8 @@ import {
 import { captureVerifiedPayment } from "@/lib/payment/capture-verified";
 import { verifyPayPalClientReturn } from "@/lib/paypal/verify-client-return";
 import { findPaymentIdByPayPalOrderId } from "@/lib/payment/verification-store";
+import { resolveRazorpayServerConfig } from "@/lib/razorpay/config";
+import { startIndiaCheckout, verifyIndiaCheckout } from "@/lib/razorpay/commit";
 
 export type CheckoutPaymentStartResult =
   | {
@@ -207,4 +209,76 @@ export async function verifyCheckoutPaymentAction(input: {
     };
   }
   return { status: "error" };
+}
+
+export type IndiaCheckoutConfigResult = { status: "ok"; keyId: string } | { status: "unavailable" };
+
+/** Test key id only. Never returns the key secret or webhook secret. */
+export async function loadIndiaCheckoutConfigAction(): Promise<IndiaCheckoutConfigResult> {
+  if (!(await cartActionOriginAllowed())) {
+    return { status: "unavailable" };
+  }
+  const config = resolveRazorpayServerConfig();
+  if (!config.ok) {
+    return { status: "unavailable" };
+  }
+  return { status: "ok", keyId: config.config.keyId };
+}
+
+export type IndiaCheckoutStartResult =
+  | {
+      status: "ok";
+      paymentId: string;
+      orderReference: string;
+      providerOrderId: string;
+      amountMinor: number;
+      currency: "INR";
+      keyId: string;
+      timeoutSeconds: number;
+    }
+  | { status: "blocked" | "expired" | "invalid" | "empty" | "unavailable" | "stale" | "error" };
+
+/** Starts an India charge from the locked quote. Client amount and currency are rejected. */
+export async function initiateIndiaCheckoutAction(
+  input?: Record<string, unknown>,
+): Promise<IndiaCheckoutStartResult> {
+  if (input && (hasForbiddenOwnershipKey(input) || "amount" in input || "currency" in input || "total" in input)) {
+    return { status: "error" };
+  }
+  if (!(await cartActionOriginAllowed())) {
+    return { status: "error" };
+  }
+  return startIndiaCheckout();
+}
+
+export async function verifyIndiaCheckoutAction(input: {
+  providerOrderId: unknown;
+  providerPaymentId: unknown;
+  signature: unknown;
+  amountMinor?: unknown;
+  currency?: unknown;
+}): Promise<CheckoutPaymentVerifyResult> {
+  if (hasForbiddenOwnershipKey(input) || !(await cartActionOriginAllowed())) {
+    return { status: "error" };
+  }
+  if (
+    typeof input.providerOrderId !== "string" ||
+    typeof input.providerPaymentId !== "string" ||
+    typeof input.signature !== "string"
+  ) {
+    return { status: "error" };
+  }
+  const verified = await verifyIndiaCheckout({
+    providerOrderId: input.providerOrderId,
+    providerPaymentId: input.providerPaymentId,
+    signature: input.signature,
+  });
+  if (verified.status === "verified" || verified.status === "already_processed") {
+    try {
+      await clearPaymentAttemptId();
+    } catch {
+      // The placed order no longer needs the attempt cookie.
+    }
+  }
+  return verified;
 }

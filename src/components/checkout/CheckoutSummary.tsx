@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { PublicCart } from "@/types/cart";
-import { displayLineTotal, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
+import { displayLineTotal, displayLockedChargeMinor, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
-import { formatGbp, formatGbpMinor } from "@/lib/money";
+import { formatGbp, formatGbpMinor, formatInrMinor } from "@/lib/money";
 import {
   ORDER_SUMMARY_HEADING,
   SUBTOTAL_LABEL,
@@ -19,10 +19,26 @@ type CheckoutSummaryProps = {
   cart: PublicCart;
   quote: CheckoutQuote;
   lineLock?: CheckoutQuoteLock | null;
+  frozenCharge?: { subtotalMinor: number; shippingMinor: number; totalMinor: number } | null;
   collapsible?: boolean;
 };
 
-export function CheckoutSummary({ cart, quote, lineLock = null, collapsible = false }: CheckoutSummaryProps) {
+export function CheckoutSummary({
+  cart,
+  quote,
+  lineLock = null,
+  frozenCharge = null,
+  collapsible = false,
+}: CheckoutSummaryProps) {
+  const subtotalLabel = frozenCharge
+    ? formatInrMinor(frozenCharge.subtotalMinor)
+    : formatGbpMinor(quote.subtotalMinor);
+  const shippingLabel = frozenCharge
+    ? formatInrMinor(frozenCharge.shippingMinor)
+    : quote.shippingStatus === "priced"
+      ? formatGbpMinor(quote.shippingMinor)
+      : SHIPPING_UNAVAILABLE;
+  const totalLabel = frozenCharge ? formatInrMinor(frozenCharge.totalMinor) : formatGbpMinor(quote.totalMinor);
   const content = (
     <>
       <ul className={styles.lines}>
@@ -52,7 +68,7 @@ export function CheckoutSummary({ cart, quote, lineLock = null, collapsible = fa
                 {variant ? <p className="text-micro">{variant}</p> : null}
                 <p className="text-small">Qty {item.quantity}</p>
               </div>
-              <p className={`text-small ${styles.price}`}>{formatGbp(displayLineTotal(lineLock, item))}</p>
+              <p className={`text-small ${styles.price}`}>{formatSummaryLine(lineLock, item, Boolean(frozenCharge))}</p>
             </li>
           );
         })}
@@ -60,17 +76,15 @@ export function CheckoutSummary({ cart, quote, lineLock = null, collapsible = fa
       <div className={styles.totals}>
         <div className={styles.row}>
           <p className="text-small">{SUBTOTAL_LABEL}</p>
-          <p className="text-small">{formatGbpMinor(quote.subtotalMinor)}</p>
+          <p className="text-small">{subtotalLabel}</p>
         </div>
         <div className={styles.row}>
           <p className="text-small">{quote.shippingStatus === "priced" ? (quote.shippingLabel ?? UK_STANDARD_DELIVERY) : "Shipping"}</p>
-          <p className="text-small">
-            {quote.shippingStatus === "priced" ? formatGbpMinor(quote.shippingMinor) : SHIPPING_UNAVAILABLE}
-          </p>
+          <p className="text-small">{shippingLabel}</p>
         </div>
         <div className={styles.total}>
           <p className={`text-micro ${styles.totalLabel}`}>{TOTAL_LABEL}</p>
-          <p className={`text-h3 ${styles.totalValue}`}>{formatGbpMinor(quote.totalMinor)}</p>
+          <p className={`text-h3 ${styles.totalValue}`}>{totalLabel}</p>
         </div>
       </div>
     </>
@@ -82,7 +96,7 @@ export function CheckoutSummary({ cart, quote, lineLock = null, collapsible = fa
         <summary className={`text-micro ${styles.summary}`}>
           {ORDER_SUMMARY_HEADING}
           <span className={`text-micro ${styles.summaryTotal}`}>
-            {TOTAL_LABEL} {formatGbpMinor(quote.totalMinor)}
+            {TOTAL_LABEL} {totalLabel}
           </span>
         </summary>
         {content}
@@ -98,4 +112,16 @@ export function CheckoutSummary({ cart, quote, lineLock = null, collapsible = fa
       {content}
     </aside>
   );
+}
+
+function formatSummaryLine(
+  lock: CheckoutQuoteLock | null,
+  item: { variantId?: string; quantity: number; lineTotal: number },
+  indiaCharge: boolean,
+): string {
+  if (!indiaCharge) {
+    return formatGbp(displayLineTotal(lock, item));
+  }
+  const chargeMinor = displayLockedChargeMinor(lock, item);
+  return chargeMinor == null ? formatGbp(displayLineTotal(lock, item)) : formatInrMinor(chargeMinor);
 }

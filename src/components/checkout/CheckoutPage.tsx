@@ -57,6 +57,7 @@ type CheckoutPageProps = {
   initialQuote: CheckoutQuote;
   accountEmail?: string;
   authNotice?: string;
+  paymentRail?: "paypal" | "india" | "unavailable";
 };
 
 export function CheckoutPage({
@@ -65,6 +66,7 @@ export function CheckoutPage({
   initialQuote,
   accountEmail = "",
   authNotice = "",
+  paymentRail = "paypal",
 }: CheckoutPageProps) {
   const router = useRouter();
   const { applyCart } = useCart();
@@ -90,6 +92,15 @@ export function CheckoutPage({
   usePinPageStart(step, "checkout-heading", true);
   const priceChanged = checkoutHasPriceChange(view);
   const liveQuote = checkoutQuoteFromCart(view, step === "address" ? address.country : draft.country);
+  const reviewCharge = step === "review" ? draft.quoteLock : null;
+  const frozenCharge =
+    paymentRail === "india" && reviewCharge?.chargeCurrency === "INR"
+      ? {
+          subtotalMinor: reviewCharge.chargeSubtotalMinor,
+          shippingMinor: reviewCharge.chargeShippingMinor,
+          totalMinor: reviewCharge.chargeTotalMinor,
+        }
+      : null;
   const liveCheaper = Boolean(
     step === "review" &&
       draft.quoteLock &&
@@ -290,7 +301,13 @@ export function CheckoutPage({
       <div className={styles.layout}>
         <div className={styles.main}>
           <div className={styles.mobileSummary}>
-            <CheckoutSummary cart={view} quote={summaryQuote} lineLock={reviewLock} collapsible />
+            <CheckoutSummary
+              cart={view}
+              quote={summaryQuote}
+              lineLock={frozenCharge ? draft.quoteLock : reviewLock}
+              frozenCharge={frozenCharge}
+              collapsible
+            />
           </div>
           {step === "contact" ? (
             <CheckoutContact
@@ -328,16 +345,23 @@ export function CheckoutPage({
               cart={view}
               draft={draft}
               quote={quote}
-              lineLock={reviewLock}
+              lineLock={frozenCharge ? draft.quoteLock : reviewLock}
               chargeReady={chargeReady}
               hideQuoteStale={liveCheaper}
+              paymentRail={paymentRail}
+              frozenCharge={frozenCharge}
               pending={pending}
               onBack={() => void goTo("address")}
             />
           ) : null}
         </div>
         <div className={styles.desktopSummary}>
-          <CheckoutSummary cart={view} quote={summaryQuote} lineLock={reviewLock} />
+          <CheckoutSummary
+            cart={view}
+            quote={summaryQuote}
+            lineLock={frozenCharge ? draft.quoteLock : reviewLock}
+            frozenCharge={frozenCharge}
+          />
         </div>
       </div>
     </div>

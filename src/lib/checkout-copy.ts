@@ -83,6 +83,7 @@ export const PAYMENT_HEADING = "Payment";
 export const PAYMENTS_ACCEPTED = "Payments accepted";
 export const PAYMENT_NEXT_TITLE = "Payment is next.";
 export const PAYMENT_NEXT_BODY = "Nothing has been charged yet.";
+export const PAYMENT_INDIA_UNAVAILABLE = "Payment is not available for this country yet.";
 export const PAYMENT_NOT_READY = "Continue to payment is unavailable.";
 export const PAYMENT_START_ERROR = "Payment could not be started.";
 export const PAYMENT_CONFIRM_ERROR = "We could not confirm that payment.";

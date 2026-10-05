@@ -62,15 +62,17 @@ export function buildStorefrontContentSecurityPolicy(options?: {
   const paypal = paypalCspSources(options?.mode ?? resolvePayPalCspMode());
   const supabase = options?.supabaseOrigin?.trim() ?? supabaseOriginFromEnv();
   const connectExtra = supabase ? ` ${supabase}` : "";
+  const razorpayScript = "https://checkout.razorpay.com";
+  const razorpayApi = "https://api.razorpay.com https://lumberjack.razorpay.com";
 
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${paypal.script}`,
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${paypal.script} ${razorpayScript}`,
     `style-src 'self' 'unsafe-inline' ${paypal.style}`,
     `img-src 'self' data: blob: https: ${paypal.img}`,
     "font-src 'self' data:",
-    `connect-src 'self'${connectExtra} ${paypal.connect}`,
-    `frame-src 'self' ${paypal.frame}`,
+    `connect-src 'self'${connectExtra} ${paypal.connect} ${razorpayApi}`,
+    `frame-src 'self' ${paypal.frame} ${razorpayScript} ${razorpayApi}`,
     `child-src 'self' ${paypal.child}`,
     `form-action 'self' ${paypal.formAction}`,
     "base-uri 'self'",

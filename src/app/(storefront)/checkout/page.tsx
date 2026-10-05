@@ -7,6 +7,7 @@ import { GOOGLE_CANCELLED, GOOGLE_FAILED } from "@/lib/account-copy";
 import { routes } from "@/lib/navigation";
 import { getOptionalAccountUser } from "@/lib/account-session";
 import { privatePathMetadata } from "@/lib/seo";
+import { checkoutPaymentRail } from "@/lib/payment/resolve-provider";
 import { getCheckoutSnapshot } from "@/services/checkout";
 
 export const metadata: Metadata = privatePathMetadata(
@@ -39,6 +40,10 @@ export default async function CheckoutRoute({ searchParams }: PageProps) {
             initialQuote={quote}
             accountEmail={accountUser?.email ?? ""}
             authNotice={oauthNotice(params)}
+            paymentRail={checkoutPaymentRail({
+              country: draft.country,
+              currency: draft.quoteLock?.chargeCurrency,
+            })}
           />
         </ContentWidth>
       </main>

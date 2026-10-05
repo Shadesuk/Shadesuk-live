@@ -23,8 +23,13 @@ function read(path: string): string {
   return readFileSync(resolve(root, path), "utf8");
 }
 
-if (existsSync(resolve(root, "src/app/api/webhooks/razorpay"))) {
-  throw new Error("Razorpay webhook route must be deleted (no ghost archive).");
+const razorpayRoutePath = resolve(root, "src/app/api/webhooks/razorpay/route.ts");
+if (!existsSync(razorpayRoutePath)) {
+  throw new Error("Razorpay webhook route must verify the raw body.");
+}
+const razorpayRoute = read("src/app/api/webhooks/razorpay/route.ts");
+if (!razorpayRoute.includes("request.text()") || !razorpayRoute.includes("x-razorpay-signature")) {
+  throw new Error("Razorpay webhook must read the raw body and the signature header.");
 }
 if (!existsSync(resolve(root, "src/app/api/webhooks/paypal/route.ts"))) {
   throw new Error("Missing POST /api/webhooks/paypal route.");
