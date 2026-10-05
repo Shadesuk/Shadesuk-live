@@ -2,6 +2,11 @@
 -- Orders stay GBP. The snapshot stores the payment currency, the FX rate
 -- value, the frozen quote, the shipping rate, and the line items.
 -- Corrections are new rows. This migration is not applied until Syed says so.
+-- Deploy order: apply 20261005183000_payments_charge_currency,
+-- 20261005190000_india_payment_attempt, and this file before or with the
+-- application deploy. UK PayPal attempt insert and capture write the new
+-- payment columns and call mark_paypal_payment_captured. Do not deploy
+-- that code before these migrations.
 
 alter table public.payments
   add column if not exists fx_rate text,
@@ -129,7 +134,7 @@ alter table public.order_charge_snapshots enable row level security;
 revoke all on table public.order_charge_snapshots from public;
 revoke all on table public.order_charge_snapshots from anon;
 revoke all on table public.order_charge_snapshots from authenticated;
-revoke update, delete, truncate on table public.order_charge_snapshots from service_role;
+revoke all on table public.order_charge_snapshots from service_role;
 grant select, insert on table public.order_charge_snapshots to service_role;
 
 create or replace function private.order_charge_snapshots_write_once()

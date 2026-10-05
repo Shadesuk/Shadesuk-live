@@ -198,10 +198,14 @@ if (!migration.includes("before update or delete") || !migration.includes("befor
 if (
   !migration.includes("revoke all on table public.order_charge_snapshots from anon") ||
   !migration.includes("revoke all on table public.order_charge_snapshots from authenticated") ||
-  !migration.includes("grant select, insert on table public.order_charge_snapshots to service_role") ||
-  !migration.includes("revoke update, delete, truncate on table public.order_charge_snapshots from service_role")
+  !migration.includes("grant select, insert on table public.order_charge_snapshots to service_role")
 ) {
   throw new Error("Snapshot table access must be service-role insert and select only.");
+}
+const revokeServiceRole = migration.indexOf("revoke all on table public.order_charge_snapshots from service_role");
+const grantServiceRole = migration.indexOf("grant select, insert on table public.order_charge_snapshots to service_role");
+if (revokeServiceRole < 0 || grantServiceRole < revokeServiceRole) {
+  throw new Error("service_role must lose every snapshot privilege before select and insert are granted.");
 }
 for (const name of ["mark_india_payment_captured", "mark_paypal_payment_captured"] as const) {
   if (!migration.includes(`function public.${name}`) || !migration.includes("perform private.insert_order_charge_snapshot")) {
