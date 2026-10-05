@@ -3,7 +3,7 @@ import "server-only";
 import { fetchFrankfurterLatestRates } from "./frankfurter";
 import { fxUpdateAuthorized, resolveFxUpdateSecret } from "./auth";
 import { runFxRefresh, type FxRefreshOutcome } from "./refresh";
-import { insertFxObservations } from "./store";
+import { insertFxObservations, loadLatestFxRates } from "./store";
 
 export type FxRefreshHttpResult = {
   status: number;
@@ -29,8 +29,19 @@ export async function handleFxRefreshRequest(input: {
 
   const refresh =
     input.refresh ??
-    (() =>
-      runFxRefresh({
+    (async () => {
+      let previous;
+      try {
+        previous = await loadLatestFxRates();
+      } catch {
+        return {
+          ok: false as const,
+          inserted: 0,
+          keptLastRates: true as const,
+          reason: "persist_failed",
+        };
+      }
+      return runFxRefresh({
         fetchBody: async () => {
           const fetched = await fetchFrankfurterLatestRates();
           if (!fetched.ok) {
@@ -45,8 +56,10 @@ export async function handleFxRefreshRequest(input: {
             })),
           );
         },
+        previous,
         insert: insertFxObservations,
-      }));
+      });
+    });
 
   const outcome = await refresh();
   if (!outcome.ok) {

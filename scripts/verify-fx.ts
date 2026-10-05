@@ -6,8 +6,9 @@ import { resolve } from "node:path";
 import { UK_STANDARD_DELIVERY_MINOR } from "../src/lib/checkout-quote";
 import { getLocalizedPrice, multiplyMinorByRateHalfUp, parsePositiveDecimalRate } from "../src/contracts/pricing";
 import { fxUpdateAuthorized } from "../src/lib/fx/auth";
-import { parseFrankfurterLatestRates } from "../src/lib/fx/observations";
-import { runFxRefresh } from "../src/lib/fx/refresh";
+import { FRANKFURTER_DEFAULT_BASE_URL, parseFrankfurterLatestRates } from "../src/lib/fx/observations";
+import { resolveFrankfurterBaseUrl } from "../src/lib/fx/frankfurter";
+import { observationsToInserts, planFxPersistence, runFxRefresh } from "../src/lib/fx/refresh";
 import { selectLatestFxRates } from "../src/lib/fx/store";
 
 const root = resolve(process.cwd());
@@ -30,7 +31,11 @@ if (!parsed.ok || parsed.observations.length !== 3) {
 if (parsed.observations.some((row) => row.rate.includes("e") || row.rate.includes("E"))) {
   throw new Error("Persisted rates must stay decimal strings.");
 }
-const eur = parsed.observations.find((row) => row.quoteCurrency === "EUR");
+if (!parsed.ok) {
+  throw new Error("Frankfurter sample must yield EUR, USD, and INR.");
+}
+const sampleObservations = parsed.observations;
+const eur = sampleObservations.find((row) => row.quoteCurrency === "EUR");
 if (!eur || eur.rate !== "1.1762") {
   throw new Error("EUR rate literal must be preserved.");
 }
@@ -164,6 +169,90 @@ if (badBatch.ok || badBatch.reason !== "invalid_rate") {
   throw new Error("An invalid batch must skip insert.");
 }
 
+const baseline = observationsToInserts(sampleObservations);
+const spiked = baseline.map((row) =>
+  row.quote_currency === "EUR" ? { ...row, rate: "1.3600" } : row,
+);
+let bandInserted = false;
+const band = await runFxRefresh({
+  fetchBody: async () =>
+    JSON.stringify([
+      { date: "2026-10-05", base: "GBP", quote: "EUR", rate: "1.3600" },
+      { date: "2026-10-05", base: "GBP", quote: "INR", rate: "127.28" },
+      { date: "2026-10-05", base: "GBP", quote: "USD", rate: "1.3231" },
+    ]),
+  previous: baseline.map((row) => ({
+    quoteCurrency: row.quote_currency,
+    rate: row.rate,
+    effectiveAt: row.effective_at,
+  })),
+  insert: async () => {
+    bandInserted = true;
+  },
+  now,
+});
+if (band.ok || band.reason !== "out_of_band" || bandInserted || !band.keptLastRates) {
+  throw new Error("A move above 15% must reject the whole batch and keep the last rates.");
+}
+const withinBand = planFxPersistence(
+  baseline.map((row) => (row.quote_currency === "EUR" ? { ...row, rate: "1.2000" } : row)),
+  baseline.map((row) => ({
+    quoteCurrency: row.quote_currency,
+    rate: row.rate,
+    effectiveAt: row.effective_at,
+  })),
+);
+if (withinBand.action !== "insert") {
+  throw new Error("A move inside the 15% band must still be allowed.");
+}
+const firstPair = planFxPersistence(spiked, []);
+if (firstPair.action !== "insert" || firstPair.rows.length !== 3) {
+  throw new Error("The first observation for a pair must skip the band check.");
+}
+
+let duplicateInserted = false;
+const duplicate = await runFxRefresh({
+  fetchBody: async () => sample,
+  previous: baseline.map((row) => ({
+    quoteCurrency: row.quote_currency,
+    rate: row.rate,
+    effectiveAt: "2026-10-05T00:00:00+00:00",
+  })),
+  insert: async () => {
+    duplicateInserted = true;
+  },
+  now,
+});
+if (!duplicate.ok || duplicate.inserted !== 0 || duplicate.reason !== "unchanged" || duplicateInserted) {
+  throw new Error("A batch matching the latest effective time and rate must not insert.");
+}
+const changedEur = planFxPersistence(
+  baseline.map((row) => (row.quote_currency === "USD" ? { ...row, rate: "1.3300" } : row)),
+  baseline.map((row) => ({
+    quoteCurrency: row.quote_currency,
+    rate: row.rate,
+    effectiveAt: row.effective_at,
+  })),
+);
+if (changedEur.action !== "insert" || changedEur.rows.length !== 1 || changedEur.rows[0]?.quote_currency !== "USD") {
+  throw new Error("Only a quote whose rate changed may be inserted.");
+}
+
+const locked = resolveFrankfurterBaseUrl({
+  NODE_ENV: "production",
+  FRANKFURTER_BASE_URL: "https://evil.example",
+} as NodeJS.ProcessEnv);
+if (locked !== FRANKFURTER_DEFAULT_BASE_URL || locked !== "https://api.frankfurter.dev") {
+  throw new Error("Production must lock Frankfurter to https://api.frankfurter.dev.");
+}
+const devOverride = resolveFrankfurterBaseUrl({
+  NODE_ENV: "test",
+  FRANKFURTER_BASE_URL: "https://fx.test.example/base/",
+} as NodeJS.ProcessEnv);
+if (devOverride !== "https://fx.test.example/base") {
+  throw new Error("Non-production may use an https Frankfurter test host.");
+}
+
 if (!fxUpdateAuthorized("Bearer secret-value", "secret-value")) {
   throw new Error("Matching bearer secret must authorize the refresh.");
 }
@@ -195,6 +284,9 @@ if (!frankfurter.includes('import "server-only"') || !observations.includes("api
 const envExample = read(".env.example");
 if (!envExample.includes("\nFX_UPDATE_SECRET=")) {
   throw new Error(".env.example must document FX_UPDATE_SECRET.");
+}
+if (!envExample.includes("32 random bytes") || !envExample.includes("Production ignores FRANKFURTER_BASE_URL")) {
+  throw new Error(".env.example must document the FX secret length and the production Frankfurter host.");
 }
 if (envExample.includes("NEXT_PUBLIC_FX_UPDATE_SECRET") || envExample.includes("NEXT_PUBLIC_FRANKFURTER")) {
   throw new Error("FX secrets must not use NEXT_PUBLIC_.");

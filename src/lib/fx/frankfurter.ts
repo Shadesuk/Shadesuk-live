@@ -17,6 +17,30 @@ export type FrankfurterFetchResult =
 
 type Fetcher = (url: string, init: { signal: AbortSignal; headers: { Accept: string } }) => Promise<Response>;
 
+/**
+ * Production always uses https://api.frankfurter.dev. A configured
+ * FRANKFURTER_BASE_URL is ignored there. Other environments may set an
+ * https test host.
+ */
+export function resolveFrankfurterBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+  if (env.NODE_ENV === "production") {
+    return FRANKFURTER_DEFAULT_BASE_URL;
+  }
+  const configured = env.FRANKFURTER_BASE_URL?.trim() ?? "";
+  if (!configured) {
+    return FRANKFURTER_DEFAULT_BASE_URL;
+  }
+  try {
+    const url = new URL(configured);
+    if (url.protocol !== "https:") {
+      return FRANKFURTER_DEFAULT_BASE_URL;
+    }
+    return configured.replace(/\/$/, "");
+  } catch {
+    return FRANKFURTER_DEFAULT_BASE_URL;
+  }
+}
+
 export function frankfurterLatestUrl(baseUrl = FRANKFURTER_DEFAULT_BASE_URL): string {
   const root = baseUrl.replace(/\/$/, "");
   const quotes = FX_QUOTE_CURRENCIES.join(",");
@@ -34,8 +58,7 @@ export async function fetchFrankfurterLatestRates(options?: {
   now?: Date;
 }): Promise<FrankfurterFetchResult> {
   const fetchFn = options?.fetch ?? fetch;
-  const configured = options?.baseUrl ?? process.env.FRANKFURTER_BASE_URL?.trim();
-  const baseUrl = configured && configured.length > 0 ? configured : FRANKFURTER_DEFAULT_BASE_URL;
+  const baseUrl = options?.baseUrl ?? resolveFrankfurterBaseUrl();
   const timeoutMs = options?.timeoutMs ?? FRANKFURTER_TIMEOUT_MS;
   const url = frankfurterLatestUrl(baseUrl);
   let expectedOrigin: string;
