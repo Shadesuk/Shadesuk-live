@@ -27,6 +27,7 @@ import {
   CHECKOUT_ITEM_UNAVAILABLE,
   CHECKOUT_LOCK_EXPIRED,
   CHECKOUT_PRICE_CHANGED,
+  CHECKOUT_PRICE_CONFIRM,
   CHECKOUT_REQUEST_ERROR,
   CHECKOUT_STEPS,
   CHECKOUT_TITLE,
@@ -268,7 +269,11 @@ export function CheckoutPage({
           {CHECKOUT_LOCK_EXPIRED}
         </p>
       ) : null}
-      {(priceChanged && !(draft.quoteLock && step === "review")) || liveCheaper ? (
+      {liveCheaper ? (
+        <p className="text-small" role="status">
+          {CHECKOUT_PRICE_CONFIRM}
+        </p>
+      ) : priceChanged && !(draft.quoteLock && step === "review") ? (
         <p className="text-small" role="status">
           {CHECKOUT_PRICE_CHANGED}
         </p>
@@ -325,6 +330,7 @@ export function CheckoutPage({
               quote={quote}
               lineLock={reviewLock}
               chargeReady={chargeReady}
+              hideQuoteStale={liveCheaper}
               pending={pending}
               onBack={() => void goTo("address")}
             />

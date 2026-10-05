@@ -50,6 +50,7 @@ type CheckoutReviewProps = {
   quote: CheckoutQuote;
   lineLock?: CheckoutQuoteLock | null;
   chargeReady?: boolean;
+  hideQuoteStale?: boolean;
   pending?: boolean;
   onBack: () => void;
 };
@@ -62,6 +63,7 @@ export function CheckoutReview({
   quote,
   lineLock = null,
   chargeReady = true,
+  hideQuoteStale = false,
   pending = false,
   onBack,
 }: CheckoutReviewProps) {
@@ -255,7 +257,7 @@ export function CheckoutReview({
           {PAYMENT_HEADING}
         </h3>
         <PaymentMethods />
-        {payable ? null : (
+        {payable || hideQuoteStale ? null : (
           <p className="text-small" role="status">
             {quote.shippingStatus === "priced" ? CHECKOUT_QUOTE_STALE : SHIPPING_UNAVAILABLE}
           </p>

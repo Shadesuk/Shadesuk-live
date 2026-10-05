@@ -66,6 +66,8 @@ export const SHIPPING_CALCULATED_LATER = "Calculated later";
 export const UK_STANDARD_DELIVERY = "UK Standard Delivery";
 export const CHECKOUT_PRICE_CHANGED =
   "A price in your bag has changed. The total below uses the current price.";
+export const CHECKOUT_PRICE_CONFIRM =
+  "A price in your bag has changed. Return to delivery to confirm this total.";
 export const CHECKOUT_QUOTE_STALE = "Return to delivery to confirm this total.";
 export const CHECKOUT_LOCK_EXPIRED = "Confirm delivery again to refresh this total.";
 export const CHECKOUT_ITEM_UNAVAILABLE =

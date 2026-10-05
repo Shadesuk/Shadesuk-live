@@ -333,5 +333,8 @@ const page = read("src/components/checkout/CheckoutPage.tsx");
 if (!page.includes("CHECKOUT_PRICE_CHANGED") || !page.includes("liveCheaper") || !page.includes("CHECKOUT_LOCK_EXPIRED")) {
   throw new Error("Review must show a lower live price and the expired-lock status.");
 }
+if (!page.includes("CHECKOUT_PRICE_CONFIRM") || !page.includes("hideQuoteStale={liveCheaper}")) {
+  throw new Error("A lower live price must use one status line, not the stale quote copy as well.");
+}
 
 console.log("Quote lock OK: GBP freeze, separate localization, FX snapshot, country invalidation");
