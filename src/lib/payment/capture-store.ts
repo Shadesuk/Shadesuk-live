@@ -92,27 +92,36 @@ export function createSupabasePaymentCaptureStore(): PaymentCaptureStore {
     },
 
     async capturePayment(input) {
-      if (!isUuid(input.paymentId) || !input.providerPaymentId.trim() || !input.providerOrderId.trim()) {
+      if (
+        !isUuid(input.paymentId) ||
+        !input.providerPaymentId.trim() ||
+        !input.providerOrderId.trim() ||
+        PAYMENT_PROVIDER_PAYPAL !== "paypal"
+      ) {
         return null;
       }
       const admin = createSupabaseAdminClient();
+      const captured = await admin.rpc("mark_paypal_payment_captured", {
+        p_payment_id: input.paymentId,
+        p_provider_payment_id: input.providerPaymentId.trim(),
+        p_provider_order_id: input.providerOrderId.trim(),
+      });
+      const capturedState = { status: "captured" as const };
+      const row = captured.data && typeof captured.data === "object" ? (captured.data as { status?: string }) : null;
+      if (captured.error || (row?.status !== capturedState.status && row?.status !== "duplicate")) {
+        return null;
+      }
       const updated = await admin
         .from("payments")
-        .update({
-          status: "captured",
-          captured_at: input.capturedAt,
-          provider_payment_id: input.providerPaymentId.trim(),
-          updated_at: input.capturedAt,
-        })
+        .select(PAYMENT_COLUMNS)
         .eq("id", input.paymentId)
         .eq("provider", PAYMENT_PROVIDER_PAYPAL)
-        .eq("provider_order_id", input.providerOrderId.trim())
-        .in("status", ["created", "authorized"])
-        .is("captured_at", null)
-        .or(`provider_payment_id.is.null,provider_payment_id.eq.${input.providerPaymentId.trim()}`)
-        .select(PAYMENT_COLUMNS)
         .maybeSingle();
-      return parsePaymentRow(updated.data);
+      const payment = parsePaymentRow(updated.data);
+      if (!payment || payment.status !== capturedState.status) {
+        return null;
+      }
+      return payment;
     },
 
     async markOrderPaymentCaptured(orderId, options) {
