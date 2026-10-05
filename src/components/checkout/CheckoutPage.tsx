@@ -25,11 +25,14 @@ import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/car
 import {
   CHECKOUT_CART_UNAVAILABLE,
   CHECKOUT_ITEM_UNAVAILABLE,
+  CHECKOUT_LOCK_EXPIRED,
   CHECKOUT_PRICE_CHANGED,
+  CHECKOUT_PRICE_CONFIRM,
   CHECKOUT_REQUEST_ERROR,
   CHECKOUT_STEPS,
   CHECKOUT_TITLE,
 } from "@/lib/checkout-copy";
+import { liveTotalUndercutsLock, quoteMatchesLock } from "@/lib/checkout-quote-lock";
 import {
   checkoutHasPriceChange,
   checkoutQuoteFromCart,
@@ -81,8 +84,18 @@ export function CheckoutPage({
   const blocked = checkoutUnavailableBlocked(view);
   const step = draft.step;
   const summaryQuote = step === "address" ? checkoutQuoteFromCart(view, address.country) : quote;
+  const reviewLock =
+    step !== "address" && draft.quoteLock && quoteMatchesLock(draft.quoteLock, quote) ? draft.quoteLock : null;
+  const chargeReady = step !== "review" || !draft.quoteLock || Boolean(reviewLock);
   usePinPageStart(step, "checkout-heading", true);
   const priceChanged = checkoutHasPriceChange(view);
+  const liveQuote = checkoutQuoteFromCart(view, step === "address" ? address.country : draft.country);
+  const liveCheaper = Boolean(
+    step === "review" &&
+      draft.quoteLock &&
+      liveQuote.shippingStatus === "priced" &&
+      liveTotalUndercutsLock(draft.quoteLock, liveQuote.totalMinor),
+  );
 
   useEffect(() => {
     if (view.items.length === 0) {
@@ -251,7 +264,16 @@ export function CheckoutPage({
           </ButtonLink>
         </p>
       ) : null}
-      {priceChanged ? (
+      {draft.lockExpired ? (
+        <p className="text-small" role="status">
+          {CHECKOUT_LOCK_EXPIRED}
+        </p>
+      ) : null}
+      {liveCheaper ? (
+        <p className="text-small" role="status">
+          {CHECKOUT_PRICE_CONFIRM}
+        </p>
+      ) : priceChanged && !(draft.quoteLock && step === "review") ? (
         <p className="text-small" role="status">
           {CHECKOUT_PRICE_CHANGED}
         </p>
@@ -268,7 +290,7 @@ export function CheckoutPage({
       <div className={styles.layout}>
         <div className={styles.main}>
           <div className={styles.mobileSummary}>
-            <CheckoutSummary cart={view} quote={summaryQuote} collapsible />
+            <CheckoutSummary cart={view} quote={summaryQuote} lineLock={reviewLock} collapsible />
           </div>
           {step === "contact" ? (
             <CheckoutContact
@@ -306,13 +328,16 @@ export function CheckoutPage({
               cart={view}
               draft={draft}
               quote={quote}
+              lineLock={reviewLock}
+              chargeReady={chargeReady}
+              hideQuoteStale={liveCheaper}
               pending={pending}
               onBack={() => void goTo("address")}
             />
           ) : null}
         </div>
         <div className={styles.desktopSummary}>
-          <CheckoutSummary cart={view} quote={summaryQuote} />
+          <CheckoutSummary cart={view} quote={summaryQuote} lineLock={reviewLock} />
         </div>
       </div>
     </div>

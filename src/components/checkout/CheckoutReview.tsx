@@ -30,12 +30,14 @@ import {
   PAYMENT_VERIFIED_NEXT,
   REVIEW_HEADING,
   SHIPPING_HEADING,
+  CHECKOUT_QUOTE_STALE,
   SHIPPING_UNAVAILABLE,
   UK_STANDARD_DELIVERY,
   UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
 import { formatGbp, formatGbpMinor } from "@/lib/money";
 import { mountPayPalCheckout } from "@/lib/paypal/open-buttons";
+import { displayLineTotal, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { orderConfirmationPath, routes } from "@/lib/navigation";
 import type { PublicCheckoutDraft } from "@/types/checkout";
@@ -46,6 +48,9 @@ type CheckoutReviewProps = {
   cart: PublicCart;
   draft: PublicCheckoutDraft;
   quote: CheckoutQuote;
+  lineLock?: CheckoutQuoteLock | null;
+  chargeReady?: boolean;
+  hideQuoteStale?: boolean;
   pending?: boolean;
   onBack: () => void;
 };
@@ -56,6 +61,9 @@ export function CheckoutReview({
   cart,
   draft,
   quote,
+  lineLock = null,
+  chargeReady = true,
+  hideQuoteStale = false,
   pending = false,
   onBack,
 }: CheckoutReviewProps) {
@@ -66,7 +74,7 @@ export function CheckoutReview({
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string>("");
   const [paypalReady, setPaypalReady] = useState(false);
-  const payable = draft.country === "GB" && quote.shippingStatus === "priced";
+  const payable = chargeReady && draft.country === "GB" && quote.shippingStatus === "priced";
   const addressLines = [
     `${draft.firstName} ${draft.lastName}`.trim(),
     draft.line1,
@@ -206,7 +214,7 @@ export function CheckoutReview({
                   </div>
                   {variant ? <p className="text-micro">{variant}</p> : null}
                   <p className="text-small">Qty {item.quantity}</p>
-                  <p className="text-small">{formatGbp(item.lineTotal)}</p>
+                  <p className="text-small">{formatGbp(displayLineTotal(lineLock, item))}</p>
                 </div>
               </li>
             );
@@ -249,9 +257,9 @@ export function CheckoutReview({
           {PAYMENT_HEADING}
         </h3>
         <PaymentMethods />
-        {payable ? null : (
+        {payable || hideQuoteStale ? null : (
           <p className="text-small" role="status">
-            {SHIPPING_UNAVAILABLE}
+            {quote.shippingStatus === "priced" ? CHECKOUT_QUOTE_STALE : SHIPPING_UNAVAILABLE}
           </p>
         )}
         {payable ? (

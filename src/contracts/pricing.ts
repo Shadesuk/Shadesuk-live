@@ -2,7 +2,8 @@
  * Central localized-price conversion.
  *
  * Catalogue amounts stay integer GBP minor units. This is the only FX
- * rounding path. Checkout does not call it yet. V1 tax and discount are
+ * rounding path. The quote lock calls it. The checkout quote module does not.
+ * V1 tax and discount are
  * zero and are not arguments here.
  *
  * Rounding is half away from zero on a positive rational. The rate is a

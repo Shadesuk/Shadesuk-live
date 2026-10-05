@@ -469,6 +469,7 @@ async function hydrateLiveLine(
   return {
     item: {
       id: row.id,
+      variantId: row.product_variant_id,
       productId: live.productId,
       slug: live.productSlug,
       name: live.productName,
@@ -525,8 +526,9 @@ async function hydrateDemoLine(line: DemoCartLine): Promise<{
   return {
     line: nextLine,
     issue,
-    item: {
+      item: {
       id: line.id,
+      variantId: line.variantId,
       productId: product.id,
       slug: product.slug,
       name: product.name,
