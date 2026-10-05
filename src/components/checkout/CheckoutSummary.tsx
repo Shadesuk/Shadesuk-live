@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { PublicCart } from "@/types/cart";
-import { displayLineTotal, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
+import { displayLineTotal, displayLockedChargeMinor, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { formatGbp, formatGbpMinor, formatInrMinor } from "@/lib/money";
 import {
@@ -68,7 +68,7 @@ export function CheckoutSummary({
                 {variant ? <p className="text-micro">{variant}</p> : null}
                 <p className="text-small">Qty {item.quantity}</p>
               </div>
-              <p className={`text-small ${styles.price}`}>{formatGbp(displayLineTotal(lineLock, item))}</p>
+              <p className={`text-small ${styles.price}`}>{formatSummaryLine(lineLock, item, Boolean(frozenCharge))}</p>
             </li>
           );
         })}
@@ -112,4 +112,16 @@ export function CheckoutSummary({
       {content}
     </aside>
   );
+}
+
+function formatSummaryLine(
+  lock: CheckoutQuoteLock | null,
+  item: { variantId?: string; quantity: number; lineTotal: number },
+  indiaCharge: boolean,
+): string {
+  if (!indiaCharge) {
+    return formatGbp(displayLineTotal(lock, item));
+  }
+  const chargeMinor = displayLockedChargeMinor(lock, item);
+  return chargeMinor == null ? formatGbp(displayLineTotal(lock, item)) : formatInrMinor(chargeMinor);
 }

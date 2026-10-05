@@ -1,6 +1,6 @@
 import { createOrderReference } from "@/contracts/order/reference";
 import { STORE_CURRENCY } from "@/contracts/money";
-import { quoteLockExpired } from "@/lib/checkout-quote-lock";
+import { liveTotalUndercutsLock, quoteLockExpired } from "@/lib/checkout-quote-lock";
 import {
   formatUkPostcode,
   hasCheckoutFieldErrors,
@@ -12,7 +12,7 @@ import {
   indiaLockIsChargeable,
   resolvePaymentProvider,
 } from "@/lib/payment/resolve-provider";
-import { resolveShippingOptions } from "@/lib/shipping/options";
+import { resolveShippingOptions, type ShippingOptionsResult } from "@/lib/shipping/options";
 import type { PublicCheckoutDraft } from "@/types/checkout";
 import type { PendingOrderInsert, PendingOrderItemInsert, PendingPaymentLine } from "@/lib/payment/pending-attempt";
 
@@ -31,7 +31,27 @@ export type IndiaCharge = {
 
 export type BuildIndiaChargeResult =
   | { ok: true; charge: IndiaCharge }
-  | { ok: false; reason: "invalid" | "empty" | "expired" | "blocked" };
+  | { ok: false; reason: "invalid" | "empty" | "expired" | "blocked" | "stale" };
+
+export function indiaLiveTotalMinor(
+  lines: readonly { lineTotalMinor: number }[],
+  shippingMinor: number,
+): number | null {
+  if (!Number.isInteger(shippingMinor) || shippingMinor < 0) {
+    return null;
+  }
+  let total = shippingMinor;
+  for (const line of lines) {
+    if (!Number.isInteger(line.lineTotalMinor) || line.lineTotalMinor < 0) {
+      return null;
+    }
+    total += line.lineTotalMinor;
+    if (!Number.isSafeInteger(total)) {
+      return null;
+    }
+  }
+  return total;
+}
 
 /**
  * India charge. PayPal is not a fallback. The order stays GBP.
@@ -43,6 +63,8 @@ export function buildIndiaCharge(input: {
   userId?: string | null;
   now?: number;
   createReference?: () => string;
+  /** Tests can supply a priced rate. Production uses the live catalogue. */
+  shippingQuote?: ShippingOptionsResult;
 }): BuildIndiaChargeResult {
   const now = input.now ?? Date.now();
   if (input.draft.lockExpired) {
@@ -63,7 +85,9 @@ export function buildIndiaCharge(input: {
   if (!lock || !indiaLockIsChargeable(lock) || !lock.fxRateId) {
     return { ok: false, reason: "blocked" };
   }
-  if (resolveShippingOptions(country).status !== "priced") {
+  const shipping = input.shippingQuote ?? resolveShippingOptions(country);
+  const shippingMinor = shipping.status === "priced" ? shipping.options[0]?.amountMinor : null;
+  if (shipping.status !== "priced" || !Number.isInteger(shippingMinor) || shippingMinor == null || shippingMinor < 0) {
     return { ok: false, reason: "blocked" };
   }
   const email = normalizeEmailInput(input.draft.email);
@@ -92,6 +116,10 @@ export function buildIndiaCharge(input: {
   }
   if (subtotal !== lock.baseSubtotalMinor) {
     return { ok: false, reason: "blocked" };
+  }
+  const liveTotal = indiaLiveTotalMinor(input.lines, shippingMinor);
+  if (liveTotal == null || liveTotalUndercutsLock(lock, liveTotal)) {
+    return { ok: false, reason: "stale" };
   }
   const reference = (input.createReference ?? createOrderReference)();
   const postcode = input.draft.postcode.trim();

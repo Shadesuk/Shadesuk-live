@@ -2,7 +2,8 @@ import "server-only";
 
 import { resolveRazorpayServerConfig } from "./config";
 import { razorpayWebhookSignatureMatches } from "./signature";
-import { settleIndiaPayment } from "./commit";
+import { indiaWebhookHttpStatus, settleIndiaPayment } from "./commit";
+import { isRazorpayOrderId, isRazorpayPaymentId } from "./ids";
 
 export type RazorpayWebhookResult = {
   status: number;
@@ -39,10 +40,8 @@ export async function handleRazorpayWebhook(input: {
     providerPaymentId: event.paymentId,
     config: config.config,
   });
-  if (settled.status === "error") {
-    return { status: 409, body: { ok: false } };
-  }
-  return { status: 200, body: { ok: true } };
+  const status = indiaWebhookHttpStatus(settled);
+  return { status, body: { ok: status === 200 } };
 }
 
 function readPaymentEvent(value: unknown): { orderId: string; paymentId: string } | null {
@@ -69,7 +68,7 @@ function readPaymentEvent(value: unknown): { orderId: string; paymentId: string 
   const entityRecord = entity as Record<string, unknown>;
   const paymentId = typeof entityRecord.id === "string" ? entityRecord.id : "";
   const orderId = typeof entityRecord.order_id === "string" ? entityRecord.order_id : "";
-  if (!paymentId.startsWith("pay_") || !orderId.startsWith("order_")) {
+  if (!isRazorpayPaymentId(paymentId) || !isRazorpayOrderId(orderId)) {
     return null;
   }
   return { orderId, paymentId };

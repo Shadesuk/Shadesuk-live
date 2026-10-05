@@ -24,7 +24,6 @@ import {
   PAYMENT_CONFIRM_ERROR,
   PAYMENT_DECLINED,
   PAYMENT_HEADING,
-  PAYMENT_INDIA_UNAVAILABLE,
   PAYMENT_NETWORK,
   PAYMENT_NEXT_BODY,
   PAYMENT_START_ERROR,
@@ -32,6 +31,7 @@ import {
   PAYMENT_VERIFIED_NEXT,
   REVIEW_HEADING,
   SHIPPING_HEADING,
+  CHECKOUT_LOCK_EXPIRED,
   CHECKOUT_QUOTE_STALE,
   SHIPPING_UNAVAILABLE,
   UK_STANDARD_DELIVERY,
@@ -39,7 +39,7 @@ import {
 } from "@/lib/checkout-copy";
 import { formatGbp, formatGbpMinor, formatInrMinor } from "@/lib/money";
 import { mountPayPalCheckout } from "@/lib/paypal/open-buttons";
-import { displayLineTotal, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
+import { displayLineTotal, displayLockedChargeMinor, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { orderConfirmationPath, routes } from "@/lib/navigation";
 import type { PublicCheckoutDraft } from "@/types/checkout";
@@ -229,7 +229,7 @@ export function CheckoutReview({
                   </div>
                   {variant ? <p className="text-micro">{variant}</p> : null}
                   <p className="text-small">Qty {item.quantity}</p>
-                  <p className="text-small">{formatGbp(displayLineTotal(lineLock, item))}</p>
+                  <p className="text-small">{formatReviewLine(lineLock, item, Boolean(frozenCharge))}</p>
                 </div>
               </li>
             );
@@ -281,7 +281,11 @@ export function CheckoutReview({
             <IndiaPayment amountMinor={frozenCharge.totalMinor} disabled={pending} />
           ) : (
             <p className="text-small" role="status">
-              {quote.shippingStatus === "priced" ? PAYMENT_INDIA_UNAVAILABLE : SHIPPING_UNAVAILABLE}
+              {quote.shippingStatus === "priced"
+                ? draft.lockExpired
+                  ? CHECKOUT_LOCK_EXPIRED
+                  : CHECKOUT_QUOTE_STALE
+                : SHIPPING_UNAVAILABLE}
             </p>
           )
         ) : payable || hideQuoteStale ? null : (
@@ -321,4 +325,16 @@ export function CheckoutReview({
       </div>
     </div>
   );
+}
+
+function formatReviewLine(
+  lock: CheckoutQuoteLock | null,
+  item: { variantId?: string; quantity: number; lineTotal: number },
+  indiaCharge: boolean,
+): string {
+  if (!indiaCharge) {
+    return formatGbp(displayLineTotal(lock, item));
+  }
+  const chargeMinor = displayLockedChargeMinor(lock, item);
+  return chargeMinor == null ? formatGbp(displayLineTotal(lock, item)) : formatInrMinor(chargeMinor);
 }

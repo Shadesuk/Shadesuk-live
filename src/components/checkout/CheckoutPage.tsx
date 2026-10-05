@@ -301,7 +301,13 @@ export function CheckoutPage({
       <div className={styles.layout}>
         <div className={styles.main}>
           <div className={styles.mobileSummary}>
-            <CheckoutSummary cart={view} quote={summaryQuote} lineLock={reviewLock} frozenCharge={frozenCharge} collapsible />
+            <CheckoutSummary
+              cart={view}
+              quote={summaryQuote}
+              lineLock={frozenCharge ? draft.quoteLock : reviewLock}
+              frozenCharge={frozenCharge}
+              collapsible
+            />
           </div>
           {step === "contact" ? (
             <CheckoutContact
@@ -339,7 +345,7 @@ export function CheckoutPage({
               cart={view}
               draft={draft}
               quote={quote}
-              lineLock={reviewLock}
+              lineLock={frozenCharge ? draft.quoteLock : reviewLock}
               chargeReady={chargeReady}
               hideQuoteStale={liveCheaper}
               paymentRail={paymentRail}
@@ -350,7 +356,12 @@ export function CheckoutPage({
           ) : null}
         </div>
         <div className={styles.desktopSummary}>
-          <CheckoutSummary cart={view} quote={summaryQuote} lineLock={reviewLock} frozenCharge={frozenCharge} />
+          <CheckoutSummary
+            cart={view}
+            quote={summaryQuote}
+            lineLock={frozenCharge ? draft.quoteLock : reviewLock}
+            frozenCharge={frozenCharge}
+          />
         </div>
       </div>
     </div>

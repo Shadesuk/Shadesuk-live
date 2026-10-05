@@ -1,5 +1,3 @@
-import { QUOTE_LOCK_TTL_MS } from "@/lib/checkout-quote-lock";
-
 export type StoredRazorpayPayment = {
   amountMinor: number;
   currency: string;
@@ -12,8 +10,9 @@ export type StoredRazorpayPayment = {
 export type RazorpayCaptureDecision = "capture" | "duplicate" | "reject";
 
 /**
- * The stored row is the locked quote: INR `chargeTotalMinor`, `fxRateId`, and `frozenAt`.
- * A later Razorpay payload must match that row. Expiry and amount drift reject.
+ * Capture checks the stored INR amount and currency, and the Razorpay order id
+ * is checked by the caller. Lock expiry is decided when the order is created,
+ * not against the clock after the customer has paid.
  * The same provider payment id captures once.
  */
 export function assessRazorpayCapture(input: {
@@ -21,23 +20,11 @@ export function assessRazorpayCapture(input: {
   returnedAmountMinor: number;
   returnedCurrency: string;
   incomingPaymentId: string;
-  now?: number;
 }): RazorpayCaptureDecision {
-  const now = input.now ?? Date.now();
   if (input.stored.status === "captured") {
     return input.stored.providerPaymentId === input.incomingPaymentId ? "duplicate" : "reject";
   }
   if (input.stored.status !== "created" && input.stored.status !== "authorized") {
-    return "reject";
-  }
-  if (
-    input.stored.frozenAt == null ||
-    !Number.isInteger(input.stored.frozenAt) ||
-    now - input.stored.frozenAt >= QUOTE_LOCK_TTL_MS
-  ) {
-    return "reject";
-  }
-  if (!input.stored.fxRateId) {
     return "reject";
   }
   const amountMatches =

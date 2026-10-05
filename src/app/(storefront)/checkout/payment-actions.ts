@@ -234,8 +234,9 @@ export type IndiaCheckoutStartResult =
       amountMinor: number;
       currency: "INR";
       keyId: string;
+      timeoutSeconds: number;
     }
-  | { status: "blocked" | "expired" | "invalid" | "empty" | "unavailable" | "error" };
+  | { status: "blocked" | "expired" | "invalid" | "empty" | "unavailable" | "stale" | "error" };
 
 /** Starts an India charge from the locked quote. Client amount and currency are rejected. */
 export async function initiateIndiaCheckoutAction(
@@ -267,9 +268,17 @@ export async function verifyIndiaCheckoutAction(input: {
   ) {
     return { status: "error" };
   }
-  return verifyIndiaCheckout({
+  const verified = await verifyIndiaCheckout({
     providerOrderId: input.providerOrderId,
     providerPaymentId: input.providerPaymentId,
     signature: input.signature,
   });
+  if (verified.status === "verified" || verified.status === "already_processed") {
+    try {
+      await clearPaymentAttemptId();
+    } catch {
+      // The placed order no longer needs the attempt cookie.
+    }
+  }
+  return verified;
 }

@@ -3,6 +3,7 @@ import "server-only";
 import type { CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import { indiaLockIsChargeable } from "@/lib/payment/resolve-provider";
 import { resolveRazorpayServerConfig, type RazorpayServerConfig } from "./config";
+import { isRazorpayOrderId, isRazorpayPaymentId } from "./ids";
 
 export const RAZORPAY_API_ORIGIN = "https://api.razorpay.com";
 
@@ -81,7 +82,7 @@ export async function createRazorpayOrder(input: {
   const providerOrderId = typeof record.id === "string" ? record.id : "";
   const amount = typeof record.amount === "number" ? record.amount : Number(record.amount);
   const currency = typeof record.currency === "string" ? record.currency : "";
-  if (!providerOrderId.startsWith("order_") || amount !== payload.amount || currency !== "INR") {
+  if (!isRazorpayOrderId(providerOrderId) || amount !== payload.amount || currency !== "INR") {
     return { ok: false, error: "Razorpay order amount did not match the locked quote." };
   }
   return {
@@ -109,7 +110,7 @@ export async function fetchRazorpayPayment(input: {
   fetchImpl?: typeof fetch;
 }): Promise<RazorpayRemotePayment | null> {
   const config = input.config ?? resolvedConfig();
-  if (!config || !input.paymentId.startsWith("pay_")) {
+  if (!config || !isRazorpayPaymentId(input.paymentId)) {
     return null;
   }
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -130,7 +131,7 @@ export async function fetchRazorpayPayment(input: {
   const currency = typeof record.currency === "string" ? record.currency : "";
   const orderId = typeof record.order_id === "string" ? record.order_id : "";
   const status = typeof record.status === "string" ? record.status : "";
-  if (!Number.isInteger(amount) || currency !== "INR" || !orderId.startsWith("order_") || !status) {
+  if (!Number.isInteger(amount) || currency !== "INR" || !isRazorpayOrderId(orderId) || !status) {
     return null;
   }
   return { id: input.paymentId, orderId, amountMinor: amount, currency: "INR", status };
@@ -144,7 +145,7 @@ export async function captureRazorpayPayment(input: {
   fetchImpl?: typeof fetch;
 }): Promise<boolean> {
   const config = input.config ?? resolvedConfig();
-  if (!config || !Number.isInteger(input.amountMinor) || input.amountMinor < 1) {
+  if (!config || !isRazorpayPaymentId(input.paymentId) || !Number.isInteger(input.amountMinor) || input.amountMinor < 1) {
     return false;
   }
   const fetchImpl = input.fetchImpl ?? fetch;

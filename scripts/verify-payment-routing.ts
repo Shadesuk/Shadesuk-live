@@ -9,8 +9,12 @@ import { createCheckoutQuoteLock, QUOTE_LOCK_TTL_MS } from "../src/lib/checkout-
 import { buildIndiaCharge } from "../src/lib/payment/india-charge";
 import { checkoutPaymentRail, resolvePaymentProvider } from "../src/lib/payment/resolve-provider";
 import { assessRazorpayCapture } from "../src/lib/razorpay/assess";
+import { indiaWebhookHttpStatus } from "../src/lib/razorpay/commit";
 import { resolveRazorpayServerConfig } from "../src/lib/razorpay/config";
+import { isRazorpayPaymentId } from "../src/lib/razorpay/ids";
 import { createRazorpayOrder, razorpayOrderPayload } from "../src/lib/razorpay/order";
+import { decideIndiaAttemptReuse, type IndiaOpenAttempt } from "../src/lib/razorpay/reuse";
+import { indiaCheckoutWindow } from "../src/lib/razorpay/window";
 import {
   razorpayCheckoutSignature,
   razorpayCheckoutSignatureMatches,
@@ -264,10 +268,9 @@ if (
     returnedAmountMinor: india.chargeTotalMinor,
     returnedCurrency: "INR",
     incomingPaymentId: "pay_test",
-    now: india.frozenAt,
   }) !== "capture"
 ) {
-  throw new Error("A matching Razorpay payment must be allowed to capture.");
+  throw new Error("A matching Razorpay payment must be allowed to capture after the lock clock.");
 }
 if (
   assessRazorpayCapture({
@@ -275,7 +278,6 @@ if (
     returnedAmountMinor: india.chargeTotalMinor,
     returnedCurrency: "INR",
     incomingPaymentId: "pay_test",
-    now: india.frozenAt,
   }) !== "duplicate"
 ) {
   throw new Error("The same payment id must capture once.");
@@ -286,31 +288,101 @@ if (
     returnedAmountMinor: india.chargeTotalMinor - 1,
     returnedCurrency: "INR",
     incomingPaymentId: "pay_test",
-    now: india.frozenAt,
   }) !== "reject" ||
   assessRazorpayCapture({
     stored,
     returnedAmountMinor: india.chargeTotalMinor,
     returnedCurrency: "GBP",
     incomingPaymentId: "pay_test",
-    now: india.frozenAt,
-  }) !== "reject" ||
-  assessRazorpayCapture({
-    stored,
-    returnedAmountMinor: india.chargeTotalMinor,
-    returnedCurrency: "INR",
-    incomingPaymentId: "pay_test",
-    now: india.frozenAt + QUOTE_LOCK_TTL_MS,
-  }) !== "reject" ||
-  assessRazorpayCapture({
-    stored: { ...stored, fxRateId: null },
-    returnedAmountMinor: india.chargeTotalMinor,
-    returnedCurrency: "INR",
-    incomingPaymentId: "pay_test",
-    now: india.frozenAt,
   }) !== "reject"
 ) {
-  throw new Error("Amount, currency, expiry, and FX mismatches must reject capture.");
+  throw new Error("Amount and currency mismatches must reject capture.");
+}
+if (indiaWebhookHttpStatus({ status: "error", terminal: true }) !== 200) {
+  throw new Error("A terminal India webhook failure must return 200 so Razorpay stops retrying.");
+}
+if (indiaWebhookHttpStatus({ status: "error", terminal: false }) !== 409) {
+  throw new Error("A retryable India webhook failure must return 409.");
+}
+if (isRazorpayPaymentId("pay_../x") || isRazorpayPaymentId("pay_") || !isRazorpayPaymentId("pay_Abc123")) {
+  throw new Error("Razorpay payment ids must match pay_ and letters or digits.");
+}
+if (!indiaCheckoutWindow(india.frozenAt, india.frozenAt).ok) {
+  throw new Error("A fresh lock must leave a checkout.js window.");
+}
+if (indiaCheckoutWindow(india.frozenAt, india.frozenAt + QUOTE_LOCK_TTL_MS - 30_000).ok) {
+  throw new Error("A lock with under a minute left must not open a new Razorpay order.");
+}
+const openAttempt: IndiaOpenAttempt = {
+  paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  orderId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  orderReference: "SHU-INDIATEST0001",
+  providerOrderId: "order_Test123",
+  amountMinor: india.chargeTotalMinor,
+  currency: "INR",
+  frozenAt: india.frozenAt,
+  userId: null,
+  email: "ada@shadesuk.example",
+  status: "created",
+  lines: [{ variantId: "variant-in", quantity: 1 }],
+};
+if (
+  decideIndiaAttemptReuse({
+    open: openAttempt,
+    ownerUserId: null,
+    email: openAttempt.email,
+    frozenAt: india.frozenAt,
+    amountMinor: india.chargeTotalMinor,
+    lines: openAttempt.lines,
+  }) !== "reuse"
+) {
+  throw new Error("The same frozen quote must reuse the open India attempt.");
+}
+if (
+  decideIndiaAttemptReuse({
+    open: openAttempt,
+    ownerUserId: null,
+    email: openAttempt.email,
+    frozenAt: india.frozenAt + 1,
+    amountMinor: india.chargeTotalMinor,
+    lines: openAttempt.lines,
+  }) !== "close"
+) {
+  throw new Error("A different frozen quote must close the earlier open attempt.");
+}
+const priced = {
+  status: "priced" as const,
+  countryCode: "IN",
+  zoneId: "india",
+  options: [
+    {
+      methodId: "india-test",
+      zoneId: "india",
+      code: "standard",
+      label: "Test delivery",
+      estimatedDelivery: "2+ weeks",
+      currency: "GBP" as const,
+      amountMinor: 100,
+    },
+  ],
+};
+const samePrice = buildIndiaCharge({
+  draft: draftWith(india, "IN"),
+  lines: [line(100)],
+  now: india.frozenAt,
+  shippingQuote: priced,
+});
+if (!samePrice.ok || samePrice.charge.payment.amountMinor !== india.chargeTotalMinor) {
+  throw new Error("A matching live total must charge the locked INR amount.");
+}
+const cheaper = buildIndiaCharge({
+  draft: draftWith(india, "IN"),
+  lines: [line(50)],
+  now: india.frozenAt,
+  shippingQuote: priced,
+});
+if (cheaper.ok || cheaper.reason !== "stale") {
+  throw new Error("A lower live total must not charge the higher frozen INR amount.");
 }
 
 const missingKeys = resolveRazorpayServerConfig({} as NodeJS.ProcessEnv);

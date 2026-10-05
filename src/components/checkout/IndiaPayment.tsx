@@ -10,13 +10,15 @@ import {
 import { Button } from "@/components/ui/Button";
 import { InlineError } from "@/components/ui/InlineError";
 import {
+  CHECKOUT_LOCK_EXPIRED,
+  CHECKOUT_PRICE_CONFIRM,
+  CHECKOUT_QUOTE_STALE,
+  CONTINUE_TO_PAYMENT,
   PAYMENT_CANCELLED,
   PAYMENT_CONFIRM_ERROR,
-  PAYMENT_INDIA_UNAVAILABLE,
   PAYMENT_NEXT_BODY,
   PAYMENT_START_ERROR,
 } from "@/lib/checkout-copy";
-import { formatInrMinor } from "@/lib/money";
 import { orderConfirmationPath } from "@/lib/navigation";
 
 const CHECKOUT_SCRIPT = "https://checkout.razorpay.com/v1/checkout.js";
@@ -76,26 +78,26 @@ export function IndiaPayment({ amountMinor, disabled = false }: IndiaPaymentProp
     setStatus("");
     const started = await initiateIndiaCheckoutAction();
     if (started.status !== "ok") {
-      setStatus(started.status === "error" ? PAYMENT_START_ERROR : PAYMENT_INDIA_UNAVAILABLE);
+      setStatus(statusForStart(started.status));
       setFailed(started.status === "error");
       setBusy(false);
       return;
     }
     if (started.amountMinor !== amountMinor || started.currency !== "INR") {
-      setStatus(PAYMENT_INDIA_UNAVAILABLE);
+      setStatus(CHECKOUT_QUOTE_STALE);
       setBusy(false);
       return;
     }
     try {
       await loadCheckoutScript();
     } catch {
-      setStatus(PAYMENT_INDIA_UNAVAILABLE);
+      setStatus(CHECKOUT_QUOTE_STALE);
       setBusy(false);
       return;
     }
     const Checkout = window.Razorpay;
     if (!Checkout) {
-      setStatus(PAYMENT_INDIA_UNAVAILABLE);
+      setStatus(CHECKOUT_QUOTE_STALE);
       setBusy(false);
       return;
     }
@@ -104,6 +106,7 @@ export function IndiaPayment({ amountMinor, disabled = false }: IndiaPaymentProp
       order_id: started.providerOrderId,
       amount: started.amountMinor,
       currency: started.currency,
+      timeout: started.timeoutSeconds,
       handler: (response: CheckoutResponse) => {
         void confirm(response);
       },
@@ -144,20 +147,22 @@ export function IndiaPayment({ amountMinor, disabled = false }: IndiaPaymentProp
     setBusy(false);
   }
 
-  if (configured !== "ok") {
+  if (configured === "loading") {
+    return null;
+  }
+  if (configured === "unavailable") {
     return (
       <p className="text-small" role="status">
-        {configured === "unavailable" ? PAYMENT_INDIA_UNAVAILABLE : PAYMENT_NEXT_BODY}
+        {CHECKOUT_QUOTE_STALE}
       </p>
     );
   }
 
   return (
     <div>
-      <p className="text-small">{formatInrMinor(amountMinor)}</p>
       <p className="text-small">{PAYMENT_NEXT_BODY}</p>
-      <Button type="button" variant="primary" onClick={() => void pay()} disabled={disabled || busy || configured !== "ok"}>
-        Pay
+      <Button type="button" variant="primary" onClick={() => void pay()} disabled={disabled || busy}>
+        {CONTINUE_TO_PAYMENT}
       </Button>
       {status ? (
         failed ? (
@@ -170,6 +175,19 @@ export function IndiaPayment({ amountMinor, disabled = false }: IndiaPaymentProp
       ) : null}
     </div>
   );
+}
+
+function statusForStart(status: string): string {
+  if (status === "expired") {
+    return CHECKOUT_LOCK_EXPIRED;
+  }
+  if (status === "stale") {
+    return CHECKOUT_PRICE_CONFIRM;
+  }
+  if (status === "error") {
+    return PAYMENT_START_ERROR;
+  }
+  return CHECKOUT_QUOTE_STALE;
 }
 
 function loadCheckoutScript(): Promise<void> {

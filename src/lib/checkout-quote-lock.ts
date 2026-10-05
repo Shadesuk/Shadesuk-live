@@ -317,6 +317,29 @@ export function displayLineTotal(
   return minorToMajorGbp(line.unitPriceMinor * item.quantity);
 }
 
+/** Locked line total in charge-currency minor units. GBP locks stay on displayLineTotal. */
+export function displayLockedChargeMinor(
+  lock: CheckoutQuoteLock | null,
+  item: { variantId?: string; quantity: number },
+): number | null {
+  if (!lock || lock.chargeCurrency === STORE_CURRENCY || !lock.fxRate || !item.variantId) {
+    return null;
+  }
+  const line = lock.lines.find((entry) => entry.variantId === item.variantId);
+  if (!line || line.quantity !== item.quantity) {
+    return null;
+  }
+  const priced = getLocalizedPrice({
+    baseAmountMinor: line.unitPriceMinor * line.quantity,
+    baseCurrency: STORE_CURRENCY,
+    targetCurrency: lock.chargeCurrency,
+    fxRate: lock.fxRate,
+    fxRateId: lock.fxRateId,
+    fxVersion: lock.fxVersion,
+  });
+  return priced.ok ? priced.price.amountMinor : null;
+}
+
 function localizeParts(input: {
   baseSubtotalMinor: number;
   baseShippingMinor: number;

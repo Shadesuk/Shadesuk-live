@@ -5,6 +5,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { isUuid } from "@/lib/ids";
 import type { IndiaCharge } from "@/lib/payment/india-charge";
 import type { StoredRazorpayPayment } from "./assess";
+import { isRazorpayOrderId, isRazorpayPaymentId } from "./ids";
+import type { IndiaOpenAttempt } from "./reuse";
 
 export type PersistedIndiaPayment = {
   orderId: string;
@@ -21,53 +23,106 @@ export async function insertIndiaPayment(charge: IndiaCharge): Promise<Persisted
     throw new Error("India payment writes are not configured.");
   }
   const admin = createSupabaseAdminClient();
-  const now = new Date().toISOString();
-  const orderResult = await admin
-    .from("orders")
-    .insert({ ...charge.order, created_at: now, updated_at: now })
-    .select("id, order_reference")
-    .single();
-  if (orderResult.error || !orderResult.data?.id) {
-    throw new Error("Could not create the India order.");
-  }
-  const orderId = String(orderResult.data.id);
-  const itemResult = await admin.from("order_items").insert(
-    charge.items.map((item) => ({ ...item, order_id: orderId })),
-  );
-  if (itemResult.error) {
-    throw new Error("Could not create India order items.");
-  }
-  const paymentResult = await admin
-    .from("payments")
-    .insert({
-      order_id: orderId,
+  const result = await admin.rpc("insert_india_checkout_attempt", {
+    p_payload: {
       provider: "razorpay",
+      charge_currency: "INR",
+      order_currency: charge.order.currency,
+      order_reference: charge.order.order_reference,
+      user_id: charge.order.user_id,
+      customer_email: charge.order.customer_email,
+      customer_first_name: charge.order.customer_first_name,
+      customer_last_name: charge.order.customer_last_name,
+      subtotal_minor: charge.order.subtotal_minor,
+      shipping_minor: charge.order.shipping_minor,
+      total_minor: charge.order.total_minor,
+      delivery_address: charge.order.delivery_address,
       amount_minor: charge.payment.amountMinor,
-      currency: "INR",
-      status: "created",
       fx_rate_id: charge.payment.fxRateId,
       quote_frozen_at: new Date(charge.payment.frozenAt).toISOString(),
-      provider_order_id: null,
-      provider_payment_id: null,
-      failure_reason: null,
-      captured_at: null,
-      created_at: now,
-      updated_at: now,
-    })
-    .select("id")
-    .single();
-  if (paymentResult.error || !paymentResult.data?.id) {
+      items: charge.items.map((item) => ({
+        product_id: item.product_id,
+        product_variant_id: item.product_variant_id,
+        sku: item.sku,
+        product_name: item.product_name,
+        colour_name: item.colour_name,
+        variant_name: item.variant_name,
+        quantity: item.quantity,
+        unit_price_minor: item.unit_price_minor,
+        line_total_minor: item.line_total_minor,
+        product_snapshot: item.product_snapshot,
+      })),
+    },
+  });
+  const row = rpcRow(result.data);
+  if (result.error || row.status !== "created" || !isUuid(String(row.order_id)) || !isUuid(String(row.payment_id))) {
     throw new Error("Could not create the India payment.");
   }
   return {
-    orderId,
-    paymentId: String(paymentResult.data.id),
-    orderReference: String(orderResult.data.order_reference),
+    orderId: String(row.order_id),
+    paymentId: String(row.payment_id),
+    orderReference: String(row.order_reference),
+  };
+}
+
+export async function loadOpenIndiaAttempt(paymentId: string): Promise<IndiaOpenAttempt | null> {
+  if (!isUuid(paymentId) || !indiaPaymentWritesAvailable()) {
+    return null;
+  }
+  const admin = createSupabaseAdminClient();
+  const paymentResult = await admin
+    .from("payments")
+    .select("id, order_id, amount_minor, currency, status, fx_rate_id, quote_frozen_at, provider_order_id, captured_at")
+    .eq("id", paymentId)
+    .eq("provider", "razorpay")
+    .maybeSingle();
+  const payment = paymentResult.data;
+  if (paymentResult.error || !payment || payment.captured_at || payment.status !== "created") {
+    return null;
+  }
+  const orderResult = await admin
+    .from("orders")
+    .select("id, order_reference, currency, user_id, customer_email, payment_status, status")
+    .eq("id", payment.order_id)
+    .maybeSingle();
+  const order = orderResult.data;
+  if (
+    orderResult.error ||
+    !order ||
+    order.currency !== "GBP" ||
+    order.payment_status !== "created" ||
+    order.status !== "checkout"
+  ) {
+    return null;
+  }
+  const itemResult = await admin
+    .from("order_items")
+    .select("product_variant_id, quantity")
+    .eq("order_id", order.id);
+  if (itemResult.error || !Array.isArray(itemResult.data)) {
+    return null;
+  }
+  const frozenAt = payment.quote_frozen_at ? Date.parse(String(payment.quote_frozen_at)) : null;
+  return {
+    paymentId: String(payment.id),
+    orderId: String(order.id),
+    orderReference: String(order.order_reference),
+    providerOrderId: payment.provider_order_id == null ? null : String(payment.provider_order_id),
+    amountMinor: Number(payment.amount_minor),
+    currency: String(payment.currency),
+    frozenAt: frozenAt != null && Number.isFinite(frozenAt) ? frozenAt : null,
+    userId: order.user_id == null ? null : String(order.user_id),
+    email: String(order.customer_email),
+    status: String(payment.status),
+    lines: itemResult.data.map((item) => ({
+      variantId: item.product_variant_id == null ? "" : String(item.product_variant_id),
+      quantity: Number(item.quantity),
+    })),
   };
 }
 
 export async function attachIndiaProviderOrder(paymentId: string, providerOrderId: string): Promise<void> {
-  if (!isUuid(paymentId) || !providerOrderId.startsWith("order_")) {
+  if (!isUuid(paymentId) || !isRazorpayOrderId(providerOrderId)) {
     throw new Error("India provider order id is not attachable.");
   }
   const admin = createSupabaseAdminClient();
@@ -89,7 +144,7 @@ export async function loadStoredIndiaPayment(providerOrderId: string): Promise<
   | (StoredRazorpayPayment & { paymentId: string; orderId: string; orderReference: string })
   | null
 > {
-  if (!providerOrderId.startsWith("order_") || !indiaPaymentWritesAvailable()) {
+  if (!isRazorpayOrderId(providerOrderId) || !indiaPaymentWritesAvailable()) {
     return null;
   }
   const admin = createSupabaseAdminClient();
@@ -129,77 +184,37 @@ export async function markIndiaPaymentCaptured(input: {
   paymentId: string;
   orderId: string;
   providerPaymentId: string;
-}): Promise<"captured" | "duplicate" | "rejected"> {
-  if (!isUuid(input.paymentId) || !isUuid(input.orderId) || !input.providerPaymentId.startsWith("pay_")) {
+}): Promise<"captured" | "duplicate" | "rejected" | "error"> {
+  if (!isUuid(input.paymentId) || !isUuid(input.orderId) || !isRazorpayPaymentId(input.providerPaymentId)) {
     return "rejected";
   }
   const admin = createSupabaseAdminClient();
-  const capturedAt = new Date().toISOString();
-  const updated = await admin
-    .from("payments")
-    .update({
-      status: "captured",
-      captured_at: capturedAt,
-      provider_payment_id: input.providerPaymentId,
-      updated_at: capturedAt,
-    })
-    .eq("id", input.paymentId)
-    .eq("provider", "razorpay")
-    .in("status", ["created", "authorized"])
-    .is("captured_at", null)
-    .select("id")
-    .maybeSingle();
-  if (!updated.data) {
-    const existing = await admin
-      .from("payments")
-      .select("status, provider_payment_id, captured_at")
-      .eq("id", input.paymentId)
-      .eq("provider", "razorpay")
-      .maybeSingle();
-    if (
-      existing.data?.captured_at &&
-      existing.data.provider_payment_id === input.providerPaymentId
-    ) {
-      return "duplicate";
-    }
-    return "rejected";
+  const result = await admin.rpc("mark_india_payment_captured", {
+    p_payment_id: input.paymentId,
+    p_order_id: input.orderId,
+    p_provider_payment_id: input.providerPaymentId,
+  });
+  const status = rpcRow(result.data).status;
+  if (result.error) {
+    return "error";
   }
-  const order = await admin
-    .from("orders")
-    .update({ payment_status: "captured", status: "placed", updated_at: capturedAt })
-    .eq("id", input.orderId)
-    .eq("currency", "GBP")
-    .eq("payment_status", "created")
-    .select("id")
-    .maybeSingle();
-  if (!order.data) {
-    const placed = await admin
-      .from("orders")
-      .select("payment_status")
-      .eq("id", input.orderId)
-      .maybeSingle();
-    if (placed.data?.payment_status === "captured") {
-      return "duplicate";
-    }
-    return "rejected";
+  if (status === "captured" || status === "duplicate" || status === "rejected") {
+    return status;
   }
-  return "captured";
+  return "rejected";
 }
 
 export async function markIndiaPaymentFailed(paymentId: string, reason: string): Promise<void> {
-  if (!isUuid(paymentId)) {
+  if (!isUuid(paymentId) || !indiaPaymentWritesAvailable()) {
     return;
   }
   const admin = createSupabaseAdminClient();
-  await admin
-    .from("payments")
-    .update({
-      status: "failed",
-      failure_reason: reason.slice(0, 280),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", paymentId)
-    .eq("provider", "razorpay")
-    .eq("status", "created")
-    .is("captured_at", null);
+  await admin.rpc("mark_india_payment_failed", {
+    p_payment_id: paymentId,
+    p_reason: reason.slice(0, 280),
+  });
+}
+
+function rpcRow(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
