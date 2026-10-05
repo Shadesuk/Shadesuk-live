@@ -9,6 +9,7 @@
     "lint": "eslint",
     "verify:run": "NODE_OPTIONS='--import ./scripts/register-server-only.mjs' npx --yes tsx",
     "verify:contracts": "npm run verify:run -- scripts/verify-data-contracts.ts",
+    "verify:markets": "npm run verify:run -- scripts/verify-market-config.ts",
     "verify:pdp": "npm run verify:run -- scripts/verify-pdp.ts",
     "verify:cart": "npm run verify:run -- scripts/verify-cart.ts",
     "verify:checkout": "npm run verify:run -- scripts/verify-checkout.ts",

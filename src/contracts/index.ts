@@ -225,6 +225,37 @@ export {
 export type { PaymentProviderId, PaymentRow } from "./payment/schema";
 
 export {
+  CATALOGUE_BASE_CURRENCY,
+  FX_RATE_STATUSES,
+  MARKET_PAYMENT_PROVIDERS,
+  UK_SHIPPING_ESTIMATED_DELIVERY,
+  UK_SHIPPING_METHOD_CODE,
+  UK_SHIPPING_METHOD_ID,
+  UK_SHIPPING_METHOD_LABEL,
+  UK_SHIPPING_RATE_MINOR,
+  V1_COUNTRIES,
+  V1_CURRENCIES,
+  V1_MARKETS,
+  V1_SHIPPING_METHODS,
+  V1_SHIPPING_ZONES,
+  configuredShippingRate,
+  isV1MarketId,
+  marketById,
+  marketIdForCountry,
+  resolveConfiguredPaymentProvider,
+  unpricedShippingZoneIds,
+} from "./markets";
+export type {
+  ConfiguredShippingRate,
+  FxRateStatus,
+  MarketPaymentProvider,
+  V1CountryCode,
+  V1CurrencyCode,
+  V1MarketId,
+  V1ShippingZoneId,
+} from "./markets";
+
+export {
   isManualFulfilmentV1,
   toCustomerShipmentView,
   TRACKING_UNAVAILABLE_COPY,
