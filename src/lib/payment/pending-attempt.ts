@@ -4,6 +4,7 @@ import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
 import {
   authoritativeCheckoutQuote,
+  quoteIsChargeable,
   type CheckoutQuote,
 } from "@/lib/checkout-quote";
 import { resolveShippingOptions } from "@/lib/shipping/options";
@@ -161,7 +162,7 @@ export function buildPendingPaymentAttempt(input: {
 
   const country = normalizeCountry(input.draft.country);
   const quote = quotePendingPaymentLines(input.lines, input.clientQuote, country);
-  if (quote.currency !== STORE_CURRENCY || quote.shippingStatus !== "priced") {
+  if (quote.currency !== STORE_CURRENCY || !quoteIsChargeable(quote)) {
     return { ok: false, reason: "blocked" };
   }
   if (resolveShippingOptions(country).status !== "priced") {

@@ -9,6 +9,8 @@ import { normalizeCountry } from "@/lib/checkout-validate";
 /**
  * Country, then zone, then active methods, then a seeded rate.
  * The catalogue matches the Phase 1 tables. Missing rates stay unavailable.
+ * Checkout reads this typed seed, not a live query. Admin edits to those
+ * tables must be read from the database before they can change a quote.
  * This does not invent an international price and does not call a carrier.
  */
 

@@ -68,9 +68,7 @@ export function CheckoutSummary({ cart, quote, collapsible = false }: CheckoutSu
         </div>
         <div className={styles.total}>
           <p className={`text-micro ${styles.totalLabel}`}>{TOTAL_LABEL}</p>
-          <p className={`text-h3 ${styles.totalValue}`}>
-            {quote.shippingStatus === "priced" ? formatGbpMinor(quote.totalMinor) : SHIPPING_UNAVAILABLE}
-          </p>
+          <p className={`text-h3 ${styles.totalValue}`}>{formatGbpMinor(quote.totalMinor)}</p>
         </div>
       </div>
     </>

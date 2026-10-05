@@ -4,7 +4,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { UK_STANDARD_DELIVERY, ESTIMATED_DELIVERY_WINDOW } from "../src/lib/checkout-copy";
-import { authoritativeCheckoutQuote, UK_STANDARD_DELIVERY_MINOR } from "../src/lib/checkout-quote";
+import { authoritativeCheckoutQuote, quoteIsChargeable, UK_STANDARD_DELIVERY_MINOR } from "../src/lib/checkout-quote";
+import { V1_SHIPPING_METHODS } from "../src/contracts/markets";
 import { resolveShippingOptions } from "../src/lib/shipping/options";
 
 const root = resolve(process.cwd());
@@ -36,9 +37,39 @@ for (const country of ["DE", "FR", "US", "AE", "SA", "IN"]) {
     throw new Error(`${country} must stay unavailable until a rate is seeded.`);
   }
   const quote = authoritativeCheckoutQuote({ subtotalMinor: 4900, country, shippingMinor: 465 });
-  if (quote.shippingStatus === "priced" || quote.shippingMinor !== 0) {
+  if (quote.shippingStatus === "priced" || quote.shippingMinor !== 0 || quote.totalMinor !== 4900) {
     throw new Error(`${country} must not be charged the UK shipping price.`);
   }
+  if (quoteIsChargeable(quote)) {
+    throw new Error(`${country} subtotal must not be chargeable without priced shipping.`);
+  }
+}
+
+const migration = read("supabase/migrations/20261005160000_international_market_config.sql");
+for (const method of V1_SHIPPING_METHODS) {
+  if (
+    !migration.includes(`'${method.id}'`) ||
+    !migration.includes(`'${method.label}'`) ||
+    !migration.includes(`'${method.estimatedDelivery}'`) ||
+    !migration.includes(`('${method.id}', '${method.currency}', ${method.amountMinor})`)
+  ) {
+    throw new Error(`Shipping seed must match typed method ${method.id}.`);
+  }
+}
+const checkoutService = read("src/services/checkout.ts");
+if (!checkoutService.includes("checkoutQuoteFromCart(cart, draft.country)")) {
+  throw new Error("Saving an address must recompute the quote for the new country.");
+}
+const summary = read("src/components/checkout/CheckoutSummary.tsx");
+if (summary.includes("SHIPPING_UNAVAILABLE}") && summary.includes("totalValue")) {
+  const totalBlock = summary.slice(summary.indexOf("totalValue"));
+  if (totalBlock.includes("SHIPPING_UNAVAILABLE")) {
+    throw new Error("Unavailable shipping must not replace the total.");
+  }
+}
+const checkoutPage = read("src/components/checkout/CheckoutPage.tsx");
+if (!checkoutPage.includes("checkoutQuoteFromCart(view, address.country)")) {
+  throw new Error("The summary must follow the country selected on the delivery step.");
 }
 
 const japan = resolveShippingOptions("JP");

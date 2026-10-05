@@ -111,10 +111,11 @@ export async function saveCheckoutAddress(input: {
     country: country || CHECKOUT_COUNTRY_GB,
     addressEntry: input.addressEntry ?? "manual",
   };
+  const nextQuote = checkoutQuoteFromCart(cart, draft.country);
   const errors = validateDeliverableCheckoutAddress(draft);
   if (hasCheckoutFieldErrors(errors)) {
     draft.addressEntry = "manual";
-    return { status: "invalid", cart, draft, quote, errors };
+    return { status: "invalid", cart, draft, quote: nextQuote, errors };
   }
   if (checkoutUnavailableBlocked(cart)) {
     draft.step = "address";
@@ -123,7 +124,7 @@ export async function saveCheckoutAddress(input: {
     } catch {
       return { status: "error" };
     }
-    return { status: "blocked", cart, draft, quote };
+    return { status: "blocked", cart, draft, quote: nextQuote };
   }
   draft.step = "review";
   try {
@@ -131,7 +132,7 @@ export async function saveCheckoutAddress(input: {
   } catch {
     return { status: "error" };
   }
-  return { status: "ok", cart, draft, quote };
+  return { status: "ok", cart, draft, quote: nextQuote };
 }
 
 export async function setCheckoutStep(step: CheckoutStepId): Promise<CheckoutMutationResult> {

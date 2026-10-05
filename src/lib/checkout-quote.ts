@@ -87,6 +87,17 @@ function pricedQuote(subtotalMinor: number, option: ShippingMethodOption): Check
   };
 }
 
+/**
+ * An unpriced quote keeps totalMinor equal to the subtotal so the summary can
+ * show money. That figure is not chargeable unless shippingStatus is priced.
+ */
+export function quoteIsChargeable(quote: CheckoutQuote): boolean {
+  if (quote.shippingStatus !== "priced") {
+    return false;
+  }
+  return quote.totalMinor === quote.subtotalMinor + quote.shippingMinor && quote.shippingMinor >= 0;
+}
+
 function unfinishedQuote(subtotalMinor: number, shippingStatus: Exclude<CheckoutShippingStatus, "priced">): CheckoutQuote {
   return {
     currency: STORE_CURRENCY,

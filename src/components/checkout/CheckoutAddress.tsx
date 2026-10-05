@@ -110,7 +110,7 @@ export function CheckoutAddress({
         retrieve={retrieve}
         disabled={pending}
       />
-      {showForm ? (
+      {showForm && priced ? (
         <AddressForm
           idPrefix="checkout"
           value={value}
@@ -145,7 +145,7 @@ export function CheckoutAddress({
         </p>
       </section>
       <div className={styles.actions}>
-        <Button type="submit" loading={pending}>
+        <Button type="submit" variant={priced ? "primary" : "secondary"} disabled={!priced} loading={pending}>
           {CONTINUE}
         </Button>
         <Button type="button" variant="tertiary" onClick={onBack} disabled={pending}>
