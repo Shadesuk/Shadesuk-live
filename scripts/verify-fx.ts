@@ -9,7 +9,7 @@ import { fxUpdateAuthorized } from "../src/lib/fx/auth";
 import { FRANKFURTER_DEFAULT_BASE_URL, parseFrankfurterLatestRates } from "../src/lib/fx/observations";
 import { resolveFrankfurterBaseUrl } from "../src/lib/fx/frankfurter";
 import { observationsToInserts, planFxPersistence, runFxRefresh } from "../src/lib/fx/refresh";
-import { selectLatestFxRates } from "../src/lib/fx/store";
+import { FxRateReadError, selectLatestFxRates } from "../src/lib/fx/store";
 
 const root = resolve(process.cwd());
 
@@ -132,6 +132,24 @@ if (latest.find((row) => row.quoteCurrency === "EUR")?.id !== "new") {
 }
 if (latest.length !== 2) {
   throw new Error("Latest selection must not invent a quote that was not stored.");
+}
+let numericRejected = false;
+try {
+  selectLatestFxRates([
+    {
+      id: "numeric",
+      quote_currency: "EUR",
+      rate: 1.1762,
+      version: 4,
+      effective_at: "2026-10-05T00:00:00.000Z",
+      status: "active",
+    },
+  ]);
+} catch (error) {
+  numericRejected = error instanceof FxRateReadError;
+}
+if (!numericRejected) {
+  throw new Error("A numeric FX rate must fail closed instead of being dropped.");
 }
 
 async function verifyRefresh(): Promise<void> {
@@ -275,6 +293,10 @@ if (!route.includes("handleFxRefreshRequest") || route.includes("request.json"))
 const requestSource = read("src/lib/fx/refresh-request.ts");
 if (!requestSource.includes('import "server-only"') || requestSource.includes("NEXT_PUBLIC_")) {
   throw new Error("FX refresh must stay server-only.");
+}
+const fxStore = read("src/lib/fx/store.ts");
+if (!fxStore.includes("rate::text") || !fxStore.includes("FxRateReadError")) {
+  throw new Error("Latest FX reads must cast rate to text and fail closed when it is not text.");
 }
 const frankfurter = read("src/lib/fx/frankfurter.ts");
 const observations = read("src/lib/fx/observations.ts");

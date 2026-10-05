@@ -46,16 +46,23 @@ export async function insertFxObservations(rows: readonly FxRateInsert[]): Promi
 /**
  * Latest active row per quote currency, by version. Older rows stay in the table.
  */
+export class FxRateReadError extends Error {
+  constructor(message = "FX rate text was not readable.") {
+    super(message);
+    this.name = "FxRateReadError";
+  }
+}
+
 export async function loadLatestFxRates(): Promise<CachedFxRate[]> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("fx_rates")
-    .select("id, quote_currency, rate, version, effective_at, status")
+    .select("id, quote_currency, rate::text, version, effective_at, status")
     .eq("base_currency", CATALOGUE_BASE_CURRENCY)
     .eq("status", "active")
     .order("version", { ascending: false });
   if (error) {
-    throw new Error("FX rate read failed.");
+    throw new FxRateReadError("FX rate read failed.");
   }
   return selectLatestFxRates(Array.isArray(data) ? data : []);
 }
@@ -80,7 +87,7 @@ export function selectLatestFxRates(rows: readonly FxRateRow[]): CachedFxRate[] 
     const version = typeof row.version === "number" ? row.version : Number(row.version);
     const effectiveAt = typeof row.effective_at === "string" ? row.effective_at : "";
     if (!id || !rate || !Number.isInteger(version) || version < 1 || !effectiveAt) {
-      continue;
+      throw new FxRateReadError("An active FX row could not be read as text.");
     }
     latest.set(quoteCurrency, {
       id,
