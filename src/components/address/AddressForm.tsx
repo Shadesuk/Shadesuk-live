@@ -9,12 +9,10 @@ import {
   ADDRESS_LINE_2_PLACEHOLDER,
   CITY_LABEL,
   COUNTRY_LABEL,
-  COUNTY_LABEL,
   FIRST_NAME_LABEL,
   LAST_NAME_LABEL,
-  POSTCODE_LABEL,
-  UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
+import { checkoutCountryOptions, postalFieldCopy } from "@/lib/checkout-validate";
 import { CHECKOUT_COUNTRY_GB, type CheckoutFieldErrors } from "@/types/checkout";
 import styles from "./AddressForm.module.css";
 
@@ -28,6 +26,36 @@ export type AddressFormValue = {
   postcode: string;
   country: string;
 };
+
+type AddressCountryFieldProps = {
+  id: string;
+  value: string;
+  error?: string;
+  disabled?: boolean;
+  onChange: (country: string) => void;
+};
+
+export function AddressCountryField({ id, value, error, disabled = false, onChange }: AddressCountryFieldProps) {
+  return (
+    <FieldSelect
+      id={id}
+      name="country"
+      label={COUNTRY_LABEL}
+      autoComplete="country"
+      value={value || CHECKOUT_COUNTRY_GB}
+      required
+      disabled={disabled}
+      error={error}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {checkoutCountryOptions().map((option) => (
+        <option key={option.code} value={option.code}>
+          {option.name}
+        </option>
+      ))}
+    </FieldSelect>
+  );
+}
 
 type AddressFormProps = {
   idPrefix: string;
@@ -47,6 +75,9 @@ export function AddressForm({
   function patch(partial: Partial<AddressFormValue>) {
     onChange({ ...value, ...partial });
   }
+
+  const country = value.country || CHECKOUT_COUNTRY_GB;
+  const fields = postalFieldCopy(country);
 
   return (
     <div className={styles.form} data-address-form>
@@ -112,40 +143,25 @@ export function AddressForm({
       <Field
         id={`${idPrefix}-county`}
         name="county"
-        label={COUNTY_LABEL}
+        label={fields.region}
         autoComplete="address-level1"
         value={value.county}
         disabled={disabled}
         error={errors?.county}
         onChange={(event) => patch({ county: event.target.value })}
       />
-      <div className={styles.row}>
-        <Field
-          id={`${idPrefix}-postcode`}
-          name="postcode"
-          label={POSTCODE_LABEL}
-          autoComplete="postal-code"
-          autoCapitalize="characters"
-          value={value.postcode}
-          required
-          disabled={disabled}
-          error={errors?.postcode}
-          onChange={(event) => patch({ postcode: event.target.value })}
-        />
-        <FieldSelect
-          id={`${idPrefix}-country`}
-          name="country"
-          label={COUNTRY_LABEL}
-          autoComplete="country"
-          value={value.country || CHECKOUT_COUNTRY_GB}
-          required
-          disabled={disabled}
-          error={errors?.country}
-          onChange={(event) => patch({ country: event.target.value })}
-        >
-          <option value={CHECKOUT_COUNTRY_GB}>{UNITED_KINGDOM}</option>
-        </FieldSelect>
-      </div>
+      <Field
+        id={`${idPrefix}-postcode`}
+        name="postcode"
+        label={fields.postal}
+        autoComplete="postal-code"
+        autoCapitalize={country === CHECKOUT_COUNTRY_GB ? "characters" : "off"}
+        value={value.postcode}
+        required
+        disabled={disabled}
+        error={errors?.postcode}
+        onChange={(event) => patch({ postcode: event.target.value })}
+      />
     </div>
   );
 }

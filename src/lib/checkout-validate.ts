@@ -1,3 +1,4 @@
+import { V1_COUNTRIES, type V1CountryCode } from "@/contracts/markets";
 import {
   ADDRESS_LINE_1_REQUIRED,
   CITY_REQUIRED,
@@ -30,6 +31,10 @@ export function validateCheckoutEmail(email: string): CheckoutFieldErrors {
   return {};
 }
 
+/**
+ * Account address book and lookup. Seeded markets may be stored.
+ * Checkout orders and payment use validateDeliverableCheckoutAddress.
+ */
 export function validateCheckoutAddress(input: {
   firstName: string;
   lastName: string;
@@ -51,16 +56,63 @@ export function validateCheckoutAddress(input: {
   if (!input.city.trim()) {
     errors.city = CITY_REQUIRED;
   }
+  const country = normalizeCountry(input.country);
   const postcode = input.postcode.trim();
   if (!postcode) {
     errors.postcode = POSTCODE_REQUIRED;
-  } else if (!UK_POSTCODE_PATTERN.test(postcode)) {
+  } else if (!isPlausiblePostalCode(postcode, country)) {
     errors.postcode = POSTCODE_INVALID;
   }
+  if (!isSupportedDeliveryCountry(country)) {
+    errors.country = COUNTRY_UNSUPPORTED;
+  }
+  return errors;
+}
+
+/** Charge path stays United Kingdom until a later quote phase. */
+export function validateDeliverableCheckoutAddress(input: {
+  firstName: string;
+  lastName: string;
+  line1: string;
+  city: string;
+  postcode: string;
+  country: string;
+}): CheckoutFieldErrors {
+  const errors = validateCheckoutAddress(input);
   if (normalizeCountry(input.country) !== CHECKOUT_COUNTRY_GB) {
     errors.country = COUNTRY_UNSUPPORTED;
   }
   return errors;
+}
+
+export function isSupportedDeliveryCountry(country: string): boolean {
+  const code = normalizeCountry(country);
+  return V1_COUNTRIES.some((row) => row.code === code);
+}
+
+export function checkoutCountryOptions(): ReadonlyArray<{ code: V1CountryCode; name: string }> {
+  return V1_COUNTRIES.map((country) => ({ code: country.code, name: country.name }));
+}
+
+export function postalFieldCopy(country: string): { postal: string; region: string } {
+  const code = normalizeCountry(country);
+  if (code === CHECKOUT_COUNTRY_GB) {
+    return { postal: "Postcode", region: "County" };
+  }
+  if (code === "US") {
+    return { postal: "ZIP code", region: "State" };
+  }
+  if (code === "IN") {
+    return { postal: "PIN code", region: "State" };
+  }
+  return { postal: "Postal code", region: "Region" };
+}
+
+function isPlausiblePostalCode(postcode: string, country: string): boolean {
+  if (country === CHECKOUT_COUNTRY_GB) {
+    return UK_POSTCODE_PATTERN.test(postcode);
+  }
+  return /^[A-Za-z0-9][A-Za-z0-9 -]{1,10}[A-Za-z0-9]$/.test(postcode);
 }
 
 export function hasCheckoutFieldErrors(errors: CheckoutFieldErrors): boolean {

@@ -11,7 +11,7 @@ import {
   hasCheckoutFieldErrors,
   normalizeCountry,
   normalizeEmailInput,
-  validateCheckoutAddress,
+  validateDeliverableCheckoutAddress,
   validateCheckoutEmail,
 } from "@/lib/checkout-validate";
 import type { CheckoutFieldErrors, PublicCheckoutDraft } from "@/types/checkout";
@@ -131,7 +131,7 @@ export function buildPendingPaymentAttempt(input: {
   const email = normalizeEmailInput(input.draft.email);
   const errors: CheckoutFieldErrors = {
     ...validateCheckoutEmail(email),
-    ...validateCheckoutAddress({
+    ...validateDeliverableCheckoutAddress({
       firstName: input.draft.firstName,
       lastName: input.draft.lastName,
       line1: input.draft.line1,
@@ -165,7 +165,7 @@ export function buildPendingPaymentAttempt(input: {
   const firstName = input.draft.firstName.trim();
   const lastName = input.draft.lastName.trim();
   const country = normalizeCountry(input.draft.country);
-  const postcode = formatUkPostcode(input.draft.postcode);
+  const postcode = country === "GB" ? formatUkPostcode(input.draft.postcode) : input.draft.postcode.trim();
 
   const attempt: PendingPaymentAttempt = {
     quote,

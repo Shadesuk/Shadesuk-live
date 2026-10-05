@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { AddressForm, type AddressFormValue } from "@/components/address/AddressForm";
+import { AddressCountryField, AddressForm, type AddressFormValue } from "@/components/address/AddressForm";
 import { AddressLookup } from "@/components/address/AddressLookup";
 import { Button } from "@/components/ui/Button";
 import {
@@ -14,6 +14,7 @@ import {
   SHIPPING_MANUAL_NOTE,
   SHIPPING_MINIMUM,
 } from "@/lib/checkout-copy";
+import { normalizeCountry } from "@/lib/checkout-validate";
 import { routes } from "@/lib/navigation";
 import type { AddressLookupView, AddressRetrieveView, CheckoutFieldErrors } from "@/types/checkout";
 import type { PostalAddress } from "@/types/integrations";
@@ -72,8 +73,30 @@ export function CheckoutAddress({
   return (
     <form className={styles.form} onSubmit={handleSubmit} noValidate data-checkout-address>
       <h2 className="text-h3">{DELIVERY_HEADING}</h2>
+      <AddressCountryField
+        id="checkout-country"
+        value={value.country}
+        error={errors?.country}
+        disabled={pending}
+        onChange={(country) => {
+          if (normalizeCountry(country) === normalizeCountry(value.country)) {
+            return;
+          }
+          onQueryChange("");
+          onChange({
+            ...value,
+            country,
+            line1: "",
+            line2: "",
+            city: "",
+            county: "",
+            postcode: "",
+          });
+        }}
+      />
       <AddressLookup
         query={query}
+        country={value.country}
         onQueryChange={onQueryChange}
         onSelect={onSelect}
         onManual={onManual}

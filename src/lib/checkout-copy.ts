@@ -29,6 +29,13 @@ export const ADDRESS_LOOKUP_EMPTY = "No postcode found. Enter address manually."
 export const ADDRESS_LOOKUP_ERROR =
   "Postcode lookup could not be completed. Enter address manually.";
 export const ADDRESS_LOOKUP_LOADING = "Looking up postcode…";
+export const ADDRESS_AUTOCOMPLETE_LABEL = "Address";
+export const ADDRESS_AUTOCOMPLETE_PLACEHOLDER = "Search for an address";
+export const ADDRESS_AUTOCOMPLETE_HINT = "Search, or enter the address manually.";
+export const ADDRESS_LOOKUP_EMPTY_INTL = "No address found. Enter it manually.";
+export const ADDRESS_LOOKUP_ERROR_INTL = "Address search could not be completed. Enter it manually.";
+export const ADDRESS_LOOKUP_UNAVAILABLE_INTL = "Address search is unavailable. Enter it manually.";
+export const ADDRESS_LOOKUP_LOADING_INTL = "Searching addresses…";
 export const ADDRESS_COMPLETE_HINT = "Add your house number and street.";
 export const ADDRESS_LINE_1_PLACEHOLDER = "Enter house number and street";
 export const ADDRESS_LINE_2_PLACEHOLDER = "Flat, unit, etc. optional";

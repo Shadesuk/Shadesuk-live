@@ -195,8 +195,11 @@ export function CheckoutPage({
   function handleSelect(selected: PostalAddress) {
     setAddress((current) => mergeLookupPostalAddress(current, selected));
     setShowForm(true);
-    setQuery(selected.postcode);
+    setQuery(selected.country === "GB" ? selected.postcode : selected.line1);
     track("address_autocomplete_used");
+    window.requestAnimationFrame(() => {
+      document.getElementById("checkout-line1")?.focus();
+    });
   }
 
   return (
@@ -292,8 +295,8 @@ export function CheckoutPage({
               onSelect={handleSelect}
               onBack={() => void goTo("contact")}
               onSubmit={submitAddress}
-              search={(next) => searchCheckoutAddressAction({ query: next })}
-              retrieve={(id) => retrieveCheckoutAddressAction({ id })}
+              search={(next) => searchCheckoutAddressAction({ query: next, country: address.country })}
+              retrieve={(id) => retrieveCheckoutAddressAction({ id, country: address.country })}
             />
           ) : null}
           {step === "review" ? (

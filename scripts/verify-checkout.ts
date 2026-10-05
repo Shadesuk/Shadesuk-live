@@ -432,11 +432,20 @@ if (hasCheckoutFieldErrors(validAddress)) {
 if (validateCheckoutAddress({ ...validAddressInput(), postcode: "123" }).postcode !== POSTCODE_INVALID) {
   throw new Error("Invalid postcode must use locked copy.");
 }
+const unitedStates = validateCheckoutAddress({
+  ...validAddressInput(),
+  country: "US",
+  city: "New York",
+  postcode: "10001",
+});
+if (hasCheckoutFieldErrors(unitedStates)) {
+  throw new Error("A seeded United States address must pass.");
+}
 if (
-  validateCheckoutAddress({ ...validAddressInput(), country: "US" }).country !==
+  validateCheckoutAddress({ ...validAddressInput(), country: "JP" }).country !==
   "Delivery is currently available in the United Kingdom."
 ) {
-  throw new Error("Unsupported country must be rejected.");
+  throw new Error("A country outside the seeded markets must be rejected.");
 }
 if (formatUkPostcode("sw1a1aa") !== "SW1A 1AA") {
   throw new Error("UK postcodes must format with an inward-code space.");
