@@ -34,6 +34,7 @@ import { handleRazorpayWebhook } from "../src/lib/razorpay/webhook";
 import { razorpayWebhookSignatureMatches } from "../src/lib/razorpay/signature";
 import {
   handlePayPalWebhook,
+  PAYPAL_PAYMENT_CAPTURE_COMPLETED,
   PAYPAL_PAYMENT_CAPTURE_DECLINED,
 } from "../src/lib/payment/handle-webhook";
 import type { PaymentWebhookStore } from "../src/lib/payment/webhook-store";
@@ -257,12 +258,12 @@ void (async () => {
     "No Frankfurter call. Last-known-good behaviour is the offline refresh plan above.",
   );
 
-  const geoDown = await lookupAddresses("Berlin Mitte", {
+  const ukLookupDown = await lookupAddresses("SW1A 1AA", {
     async search() {
-      throw new Error("geoapify down");
+      throw new Error("postcodes down");
     },
     async retrieve() {
-      throw new Error("geoapify down");
+      throw new Error("postcodes down");
     },
   });
   const geoMissing = await lookupAddresses(
@@ -270,18 +271,25 @@ void (async () => {
     createGeoapifyProvider({ countryCode: "DE" }),
   );
   const addressUi = read("src/components/checkout/CheckoutAddress.tsx");
+  const lookupUi = read("src/components/address/AddressLookup.tsx");
+  const manualButton = lookupUi.indexOf("allowManual ?");
+  const lookupError = lookupUi.indexOf('status === "error"');
+  const ukPriced = resolveShippingOptions("GB").status === "priced";
   expect(
-    "F Geoapify failure",
-    geoDown.status === "error" &&
+    "F lookup failure manual entry",
+    ukLookupDown.status === "error" &&
       geoMissing.status === "unavailable" &&
-      addressUi.includes("onManual") &&
-      addressUi.includes("AddressForm"),
-    "A failed or unconfigured Geoapify lookup returns no address. Manual entry stays on the delivery step.",
+      ukPriced &&
+      addressUi.includes("allowManual={Boolean(priced)}") &&
+      manualButton > lookupError &&
+      lookupUi.includes("ENTER_ADDRESS_MANUALLY") &&
+      resolveShippingOptions("DE").status !== "priced",
+    "UK is priced, so a Postcodes.io failure still shows manual entry. Unpriced DE does not. Geoapify without a key returns no address.",
   );
   record(
     "F live Geoapify",
     "BLOCKED",
-    "No Geoapify network call. Manual fallback is the offline result above.",
+    "No Geoapify or Postcodes.io network call. Manual entry is the priced-UK gate above.",
   );
 
   const deLock = createCheckoutQuoteLock({
@@ -442,6 +450,7 @@ void (async () => {
   const badRazorpay = await handleRazorpayWebhook({ rawBody: raw, signature: "00" });
   const goodSig = razorpayWebhookSignatureMatches(raw, "00", "test_webhook_phase8");
   const declined = await declinedWebhook();
+  const paypalRetry = await paypalTemporaryRetry();
   expect(
     "Audit webhooks",
     paypalGet.status === 405 &&
@@ -451,18 +460,24 @@ void (async () => {
       goodSig === false &&
       declined.status === 200 &&
       declined.failed === true &&
+      paypalRetry === 503 &&
       indiaWebhookHttpStatus({ status: "error", terminal: true }) === 200 &&
       indiaWebhookHttpStatus({ status: "error", terminal: false }) === 409,
-    "Bad signatures are 400. GET is 405. A PayPal decline is 200 and marks the payment failed. India permanent errors are 200 and temporary errors are 409. PayPal retry stays 503.",
+    "Bad signatures are 400. GET is 405. A PayPal decline is 200 and marks the payment failed. A PayPal capture whose payment row is not visible yet returns 503. India permanent errors are 200 and temporary errors are 409.",
   );
 
   const review = read("src/components/checkout/CheckoutReview.tsx");
   const indiaUi = read("src/components/checkout/IndiaPayment.tsx");
+  const indiaBranch = review.slice(review.indexOf("{india ? ("), review.indexOf("{payable ? ("));
+  const paypalBranch = review.slice(review.indexOf("{payable ? ("));
   expect(
     "Audit routing",
     review.includes('paymentRail !== "india"') &&
-      review.includes("SHIPPING_UNAVAILABLE") &&
-      !review.includes("mountPayPalCheckout") === false &&
+      review.includes("if (!slot || pending || !payable)") &&
+      indiaBranch.includes("<IndiaPayment") &&
+      !indiaBranch.includes("mountPayPalCheckout") &&
+      !indiaBranch.includes("data-paypal-button") &&
+      paypalBranch.includes("data-paypal-button") &&
       indiaUi.includes('configured === "unavailable"') &&
       resolveShippingOptions("DE").status === "unavailable" &&
       resolveShippingOptions("US").status === "unavailable" &&
@@ -471,7 +486,7 @@ void (async () => {
         lines: [line(4900)],
         now: NOW,
       }).ok === false,
-    "India does not mount PayPal. Missing shipping shows the unavailable state. DE and US cannot start a payment attempt.",
+    "The India branch renders IndiaPayment and does not mount PayPal. PayPal stays behind the non-India payable gate. DE and US cannot start a payment attempt.",
   );
 
   const grants = read("supabase/migrations/20261005210000_customer_role_checkout_grants.sql");
@@ -479,9 +494,10 @@ void (async () => {
   const initial = read("supabase/migrations/20260914230750_initial_production_schema.sql");
   expect(
     "Audit database grants",
-    grants.includes("revoke select on table public.fx_rates from public, anon, authenticated") &&
+    grants.includes("revoke all on table public.fx_rates from public, anon, authenticated") &&
       grants.includes("drop policy if exists fx_rates_public_read") &&
-      grants.includes("revoke select on table public.payments from public, anon, authenticated") &&
+      grants.includes("revoke all on table public.payments from public, anon, authenticated") &&
+      grants.includes("drop policy if exists payments_admin_read on public.payments") &&
       initial.includes("public.payments") &&
       snapshot.includes("revoke all on table public.order_charge_snapshots from anon") &&
       snapshot.includes("revoke all on table public.order_charge_snapshots from authenticated") &&
@@ -492,7 +508,7 @@ void (async () => {
       snapshot.includes("revoke all on function public.mark_india_payment_captured") &&
       snapshot.includes("grant execute on function public.mark_paypal_payment_captured(uuid, text, text) to service_role") &&
       snapshot.includes("grant execute on function public.mark_india_payment_captured(uuid, uuid, text) to service_role"),
-    "After this migration, anon and authenticated cannot select fx_rates or payments. Snapshot writes and capture functions stay service_role only. The write-once trigger rejects update and delete.",
+    "After this migration, anon and authenticated lose every privilege on fx_rates and payments. The unused payments admin read policy is dropped. Snapshot writes and capture functions stay service_role only.",
   );
   record(
     "Audit Supabase advisors",
@@ -596,6 +612,63 @@ async function concurrentCapture() {
     },
   });
   return { outcome: outcome.outcome, emails, stockDecrements: memory.state.decrementCalls };
+}
+
+async function paypalTemporaryRetry(): Promise<number> {
+  const store: PaymentWebhookStore = {
+    async insertUnprocessedEvent(input) {
+      return {
+        id: "evt-retry",
+        provider: "paypal",
+        provider_event_id: input.providerEventId,
+        event_type: input.eventType,
+        payload: {},
+        processed: false,
+        processed_at: null,
+        created_at: "2026-10-05T12:00:00.000Z",
+      };
+    },
+    async loadEvent() {
+      return null;
+    },
+    async markEventProcessed() {
+      return null;
+    },
+    async loadPaymentByProviderOrderId() {
+      return null;
+    },
+    async loadPaymentByProviderPaymentId() {
+      return null;
+    },
+    async markPaymentFailed() {
+      return null;
+    },
+  };
+  const body = JSON.stringify({
+    id: "evt-retry",
+    event_type: PAYPAL_PAYMENT_CAPTURE_COMPLETED,
+    resource: {
+      id: "8MC585209K746392H",
+      amount: { value: "53.65", currency_code: "GBP" },
+      supplementary_data: { related_ids: { order_id: "5O190127TN364715T" } },
+    },
+  });
+  const result = await handlePayPalWebhook(
+    {
+      rawBody: body,
+      transmissionId: "tx",
+      transmissionTime: "2026-10-05T12:00:00.000Z",
+      transmissionSig: "sig",
+      certUrl: "https://api.sandbox.paypal.com/v1/notifications/certs/CERT",
+      authAlgo: "SHA256withRSA",
+    },
+    {
+      webhookId: "WHID_TEST",
+      store,
+      verifySignature: async () => ({ ok: true, verificationStatus: "SUCCESS" }),
+    },
+  );
+  return result.status;
 }
 
 async function declinedWebhook() {
