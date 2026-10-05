@@ -554,6 +554,14 @@ void (async () => {
   );
 
   const review = read("src/components/checkout/CheckoutReview.tsx");
+  const reviewLine = review.slice(review.indexOf("function formatReviewLine"));
+  expect(
+    "Review lock currency",
+    reviewLine.includes("lock.chargeCurrency === chargeCurrency") &&
+      reviewLine.includes("lockMatchesRoute") &&
+      reviewLine.includes("cents: displayCurrency === chargeCurrency"),
+    "A Review line uses the locked charge only when that lock currency is the current route.",
+  );
   const indiaUi = read("src/components/checkout/IndiaPayment.tsx");
   const indiaBranch = review.slice(review.indexOf("{india ? ("), review.indexOf("{payable ? ("));
   const paypalBranch = review.slice(review.indexOf("{payable ? ("));

@@ -368,13 +368,15 @@ function formatReviewLine(
 ): string {
   const gbpMajor = displayLineTotal(lock, item);
   const gbpMinor = Math.round(gbpMajor * 100);
-  const sameCurrency = indiaCharge || route?.displayCurrency === route?.paymentCurrency;
+  const chargeCurrency = indiaCharge ? "INR" : (route?.paymentCurrency ?? "GBP");
+  const displayCurrency = indiaCharge ? "INR" : (route?.displayCurrency ?? "GBP");
+  const lockMatchesRoute = lock != null && lock.chargeCurrency === chargeCurrency;
   return presentCheckoutAmount({
     gbpMinor,
-    chargeMinor: sameCurrency ? displayLockedChargeMinor(lock, item) : null,
-    displayCurrency: indiaCharge ? "INR" : (route?.displayCurrency ?? "GBP"),
-    chargeCurrency: indiaCharge ? "INR" : (route?.paymentCurrency ?? "GBP"),
+    chargeMinor: lockMatchesRoute ? displayLockedChargeMinor(lock, item) : null,
+    displayCurrency,
+    chargeCurrency,
     rates,
-    cents: Boolean(sameCurrency),
+    cents: displayCurrency === chargeCurrency,
   });
 }
