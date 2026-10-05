@@ -12,7 +12,14 @@ import { resolveShippingOptions, type ShippingCatalogue } from "@/lib/shipping/o
  * separately, then added. The current PayPal charge uses the GBP base
  * total. chargeCurrency amounts are stored for a later charge phase.
  * A razorpay mapping is recorded and is not chargeable here.
+ *
+ * frozenAt is the lock clock. It is set only when the lock is created.
+ * Draft updatedAt does not extend it. The lock expires after QUOTE_LOCK_TTL_MS
+ * (45 minutes).
  */
+
+/** Quote lock lifetime. Draft cookie updatedAt is a different clock. */
+export const QUOTE_LOCK_TTL_MS = 45 * 60 * 1000;
 
 export type CheckoutQuoteLockLine = {
   variantId: string;
@@ -37,6 +44,7 @@ export type CheckoutQuoteLock = {
   shippingLabel: string;
   estimatedDelivery: string;
   paymentProvider: "paypal" | "razorpay";
+  frozenAt: number;
   lines: CheckoutQuoteLockLine[];
 };
 
@@ -51,6 +59,7 @@ export function createCheckoutQuoteLock(input: {
   lines: readonly { variantId: string; quantity: number; unitPriceMinor: number }[];
   fx?: QuoteLockFx | null;
   catalogue?: ShippingCatalogue;
+  now?: number;
 }): CheckoutQuoteLock | null {
   const countryCode = normalizeCountry(input.countryCode);
   const lines = mergeLines(input.lines);
@@ -101,6 +110,7 @@ export function createCheckoutQuoteLock(input: {
     shippingLabel: option.label,
     estimatedDelivery: option.estimatedDelivery,
     paymentProvider,
+    frozenAt: Number.isInteger(input.now) ? (input.now as number) : Date.now(),
     lines,
   };
 }
@@ -123,6 +133,7 @@ export function encodeCheckoutQuoteLock(lock: CheckoutQuoteLock): CheckoutQuoteL
     shippingLabel: lock.shippingLabel,
     estimatedDelivery: lock.estimatedDelivery,
     paymentProvider: lock.paymentProvider,
+    frozenAt: lock.frozenAt,
     lines: lock.lines.map((line) => ({
       variantId: line.variantId,
       quantity: line.quantity,
@@ -131,7 +142,44 @@ export function encodeCheckoutQuoteLock(lock: CheckoutQuoteLock): CheckoutQuoteL
   };
 }
 
-export function parseCheckoutQuoteLock(raw: unknown): CheckoutQuoteLock | null {
+export function quoteLockExpired(lock: { frozenAt: number }, now = Date.now()): boolean {
+  if (typeof lock.frozenAt !== "number" || !Number.isInteger(lock.frozenAt) || lock.frozenAt <= 0) {
+    return true;
+  }
+  return now - lock.frozenAt >= QUOTE_LOCK_TTL_MS;
+}
+
+export function liveTotalUndercutsLock(lock: CheckoutQuoteLock, liveTotalMinor: number): boolean {
+  return Number.isInteger(liveTotalMinor) && liveTotalMinor >= 0 && liveTotalMinor < lock.baseSubtotalMinor + lock.baseShippingMinor;
+}
+
+/** Drops an expired lock and reports that expiry separately from a corrupt payload. */
+export function inspectCheckoutQuoteLock(
+  raw: unknown,
+  now = Date.now(),
+): { lock: CheckoutQuoteLock | null; expired: boolean } {
+  const lock = parseCheckoutQuoteLock(raw, now, true);
+  if (!lock) {
+    return { lock: null, expired: false };
+  }
+  if (quoteLockExpired(lock, now)) {
+    return { lock: null, expired: true };
+  }
+  return { lock, expired: false };
+}
+
+export function parseCheckoutQuoteLock(raw: unknown, now = Date.now(), keepExpired = false): CheckoutQuoteLock | null {
+  const lock = parseCheckoutQuoteLockBody(raw);
+  if (!lock) {
+    return null;
+  }
+  if (!keepExpired && quoteLockExpired(lock, now)) {
+    return null;
+  }
+  return lock;
+}
+
+function parseCheckoutQuoteLockBody(raw: unknown): CheckoutQuoteLock | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return null;
   }
@@ -185,6 +233,10 @@ export function parseCheckoutQuoteLock(raw: unknown): CheckoutQuoteLock | null {
   if (fxVersion !== null && (typeof fxVersion !== "number" || !Number.isInteger(fxVersion))) {
     return null;
   }
+  const frozenAt = record.frozenAt;
+  if (typeof frozenAt !== "number" || !Number.isInteger(frozenAt) || frozenAt <= 0) {
+    return null;
+  }
   const lock: CheckoutQuoteLock = {
     countryCode: normalizeCountry(record.countryCode),
     chargeCurrency: record.chargeCurrency.trim().toUpperCase(),
@@ -202,6 +254,7 @@ export function parseCheckoutQuoteLock(raw: unknown): CheckoutQuoteLock | null {
     shippingLabel: record.shippingLabel,
     estimatedDelivery: record.estimatedDelivery,
     paymentProvider: record.paymentProvider,
+    frozenAt,
     lines,
   };
   return chargesMatch(lock) ? lock : null;

@@ -67,6 +67,7 @@ export const UK_STANDARD_DELIVERY = "UK Standard Delivery";
 export const CHECKOUT_PRICE_CHANGED =
   "A price in your bag has changed. The total below uses the current price.";
 export const CHECKOUT_QUOTE_STALE = "Return to delivery to confirm this total.";
+export const CHECKOUT_LOCK_EXPIRED = "Confirm delivery again to refresh this total.";
 export const CHECKOUT_ITEM_UNAVAILABLE =
   "A shade in your bag is no longer available. Return to your bag to continue.";
 export const CHECKOUT_START_AGAIN = "Start checkout again";

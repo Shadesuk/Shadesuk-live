@@ -5,11 +5,17 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createGuestCartSessionId } from "../src/contracts/cart/session";
-import { decodeCheckoutDraftCookie, encodeCheckoutDraftCookie } from "../src/lib/checkout-draft";
+import {
+  CHECKOUT_DRAFT_COOKIE_MAX_LENGTH,
+  decodeCheckoutDraftCookie,
+  encodeCheckoutDraftCookie,
+} from "../src/lib/checkout-draft";
 import {
   checkoutQuoteFromLock,
   createCheckoutQuoteLock,
+  inspectCheckoutQuoteLock,
   parseCheckoutQuoteLock,
+  QUOTE_LOCK_TTL_MS,
   quoteLockForCountry,
   type CheckoutQuoteLock,
 } from "../src/lib/checkout-quote-lock";
@@ -96,24 +102,31 @@ if (
   throw new Error("A GBP lock must be an identity freeze with tax and discount at zero.");
 }
 
-const changed = buildPendingPaymentAttempt({
+const increased = buildPendingPaymentAttempt({
   draft: draftWith(gb),
-  lines: [line(1000)],
+  lines: [line(5900)],
   createReference: () => "SHU-LOCKPRICE0001",
 });
-if (!changed.ok) {
-  throw new Error("A matching lock must still be chargeable after the catalogue price changes.");
+if (!increased.ok) {
+  throw new Error("A matching lock must still be chargeable when the catalogue price rises.");
 }
 if (
-  changed.attempt.quote.totalMinor !== 5365 ||
-  changed.attempt.quote.subtotalMinor !== 4900 ||
-  changed.attempt.quote.shippingMinor !== 465 ||
-  changed.attempt.paypal.amountMinor !== 5365 ||
-  changed.attempt.paypal.currency !== "GBP" ||
-  changed.attempt.payment.currency !== "GBP" ||
-  changed.attempt.items[0]?.unit_price_minor !== 4900
+  increased.attempt.quote.totalMinor !== 5365 ||
+  increased.attempt.quote.subtotalMinor !== 4900 ||
+  increased.attempt.quote.shippingMinor !== 465 ||
+  increased.attempt.paypal.amountMinor !== 5365 ||
+  increased.attempt.paypal.currency !== "GBP" ||
+  increased.attempt.payment.currency !== "GBP" ||
+  increased.attempt.items[0]?.unit_price_minor !== 4900
 ) {
-  throw new Error("PayPal must charge the frozen GBP total, not the later catalogue price.");
+  throw new Error("PayPal must charge the frozen GBP total when the catalogue price rises.");
+}
+const dropped = buildPendingPaymentAttempt({
+  draft: draftWith(gb),
+  lines: [line(1000)],
+});
+if (dropped.ok || dropped.reason !== "blocked") {
+  throw new Error("A lower live total must not be charged at the higher frozen amount.");
 }
 
 const resized = buildPendingPaymentAttempt({
@@ -203,7 +216,89 @@ if (checkoutQuoteFromLock(gb).totalMinor !== 5365) {
   throw new Error("Review must display the frozen GBP total.");
 }
 
+if (QUOTE_LOCK_TTL_MS !== 45 * 60 * 1000) {
+  throw new Error("Quote locks must expire after 45 minutes.");
+}
+const frozenAt = 1_700_000_000_000;
+const timed = createCheckoutQuoteLock({
+  countryCode: "GB",
+  lines: [{ variantId: line(4900).productVariantId, quantity: 1, unitPriceMinor: 4900 }],
+  now: frozenAt,
+});
+if (!timed || timed.frozenAt !== frozenAt) {
+  throw new Error("frozenAt must be set only when the lock is created.");
+}
+const stillHeld = buildPendingPaymentAttempt({
+  draft: draftWith(timed),
+  lines: [line(4900)],
+  now: frozenAt + QUOTE_LOCK_TTL_MS - 1,
+});
+if (!stillHeld.ok || stillHeld.attempt.paypal.amountMinor !== 5365) {
+  throw new Error("A lock inside 45 minutes must still charge the frozen GBP total.");
+}
+const expiredAttempt = buildPendingPaymentAttempt({
+  draft: draftWith(timed),
+  lines: [line(4900)],
+  now: frozenAt + QUOTE_LOCK_TTL_MS,
+});
+if (expiredAttempt.ok || expiredAttempt.reason !== "blocked") {
+  throw new Error("An expired lock must not be charged.");
+}
+const expiredRead = inspectCheckoutQuoteLock(timed, frozenAt + QUOTE_LOCK_TTL_MS);
+if (expiredRead.lock || !expiredRead.expired || parseCheckoutQuoteLock(timed, frozenAt + QUOTE_LOCK_TTL_MS)) {
+  throw new Error("Reading an expired lock must drop it.");
+}
+
 const sessionId = createGuestCartSessionId();
+const stepped = { ...draftWith(timed), step: "contact" as const, email: "later@example.com" };
+const kept = encodeCheckoutDraftCookie(sessionId, stepped, frozenAt + 20 * 60 * 1000, "verify-quote-secret");
+const readBack = decodeCheckoutDraftCookie(sessionId, kept, frozenAt + 20 * 60 * 1000, "verify-quote-secret");
+if (readBack.quoteLock?.frozenAt !== frozenAt || readBack.email !== "later@example.com") {
+  throw new Error("A step or contact write must keep the original frozenAt.");
+}
+const droppedDraft = decodeCheckoutDraftCookie(
+  sessionId,
+  kept,
+  frozenAt + QUOTE_LOCK_TTL_MS,
+  "verify-quote-secret",
+);
+if (droppedDraft.quoteLock || !droppedDraft.lockExpired || droppedDraft.step !== "address") {
+  throw new Error("An expired lock must be dropped and return the shopper to delivery.");
+}
+const checkoutService = read("src/services/checkout.ts");
+const contactWrite = checkoutService.slice(
+  checkoutService.indexOf("export async function saveCheckoutContact"),
+  checkoutService.indexOf("export async function saveCheckoutAddress"),
+);
+const stepWrite = checkoutService.slice(
+  checkoutService.indexOf("export async function setCheckoutStep"),
+  checkoutService.indexOf("export async function restartExpiredCheckout"),
+);
+if (contactWrite.includes("frozenAt") || stepWrite.includes("frozenAt")) {
+  throw new Error("Contact and step writes must not refresh the quote lock clock.");
+}
+
+const huge = createCheckoutQuoteLock({
+  countryCode: "GB",
+  now: frozenAt,
+  lines: Array.from({ length: 200 }, (_, index) => ({
+    variantId: `${index}-${"v".repeat(80)}`,
+    quantity: 1,
+    unitPriceMinor: 10,
+  })),
+});
+if (!huge) {
+  throw new Error("A large bag must still produce a lock before the cookie cap.");
+}
+const packed = encodeCheckoutDraftCookie(sessionId, draftWith(huge), frozenAt, "verify-quote-secret");
+if (!packed || packed.length > CHECKOUT_DRAFT_COOKIE_MAX_LENGTH) {
+  throw new Error("An oversized quote lock must not be written into the cookie.");
+}
+const unpacked = decodeCheckoutDraftCookie(sessionId, packed, frozenAt, "verify-quote-secret");
+if (unpacked.quoteLock || unpacked.email !== "ada@shadesuk.example") {
+  throw new Error("An oversized lock must be dropped without wiping the delivery draft.");
+}
+
 const encoded = encodeCheckoutDraftCookie(sessionId, draftWith(gb), Date.now(), "verify-quote-secret");
 const decoded = decodeCheckoutDraftCookie(sessionId, encoded, Date.now(), "verify-quote-secret");
 if (!decoded.quoteLock || decoded.quoteLock.baseShippingMinor !== 465 || decoded.quoteLock.fxRateId !== null) {
@@ -214,10 +309,9 @@ const draftCodec = read("src/lib/checkout-draft.ts");
 if (draftCodec.includes("subtotal") || draftCodec.includes("shippingMinor") || draftCodec.includes("totalMinor")) {
   throw new Error("Checkout draft persistence must not name payable totals.");
 }
-if (!draftCodec.includes("parseCheckoutQuoteLock")) {
-  throw new Error("The draft cookie must restore the quote lock through its parser.");
+if (!draftCodec.includes("inspectCheckoutQuoteLock") || !draftCodec.includes("CHECKOUT_DRAFT_COOKIE_MAX_LENGTH")) {
+  throw new Error("The draft cookie must restore the quote lock and cap its size.");
 }
-const checkoutService = read("src/services/checkout.ts");
 if (!checkoutService.includes("countryChanged") || !checkoutService.includes("draft.quoteLock = null")) {
   throw new Error("A country change must clear the stored quote lock.");
 }
@@ -231,6 +325,13 @@ if (!freezeSource.includes("loadLatestFxRates")) {
 const attemptSource = read("src/lib/payment/pending-attempt.ts");
 if (!attemptSource.includes('currency: STORE_CURRENCY') || !attemptSource.includes("checkoutQuoteFromLock")) {
   throw new Error("Payment must keep GBP and use the locked base total.");
+}
+if (!attemptSource.includes("quoteLockExpired") || !attemptSource.includes("liveTotalUndercutsLock")) {
+  throw new Error("Payment must reject an expired lock and a lower live total.");
+}
+const page = read("src/components/checkout/CheckoutPage.tsx");
+if (!page.includes("CHECKOUT_PRICE_CHANGED") || !page.includes("liveCheaper") || !page.includes("CHECKOUT_LOCK_EXPIRED")) {
+  throw new Error("Review must show a lower live price and the expired-lock status.");
 }
 
 console.log("Quote lock OK: GBP freeze, separate localization, FX snapshot, country invalidation");

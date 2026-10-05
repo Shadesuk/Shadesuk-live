@@ -4,7 +4,9 @@ import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
 import {
   checkoutQuoteFromLock,
+  liveTotalUndercutsLock,
   lockCoversLines,
+  quoteLockExpired,
   quoteLockForCountry,
 } from "@/lib/checkout-quote-lock";
 import {
@@ -129,6 +131,7 @@ export function buildPendingPaymentAttempt(input: {
   userId?: string | null;
   clientQuote?: ClientMoneyOverride;
   createReference?: () => string;
+  now?: number;
 }): BuildPendingPaymentAttemptResult {
   if (input.draft.expired) {
     return { ok: false, reason: "expired" };
@@ -166,12 +169,24 @@ export function buildPendingPaymentAttempt(input: {
   }
 
   const country = normalizeCountry(input.draft.country);
+  const now = input.now ?? Date.now();
+  if (input.draft.lockExpired || (input.draft.quoteLock != null && quoteLockExpired(input.draft.quoteLock, now))) {
+    return { ok: false, reason: "blocked" };
+  }
   const held = quoteLockForCountry(input.draft.quoteLock, country);
   let lines = input.lines;
   let quote: CheckoutQuote;
   if (input.draft.quoteLock) {
     if (!held || held.paymentProvider !== "paypal" || !lockCoversLines(held, linesForLock(input.lines))) {
       return { ok: false, reason: "blocked" };
+    }
+    const resolved = resolveShippingOptions(country);
+    if (resolved.status === "priced") {
+      const liveSubtotal = input.lines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+      const liveShipping = resolved.options[0]?.amountMinor ?? 0;
+      if (liveTotalUndercutsLock(held, liveSubtotal + liveShipping)) {
+        return { ok: false, reason: "blocked" };
+      }
     }
     lines = input.lines.map((line) => {
       const locked = held.lines.find((entry) => entry.variantId === line.productVariantId);

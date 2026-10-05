@@ -25,12 +25,13 @@ import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/car
 import {
   CHECKOUT_CART_UNAVAILABLE,
   CHECKOUT_ITEM_UNAVAILABLE,
+  CHECKOUT_LOCK_EXPIRED,
   CHECKOUT_PRICE_CHANGED,
   CHECKOUT_REQUEST_ERROR,
   CHECKOUT_STEPS,
   CHECKOUT_TITLE,
 } from "@/lib/checkout-copy";
-import { quoteMatchesLock } from "@/lib/checkout-quote-lock";
+import { liveTotalUndercutsLock, quoteMatchesLock } from "@/lib/checkout-quote-lock";
 import {
   checkoutHasPriceChange,
   checkoutQuoteFromCart,
@@ -87,6 +88,13 @@ export function CheckoutPage({
   const chargeReady = step !== "review" || !draft.quoteLock || Boolean(reviewLock);
   usePinPageStart(step, "checkout-heading", true);
   const priceChanged = checkoutHasPriceChange(view);
+  const liveQuote = checkoutQuoteFromCart(view, step === "address" ? address.country : draft.country);
+  const liveCheaper = Boolean(
+    step === "review" &&
+      draft.quoteLock &&
+      liveQuote.shippingStatus === "priced" &&
+      liveTotalUndercutsLock(draft.quoteLock, liveQuote.totalMinor),
+  );
 
   useEffect(() => {
     if (view.items.length === 0) {
@@ -255,7 +263,12 @@ export function CheckoutPage({
           </ButtonLink>
         </p>
       ) : null}
-      {priceChanged && !(draft.quoteLock && step === "review") ? (
+      {draft.lockExpired ? (
+        <p className="text-small" role="status">
+          {CHECKOUT_LOCK_EXPIRED}
+        </p>
+      ) : null}
+      {(priceChanged && !(draft.quoteLock && step === "review")) || liveCheaper ? (
         <p className="text-small" role="status">
           {CHECKOUT_PRICE_CHANGED}
         </p>

@@ -38,6 +38,8 @@ export type PublicCheckoutDraft = {
   country: string;
   addressEntry: CheckoutAddressEntry;
   quoteLock: CheckoutQuoteLock | null;
+  /** Set when a signed lock was dropped because frozenAt passed. Not stored. */
+  lockExpired: boolean;
   expired: boolean;
 };
 
@@ -100,6 +102,7 @@ export function emptyCheckoutDraft(): PublicCheckoutDraft {
     country: CHECKOUT_COUNTRY_GB,
     addressEntry: "search",
     quoteLock: null,
+    lockExpired: false,
     expired: false,
   };
 }

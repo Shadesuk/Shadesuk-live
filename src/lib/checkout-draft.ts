@@ -1,4 +1,4 @@
-import { encodeCheckoutQuoteLock, parseCheckoutQuoteLock } from "@/lib/checkout-quote-lock";
+import { encodeCheckoutQuoteLock, inspectCheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import {
   decodeGuestCookieValue,
@@ -18,6 +18,8 @@ import {
 export const CHECKOUT_DRAFT_COOKIE = "shadesuk_guest_checkout";
 export const CHECKOUT_DRAFT_TTL_SECONDS = 60 * 60 * 24;
 export const CHECKOUT_DRAFT_TTL_MS = CHECKOUT_DRAFT_TTL_SECONDS * 1000;
+/** Stay under the typical 4KB cookie limit. Oversized locks are dropped. */
+export const CHECKOUT_DRAFT_COOKIE_MAX_LENGTH = 4000;
 
 type CheckoutDraftPayload = {
   step: CheckoutStepId;
@@ -41,6 +43,21 @@ export function encodeCheckoutDraftCookie(
   now = Date.now(),
   secret?: string,
 ): string {
+  const encoded = signDraft(sessionId, draft, now, secret);
+  if (encoded && encoded.length <= CHECKOUT_DRAFT_COOKIE_MAX_LENGTH) {
+    return encoded;
+  }
+  if (draft.quoteLock) {
+    const withoutLock = signDraft(sessionId, { ...draft, quoteLock: null }, now, secret);
+    if (withoutLock && withoutLock.length <= CHECKOUT_DRAFT_COOKIE_MAX_LENGTH) {
+      return withoutLock;
+    }
+  }
+  const reset = signDraft(sessionId, emptyCheckoutDraft(), now, secret);
+  return reset.length <= CHECKOUT_DRAFT_COOKIE_MAX_LENGTH ? reset : "";
+}
+
+function signDraft(sessionId: string, draft: PublicCheckoutDraft, now: number, secret?: string): string {
   const payload: CheckoutDraftPayload = {
     step: draft.step,
     email: draft.email,
@@ -106,7 +123,12 @@ function parsePayload(raw: unknown, now: number): PublicCheckoutDraft {
   draft.postcode = asText(record.postcode);
   draft.country = asText(record.country) || CHECKOUT_COUNTRY_GB;
   draft.addressEntry = record.addressEntry === "manual" ? "manual" : "search";
-  draft.quoteLock = parseCheckoutQuoteLock(record.quoteLock);
+  const inspected = inspectCheckoutQuoteLock(record.quoteLock, now);
+  draft.quoteLock = inspected.lock;
+  draft.lockExpired = inspected.expired;
+  if (inspected.expired) {
+    draft.step = "address";
+  }
   draft.expired = expired;
   return draft;
 }

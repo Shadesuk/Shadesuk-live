@@ -14,6 +14,7 @@ import {
 import { freezeCheckoutQuoteLock } from "@/lib/checkout-quote-freeze";
 import {
   checkoutQuoteFromLock,
+  liveTotalUndercutsLock,
   lockCoversLines,
   quoteLockForCountry,
 } from "@/lib/checkout-quote-lock";
@@ -183,7 +184,8 @@ export async function setCheckoutStep(step: CheckoutStepId): Promise<CheckoutMut
   if (current.expired) {
     return { status: "expired", cart, draft: current, quote };
   }
-  const requested = step === "review" && checkoutUnavailableBlocked(cart) ? "address" : step;
+  const requested =
+    step === "review" && (checkoutUnavailableBlocked(cart) || current.lockExpired) ? "address" : step;
   const draft = constrainStep({ ...current, step: requested });
   try {
     await persistDraft(sessionId, draft);
@@ -244,6 +246,9 @@ async function quoteForDraft(cart: PublicCart, draft: PublicCheckoutDraft): Prom
         lines.map((line) => ({ variantId: line.productVariantId, quantity: line.quantity })),
       )
     ) {
+      if (liveQuote.shippingStatus === "priced" && liveTotalUndercutsLock(held, liveQuote.totalMinor)) {
+        return liveQuote;
+      }
       return checkoutQuoteFromLock(held);
     }
   } catch {
