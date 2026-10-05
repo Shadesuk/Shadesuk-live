@@ -64,6 +64,9 @@ export function CheckoutAddress({
     if (pending || submitted) {
       return;
     }
+    if (!priced) {
+      return;
+    }
     if (!showForm) {
       onManual();
       return;
@@ -109,6 +112,7 @@ export function CheckoutAddress({
         search={search}
         retrieve={retrieve}
         disabled={pending}
+        allowManual={Boolean(priced)}
       />
       {showForm && priced ? (
         <AddressForm

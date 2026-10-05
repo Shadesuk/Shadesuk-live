@@ -41,6 +41,7 @@ type AddressLookupProps = {
   search: (query: string) => Promise<AddressLookupView>;
   retrieve: (id: string) => Promise<AddressRetrieveView>;
   disabled?: boolean;
+  allowManual?: boolean;
 };
 
 export function AddressLookup({
@@ -52,6 +53,7 @@ export function AddressLookup({
   search,
   retrieve,
   disabled = false,
+  allowManual = true,
 }: AddressLookupProps) {
   const inputId = useId();
   const listboxId = useId();
@@ -287,10 +289,14 @@ export function AddressLookup({
           })}
         </ul>
       ) : null}
-      <p className={`text-small ${styles.or}`}>or</p>
-      <Button variant="tertiary" type="button" onClick={onManual} disabled={disabled}>
-        {ENTER_ADDRESS_MANUALLY}
-      </Button>
+      {allowManual ? (
+        <>
+          <p className={`text-small ${styles.or}`}>or</p>
+          <Button variant="tertiary" type="button" onClick={onManual} disabled={disabled}>
+            {ENTER_ADDRESS_MANUALLY}
+          </Button>
+        </>
+      ) : null}
     </div>
   );
 }

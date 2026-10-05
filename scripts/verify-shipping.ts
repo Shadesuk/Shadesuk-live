@@ -96,6 +96,9 @@ if (!payment.includes("validateDeliverableCheckoutAddress") || !payment.includes
   throw new Error("Payment must stay on the GB charge path.");
 }
 const address = read("src/components/checkout/CheckoutAddress.tsx");
+if (!address.includes("allowManual={Boolean(priced)}") || !address.includes("if (!priced)")) {
+  throw new Error("Unpriced shipping must hide manual entry and must not force the form open.");
+}
 if (!address.includes("resolveShippingOptions") || !address.includes("SHIPPING_UNAVAILABLE")) {
   throw new Error("The delivery step must show seeded shipping or unavailable.");
 }
