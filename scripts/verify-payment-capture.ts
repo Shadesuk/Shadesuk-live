@@ -296,8 +296,39 @@ void (async () => {
   }
 
   const repeat = await captureWith(created, verifiedInput(), createdHook);
-  if (repeat.outcome !== "already_captured" || created.state.captureWrites !== 1) {
+  if (repeat.outcome !== "already_captured" || created.state.captureWrites !== 1 || createdHook.calls !== 1) {
     throw new Error("Repeated capture must return already_captured without rewriting.");
+  }
+
+  const concurrent = createMemory();
+  const concurrentHook = { calls: 0 };
+  let loads = 0;
+  const loadCreated = concurrent.store.loadByPaymentId.bind(concurrent.store);
+  concurrent.store.loadByPaymentId = async (id) => {
+    loads += 1;
+    return loadCreated(id);
+  };
+  concurrent.store.capturePayment = async () => {
+    concurrent.state.payment = {
+      ...concurrent.state.payment,
+      status: "captured",
+      captured_at: new Date().toISOString(),
+      provider_payment_id: PROVIDER_PAYMENT,
+    };
+    concurrent.state.order = {
+      ...concurrent.state.order,
+      payment_status: "captured",
+    };
+    return null;
+  };
+  const duplicate = await captureWith(concurrent, verifiedInput(), concurrentHook);
+  if (
+    duplicate.outcome !== "already_captured" ||
+    concurrentHook.calls !== 0 ||
+    concurrent.state.decrementCalls !== 0 ||
+    loads < 2
+  ) {
+    throw new Error("A concurrent duplicate capture must return already_captured without a second email.");
   }
 
   const wrongProvider = await captureWith(

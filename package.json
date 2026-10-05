@@ -37,6 +37,7 @@
     "verify:completion": "npm run verify:run -- scripts/verify-storefront-completion.ts",
     "verify:payment": "npm run verify:run -- scripts/verify-payment-foundation.ts",
     "verify:payment-routing": "npm run verify:run -- scripts/verify-payment-routing.ts",
+    "verify:order-snapshot": "npm run verify:run -- scripts/verify-order-snapshot.ts",
     "verify:payment-verify": "npm run verify:run -- scripts/verify-payment-verification.ts",
     "verify:payment-capture": "npm run verify:run -- scripts/verify-payment-capture.ts",
     "verify:payment-webhook": "npm run verify:run -- scripts/verify-payment-webhook.ts",

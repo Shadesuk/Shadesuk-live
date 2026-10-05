@@ -27,6 +27,10 @@ const ORDER_ITEM_COLUMNS =
 /**
  * Verified paid state for this schema. Matches QUALIFYING_REVENUE_PAYMENT_STATUS
  * and PAYMENT_SUCCEEDED. Do not treat checkout review or frontend return as paid.
+ *
+ * The Resend template still formats this GBP order total. An India charge is
+ * INR. order_charge_snapshots holds that charge amount and the FX rate.
+ * Changing the email template is a later follow-up, not this snapshot.
  */
 export const ORDER_CONFIRMATION_PAYMENT_STATUS = "captured" as const;
 

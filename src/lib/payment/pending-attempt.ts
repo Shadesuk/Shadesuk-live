@@ -14,6 +14,7 @@ import {
   quoteIsChargeable,
   type CheckoutQuote,
 } from "@/lib/checkout-quote";
+import { paypalChargeFacts } from "@/lib/order-snapshot";
 import { resolveShippingOptions } from "@/lib/shipping/options";
 import {
   formatUkPostcode,
@@ -82,6 +83,15 @@ export type PendingPaymentInsert = {
   amount_minor: number;
   currency: typeof STORE_CURRENCY;
   status: Extract<PaymentStatus, "created">;
+  fx_rate_id: string | null;
+  fx_version: number | null;
+  fx_rate: string | null;
+  quote_frozen_at: string | null;
+  shipping_method_id: string | null;
+  shipping_label: string | null;
+  estimated_delivery: string | null;
+  charge_subtotal_minor: number;
+  charge_shipping_minor: number;
 };
 
 export type PendingPaymentAttempt = {
@@ -212,6 +222,12 @@ export function buildPendingPaymentAttempt(input: {
     return { ok: false, reason: "blocked" };
   }
 
+  const shippingOption = resolveShippingOptions(country);
+  const facts = paypalChargeFacts({
+    lock: held,
+    quote,
+    shippingMethodId: shippingOption.status === "priced" ? shippingOption.options[0]?.methodId ?? null : null,
+  });
   const reference = (input.createReference ?? createOrderReference)();
   const firstName = input.draft.firstName.trim();
   const lastName = input.draft.lastName.trim();
@@ -266,6 +282,7 @@ export function buildPendingPaymentAttempt(input: {
       amount_minor: quote.totalMinor,
       currency: STORE_CURRENCY,
       status: "created",
+      ...facts,
     },
     paypal: {
       amountMinor: quote.totalMinor,

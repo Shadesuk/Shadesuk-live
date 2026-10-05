@@ -12,6 +12,7 @@ import {
   indiaLockIsChargeable,
   resolvePaymentProvider,
 } from "@/lib/payment/resolve-provider";
+import { indiaChargeFacts } from "@/lib/order-snapshot";
 import { resolveShippingOptions, type ShippingOptionsResult } from "@/lib/shipping/options";
 import type { PublicCheckoutDraft } from "@/types/checkout";
 import type { PendingOrderInsert, PendingOrderItemInsert, PendingPaymentLine } from "@/lib/payment/pending-attempt";
@@ -19,14 +20,21 @@ import type { PendingOrderInsert, PendingOrderItemInsert, PendingPaymentLine } f
 export type IndiaCharge = {
   order: PendingOrderInsert;
   items: PendingOrderItemInsert[];
-  payment: {
-    provider: "razorpay";
-    amountMinor: number;
-    currency: "INR";
-    fxRateId: string;
-    frozenAt: number;
-    status: "created";
-  };
+    payment: {
+      provider: "razorpay";
+      amountMinor: number;
+      currency: "INR";
+      fxRateId: string;
+      fxRate: string;
+      fxVersion: number;
+      frozenAt: number;
+      shippingMethodId: string;
+      shippingLabel: string;
+      estimatedDelivery: string;
+      chargeSubtotalMinor: number;
+      chargeShippingMinor: number;
+      status: "created";
+    };
 };
 
 export type BuildIndiaChargeResult =
@@ -82,9 +90,15 @@ export function buildIndiaCharge(input: {
   if (!resolved.ok || resolved.provider !== "razorpay") {
     return { ok: false, reason: "blocked" };
   }
-  if (!lock || !indiaLockIsChargeable(lock) || !lock.fxRateId) {
+  if (!lock || !indiaLockIsChargeable(lock) || !lock.fxRateId || !lock.fxRate || lock.fxVersion == null) {
     return { ok: false, reason: "blocked" };
   }
+  const facts = indiaChargeFacts({
+    ...lock,
+    fxRateId: lock.fxRateId,
+    fxRate: lock.fxRate,
+    fxVersion: lock.fxVersion,
+  });
   const shipping = input.shippingQuote ?? resolveShippingOptions(country);
   const shippingMinor = shipping.status === "priced" ? shipping.options[0]?.amountMinor : null;
   if (shipping.status !== "priced" || !Number.isInteger(shippingMinor) || shippingMinor == null || shippingMinor < 0) {
@@ -174,8 +188,15 @@ export function buildIndiaCharge(input: {
       provider: "razorpay",
       amountMinor: lock.chargeTotalMinor,
       currency: "INR",
-      fxRateId: lock.fxRateId,
+      fxRateId: facts.fx_rate_id ?? lock.fxRateId,
+      fxRate: facts.fx_rate ?? lock.fxRate,
+      fxVersion: facts.fx_version ?? lock.fxVersion,
       frozenAt: lock.frozenAt,
+      shippingMethodId: facts.shipping_method_id ?? lock.shippingMethodId,
+      shippingLabel: facts.shipping_label ?? lock.shippingLabel,
+      estimatedDelivery: facts.estimated_delivery ?? lock.estimatedDelivery,
+      chargeSubtotalMinor: facts.charge_subtotal_minor,
+      chargeShippingMinor: facts.charge_shipping_minor,
       status: "created",
     },
   };
