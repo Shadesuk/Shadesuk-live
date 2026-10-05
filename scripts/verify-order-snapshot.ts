@@ -8,7 +8,7 @@ import { createCheckoutQuoteLock } from "../src/lib/checkout-quote-lock";
 import { checkoutQuoteFromLock } from "../src/lib/checkout-quote-lock";
 import { buildIndiaCharge } from "../src/lib/payment/india-charge";
 import { buildPendingPaymentAttempt, type PendingPaymentLine } from "../src/lib/payment/pending-attempt";
-import { indiaChargeFacts, paypalChargeFacts } from "../src/lib/order-snapshot";
+import { indiaChargeFacts, paypalAttemptSatisfiesChargeSnapshot, paypalChargeFacts } from "../src/lib/order-snapshot";
 import { V1_SHIPPING_CATALOGUE, type ShippingCatalogue } from "../src/lib/shipping/options";
 import { emptyCheckoutDraft, type PublicCheckoutDraft } from "../src/types/checkout";
 
@@ -83,6 +83,18 @@ const paypal = buildPendingPaymentAttempt({
 });
 if (!paypal.ok) {
   throw new Error("A GBP lock must still build a PayPal attempt.");
+}
+if (!paypalAttemptSatisfiesChargeSnapshot(paypal.attempt)) {
+  throw new Error("A locked GBP PayPal attempt must satisfy the charge snapshot checks.");
+}
+const liveUk = buildPendingPaymentAttempt({
+  draft: draftWith(null),
+  lines: [line(4900)],
+  now: gb.frozenAt,
+  createReference: () => "SHU-SNAPSHOT0002",
+});
+if (!liveUk.ok || !paypalAttemptSatisfiesChargeSnapshot(liveUk.attempt)) {
+  throw new Error("A live UK PayPal attempt must satisfy the charge snapshot checks before provider capture.");
 }
 if (
   paypal.attempt.payment.currency !== "GBP" ||
@@ -186,7 +198,8 @@ if (!migration.includes("before update or delete") || !migration.includes("befor
 if (
   !migration.includes("revoke all on table public.order_charge_snapshots from anon") ||
   !migration.includes("revoke all on table public.order_charge_snapshots from authenticated") ||
-  !migration.includes("grant select, insert on table public.order_charge_snapshots to service_role")
+  !migration.includes("grant select, insert on table public.order_charge_snapshots to service_role") ||
+  !migration.includes("revoke update, delete, truncate on table public.order_charge_snapshots from service_role")
 ) {
   throw new Error("Snapshot table access must be service-role insert and select only.");
 }
@@ -211,6 +224,19 @@ if (!migration.includes("fx_rate") || !migration.includes("quote_frozen_at") || 
 const captureStore = read("src/lib/payment/capture-store.ts");
 if (!captureStore.includes("mark_paypal_payment_captured")) {
   throw new Error("PayPal capture must go through the snapshot transaction.");
+}
+if (!captureStore.includes('row?.status !== capturedState.status')) {
+  throw new Error("A duplicate PayPal capture must return null so the second caller takes the already-captured path.");
+}
+const indiaCommit = read("src/lib/razorpay/commit.ts");
+const indiaCapturedBranch = indiaCommit.indexOf('if (marked === "captured")');
+const indiaNotify = indiaCommit.indexOf("await onVerifiedPaymentCaptured");
+if (
+  indiaCapturedBranch < 0 ||
+  indiaNotify < indiaCapturedBranch ||
+  !indiaCommit.includes('status: marked === "duplicate" ? "already_processed"')
+) {
+  throw new Error("India duplicate capture must skip the confirmation email.");
 }
 const indiaPersist = read("src/lib/razorpay/persist.ts");
 if (!indiaPersist.includes("fx_rate: charge.payment.fxRate") || !indiaPersist.includes("mark_india_payment_captured")) {

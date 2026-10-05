@@ -129,6 +129,7 @@ alter table public.order_charge_snapshots enable row level security;
 revoke all on table public.order_charge_snapshots from public;
 revoke all on table public.order_charge_snapshots from anon;
 revoke all on table public.order_charge_snapshots from authenticated;
+revoke update, delete, truncate on table public.order_charge_snapshots from service_role;
 grant select, insert on table public.order_charge_snapshots to service_role;
 
 create or replace function private.order_charge_snapshots_write_once()

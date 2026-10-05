@@ -108,7 +108,9 @@ export function createSupabasePaymentCaptureStore(): PaymentCaptureStore {
       });
       const capturedState = { status: "captured" as const };
       const row = captured.data && typeof captured.data === "object" ? (captured.data as { status?: string }) : null;
-      if (captured.error || (row?.status !== capturedState.status && row?.status !== "duplicate")) {
+      // `duplicate` means another caller already committed this capture. Returning the
+      // row would run stock, cart conversion, and the confirmation email again.
+      if (captured.error || row?.status !== capturedState.status) {
         return null;
       }
       const updated = await admin

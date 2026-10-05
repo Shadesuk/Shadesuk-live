@@ -1,5 +1,6 @@
 import type { CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
+import type { PendingPaymentAttempt } from "@/lib/payment/pending-attempt";
 
 /**
  * Facts copied onto the payment when the attempt is created, then into
@@ -35,6 +36,44 @@ export function paypalChargeFacts(input: {
     charge_subtotal_minor: input.quote.subtotalMinor,
     charge_shipping_minor: input.quote.shippingMinor,
   };
+}
+
+/**
+ * Mirrors the PayPal branch of insert_order_charge_snapshot plus the
+ * order_charge_snapshots CHECKs. A chargeable UK attempt must pass before
+ * the provider is captured, because the snapshot insert is in that same
+ * transaction and a CHECK failure would roll the capture back.
+ */
+export function paypalAttemptSatisfiesChargeSnapshot(attempt: PendingPaymentAttempt): boolean {
+  const country = String(attempt.order.delivery_address.country ?? "").trim().toUpperCase();
+  const chargeSubtotal = attempt.payment.charge_subtotal_minor;
+  const chargeShipping = attempt.payment.charge_shipping_minor;
+  const optionalText = [
+    attempt.payment.shipping_method_id,
+    attempt.payment.shipping_label,
+    attempt.payment.estimated_delivery,
+    attempt.payment.fx_rate_id,
+    attempt.payment.fx_rate,
+  ];
+  const addressKeys = Object.keys(attempt.order.delivery_address);
+  return (
+    /^[A-Z]{2}$/.test(country) &&
+    attempt.order.currency === "GBP" &&
+    attempt.payment.provider === "paypal" &&
+    attempt.payment.currency === "GBP" &&
+    attempt.order.subtotal_minor >= 0 &&
+    attempt.order.shipping_minor >= 0 &&
+    attempt.order.total_minor > 0 &&
+    attempt.order.total_minor === attempt.order.subtotal_minor + attempt.order.shipping_minor &&
+    chargeSubtotal >= 0 &&
+    chargeShipping >= 0 &&
+    attempt.payment.amount_minor > 0 &&
+    attempt.payment.amount_minor === chargeSubtotal + chargeShipping &&
+    attempt.payment.amount_minor === attempt.order.total_minor &&
+    addressKeys.length > 0 &&
+    attempt.items.length > 0 &&
+    optionalText.every((value) => value == null || value.trim() !== "")
+  );
 }
 
 export function indiaChargeFacts(lock: CheckoutQuoteLock & { fxRateId: string; fxRate: string; fxVersion: number }): PaymentChargeFacts {
