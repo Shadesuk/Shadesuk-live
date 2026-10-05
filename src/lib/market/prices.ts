@@ -119,6 +119,14 @@ export function formatStorefrontMajor(
   }
 }
 
+/**
+ * Checkout figures.
+ * When the display currency is the charge currency, show exact minor units
+ * with cents: locked chargeMinor if present, otherwise GBP converted at the
+ * rate and kept to the cent (465 pence stays £4.65). Shop pages do not use
+ * this. A display-only currency (AED while the charge is USD) stays on whole
+ * units; the charge sentence carries the exact amount.
+ */
 export function presentCheckoutAmount(input: {
   gbpMinor: number;
   chargeMinor?: number | null;
@@ -127,15 +135,39 @@ export function presentCheckoutAmount(input: {
   rates: readonly PublicFxRate[];
   cents: boolean;
 }): string {
-  if (
-    input.cents &&
-    input.displayCurrency === input.chargeCurrency &&
-    input.chargeMinor != null &&
-    Number.isInteger(input.chargeMinor)
-  ) {
+  const chargeCents = input.cents && input.displayCurrency === input.chargeCurrency;
+  if (!chargeCents) {
+    return formatDisplayGbpMinor(input.gbpMinor, input.displayCurrency, input.rates);
+  }
+  if (input.chargeMinor != null && Number.isInteger(input.chargeMinor) && input.chargeMinor >= 0) {
     return formatChargeMinor(input.chargeMinor, input.chargeCurrency);
   }
-  return formatDisplayGbpMinor(input.gbpMinor, input.displayCurrency, input.rates);
+  const exact = exactMinorFromGbp(input.gbpMinor, input.displayCurrency, input.rates);
+  if (exact == null) {
+    return Number.isInteger(input.gbpMinor) && input.gbpMinor >= 0
+      ? formatChargeMinor(input.gbpMinor, "GBP")
+      : "";
+  }
+  return formatChargeMinor(exact, input.displayCurrency);
+}
+
+/** GBP minor units converted to the target currency, kept to the cent. */
+function exactMinorFromGbp(
+  gbpMinor: number,
+  currency: string,
+  rates: readonly PublicFxRate[],
+): number | null {
+  if (!Number.isInteger(gbpMinor) || gbpMinor < 0) {
+    return null;
+  }
+  if (currency === "GBP") {
+    return gbpMinor;
+  }
+  const rate = rateForDisplay(currency, rates);
+  if (!rate) {
+    return null;
+  }
+  return convertGbpMinor(gbpMinor, currency, rate);
 }
 
 export function displayMinorFromGbp(

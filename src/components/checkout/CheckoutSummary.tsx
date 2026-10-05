@@ -50,12 +50,14 @@ export function CheckoutSummary({
       rates,
       cents: displayCurrency === chargeCurrency,
     });
-  const subtotalLabel = money(quote.subtotalMinor, frozenCharge?.subtotalMinor);
+  const lockedCharge =
+    !frozenCharge && lineLock && lineLock.chargeCurrency === chargeCurrency ? lineLock : null;
+  const subtotalLabel = money(quote.subtotalMinor, frozenCharge?.subtotalMinor ?? lockedCharge?.chargeSubtotalMinor);
   const shippingLabel =
     quote.shippingStatus === "priced" || frozenCharge
-      ? money(quote.shippingMinor, frozenCharge?.shippingMinor)
+      ? money(quote.shippingMinor, frozenCharge?.shippingMinor ?? lockedCharge?.chargeShippingMinor)
       : SHIPPING_UNAVAILABLE;
-  const totalLabel = money(quote.totalMinor, frozenCharge?.totalMinor);
+  const totalLabel = money(quote.totalMinor, frozenCharge?.totalMinor ?? lockedCharge?.chargeTotalMinor);
   const content = (
     <>
       <ul className={styles.lines}>
@@ -86,7 +88,10 @@ export function CheckoutSummary({
                 <p className="text-small">Qty {item.quantity}</p>
               </div>
               <p className={`text-small ${styles.price}`}>
-                {money(Math.round(displayLineTotal(lineLock, item) * 100), frozenCharge ? displayLockedChargeMinor(lineLock, item) : null)}
+                {money(
+                  Math.round(displayLineTotal(lineLock, item) * 100),
+                  frozenCharge || lockedCharge ? displayLockedChargeMinor(lineLock, item) : null,
+                )}
               </p>
             </li>
           );

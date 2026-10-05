@@ -20,7 +20,7 @@ import {
   quoteLockForCountry,
 } from "../src/lib/checkout-quote-lock";
 import { authoritativeCheckoutQuote, quoteIsChargeable } from "../src/lib/checkout-quote";
-import { formatChargeMinor, presentCheckoutAmount } from "../src/lib/market/prices";
+import { formatChargeMinor, formatDisplayGbpMinor, presentCheckoutAmount } from "../src/lib/market/prices";
 import { encodeCheckoutDraftCookie, decodeCheckoutDraftCookie } from "../src/lib/checkout-draft";
 import { lookupAddresses, getAddressProvider } from "../src/lib/address-lookup";
 import { postcodesIoAddressLookupProvider } from "../src/lib/address-providers/postcodes-io";
@@ -155,15 +155,42 @@ void (async () => {
     rates: [{ currency: "EUR", rate: "1.1762" }],
     cents: true,
   });
+  const gbpShipping = presentCheckoutAmount({
+    gbpMinor: 465,
+    chargeMinor: null,
+    displayCurrency: "GBP",
+    chargeCurrency: "GBP",
+    rates: [],
+    cents: true,
+  });
+  const gbpBag = presentCheckoutAmount({
+    gbpMinor: 6500,
+    chargeMinor: null,
+    displayCurrency: "GBP",
+    chargeCurrency: "GBP",
+    rates: [],
+    cents: true,
+  });
+  const shopShipping = formatDisplayGbpMinor(465, "GBP", []);
   expect(
     "Display conversion",
-    eurDisplay !== formatChargeMinor(6500, "EUR") &&
-      eurDisplay.includes("76") &&
+    eurDisplay === formatChargeMinor(7645, "EUR") &&
+      eurDisplay !== formatChargeMinor(6500, "EUR") &&
       !eurDisplay.includes("65.00") &&
+      eurShipping === formatChargeMinor(547, "EUR") &&
       eurShipping !== formatChargeMinor(465, "EUR") &&
       !eurShipping.includes("4.65") &&
       eurLocked === formatChargeMinor(7645, "EUR"),
-    "A checkout amount with no charge lock converts GBP through FX. A locked charge keeps its cents.",
+    "A checkout amount with no charge lock converts GBP through FX and keeps cents. A locked charge keeps its cents.",
+  );
+  expect(
+    "Checkout GBP cents",
+    gbpShipping === formatChargeMinor(465, "GBP") &&
+      gbpShipping.includes("4.65") &&
+      gbpShipping !== shopShipping &&
+      gbpBag === formatChargeMinor(6500, "GBP") &&
+      gbpBag.includes("65.00"),
+    "Checkout GBP keeps exact pence. £4.65 shipping must not round to a whole pound.",
   );
 
   const ukShipping = resolveShippingOptions("GB");
