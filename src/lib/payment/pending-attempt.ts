@@ -3,6 +3,11 @@ import type { PaymentStatus } from "@/contracts/order/schema";
 import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
 import {
+  checkoutQuoteFromLock,
+  lockCoversLines,
+  quoteLockForCountry,
+} from "@/lib/checkout-quote-lock";
+import {
   authoritativeCheckoutQuote,
   quoteIsChargeable,
   type CheckoutQuote,
@@ -161,11 +166,34 @@ export function buildPendingPaymentAttempt(input: {
   }
 
   const country = normalizeCountry(input.draft.country);
-  const quote = quotePendingPaymentLines(input.lines, input.clientQuote, country);
+  const held = quoteLockForCountry(input.draft.quoteLock, country);
+  let lines = input.lines;
+  let quote: CheckoutQuote;
+  if (input.draft.quoteLock) {
+    if (!held || held.paymentProvider !== "paypal" || !lockCoversLines(held, linesForLock(input.lines))) {
+      return { ok: false, reason: "blocked" };
+    }
+    lines = input.lines.map((line) => {
+      const locked = held.lines.find((entry) => entry.variantId === line.productVariantId);
+      const unitPriceMinor = locked?.unitPriceMinor ?? line.unitPriceMinor;
+      return {
+        ...line,
+        unitPriceMinor,
+        lineTotalMinor: unitPriceMinor * line.quantity,
+      };
+    });
+    quote = checkoutQuoteFromLock(held);
+  } else {
+    quote = quotePendingPaymentLines(lines, input.clientQuote, country);
+    if (resolveShippingOptions(country).status !== "priced") {
+      return { ok: false, reason: "blocked" };
+    }
+  }
   if (quote.currency !== STORE_CURRENCY || !quoteIsChargeable(quote)) {
     return { ok: false, reason: "blocked" };
   }
-  if (resolveShippingOptions(country).status !== "priced") {
+  const chargedSubtotal = lines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+  if (chargedSubtotal !== quote.subtotalMinor) {
     return { ok: false, reason: "blocked" };
   }
 
@@ -199,7 +227,7 @@ export function buildPendingPaymentAttempt(input: {
         country,
       },
     },
-    items: input.lines.map((line) => ({
+    items: lines.map((line) => ({
       product_id: line.productId,
       product_variant_id: line.productVariantId,
       sku: line.sku,
@@ -232,4 +260,11 @@ export function buildPendingPaymentAttempt(input: {
   };
 
   return { ok: true, attempt };
+}
+
+function linesForLock(lines: readonly PendingPaymentLine[]): { variantId: string; quantity: number }[] {
+  return lines.map((line) => ({
+    variantId: line.productVariantId,
+    quantity: line.quantity,
+  }));
 }

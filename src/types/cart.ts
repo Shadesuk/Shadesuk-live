@@ -17,6 +17,7 @@ export type PublicCartImage = {
 
 export type PublicCartItem = {
   id: string;
+  variantId?: string;
   productId: string;
   slug: string;
   name: string;

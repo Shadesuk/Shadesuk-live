@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { PublicCart } from "@/types/cart";
+import { displayLineTotal, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { formatGbp, formatGbpMinor } from "@/lib/money";
 import {
@@ -17,10 +18,11 @@ import styles from "./CheckoutSummary.module.css";
 type CheckoutSummaryProps = {
   cart: PublicCart;
   quote: CheckoutQuote;
+  lineLock?: CheckoutQuoteLock | null;
   collapsible?: boolean;
 };
 
-export function CheckoutSummary({ cart, quote, collapsible = false }: CheckoutSummaryProps) {
+export function CheckoutSummary({ cart, quote, lineLock = null, collapsible = false }: CheckoutSummaryProps) {
   const content = (
     <>
       <ul className={styles.lines}>
@@ -50,7 +52,7 @@ export function CheckoutSummary({ cart, quote, collapsible = false }: CheckoutSu
                 {variant ? <p className="text-micro">{variant}</p> : null}
                 <p className="text-small">Qty {item.quantity}</p>
               </div>
-              <p className={`text-small ${styles.price}`}>{formatGbp(item.lineTotal)}</p>
+              <p className={`text-small ${styles.price}`}>{formatGbp(displayLineTotal(lineLock, item))}</p>
             </li>
           );
         })}

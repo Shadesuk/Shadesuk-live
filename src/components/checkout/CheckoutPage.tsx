@@ -30,6 +30,7 @@ import {
   CHECKOUT_STEPS,
   CHECKOUT_TITLE,
 } from "@/lib/checkout-copy";
+import { quoteMatchesLock } from "@/lib/checkout-quote-lock";
 import {
   checkoutHasPriceChange,
   checkoutQuoteFromCart,
@@ -81,6 +82,9 @@ export function CheckoutPage({
   const blocked = checkoutUnavailableBlocked(view);
   const step = draft.step;
   const summaryQuote = step === "address" ? checkoutQuoteFromCart(view, address.country) : quote;
+  const reviewLock =
+    step !== "address" && draft.quoteLock && quoteMatchesLock(draft.quoteLock, quote) ? draft.quoteLock : null;
+  const chargeReady = step !== "review" || !draft.quoteLock || Boolean(reviewLock);
   usePinPageStart(step, "checkout-heading", true);
   const priceChanged = checkoutHasPriceChange(view);
 
@@ -251,7 +255,7 @@ export function CheckoutPage({
           </ButtonLink>
         </p>
       ) : null}
-      {priceChanged ? (
+      {priceChanged && !(draft.quoteLock && step === "review") ? (
         <p className="text-small" role="status">
           {CHECKOUT_PRICE_CHANGED}
         </p>
@@ -268,7 +272,7 @@ export function CheckoutPage({
       <div className={styles.layout}>
         <div className={styles.main}>
           <div className={styles.mobileSummary}>
-            <CheckoutSummary cart={view} quote={summaryQuote} collapsible />
+            <CheckoutSummary cart={view} quote={summaryQuote} lineLock={reviewLock} collapsible />
           </div>
           {step === "contact" ? (
             <CheckoutContact
@@ -306,13 +310,15 @@ export function CheckoutPage({
               cart={view}
               draft={draft}
               quote={quote}
+              lineLock={reviewLock}
+              chargeReady={chargeReady}
               pending={pending}
               onBack={() => void goTo("address")}
             />
           ) : null}
         </div>
         <div className={styles.desktopSummary}>
-          <CheckoutSummary cart={view} quote={summaryQuote} />
+          <CheckoutSummary cart={view} quote={summaryQuote} lineLock={reviewLock} />
         </div>
       </div>
     </div>

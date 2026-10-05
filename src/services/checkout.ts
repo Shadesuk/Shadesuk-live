@@ -1,6 +1,7 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import { getOptionalAccountUser } from "@/lib/account-session";
 import { readCheckoutDraft, writeCheckoutDraft } from "@/lib/checkout-draft-store";
 import {
   formatUkPostcode,
@@ -10,6 +11,12 @@ import {
   validateDeliverableCheckoutAddress,
   validateCheckoutEmail,
 } from "@/lib/checkout-validate";
+import { freezeCheckoutQuoteLock } from "@/lib/checkout-quote-freeze";
+import {
+  checkoutQuoteFromLock,
+  lockCoversLines,
+  quoteLockForCountry,
+} from "@/lib/checkout-quote-lock";
 import {
   checkoutQuoteFromCart,
   checkoutUnavailableBlocked,
@@ -18,6 +25,7 @@ import {
 import { containsForbiddenCartOwnership } from "@/lib/ownership-keys";
 import { bindGuestCartSession, readGuestCartSessionId } from "@/lib/guest-cart-cookie";
 import { getPublicCart } from "@/services/cart";
+import { loadLivePendingPaymentLines } from "@/services/pending-payment";
 import {
   CHECKOUT_COUNTRY_GB,
   emptyCheckoutDraft,
@@ -39,7 +47,8 @@ export async function getCheckoutSnapshot(): Promise<CheckoutSnapshot> {
   const cart = await getPublicCart();
   const sessionId = await ensureCheckoutSession(cart);
   const draft = await readCheckoutDraft(sessionId);
-  return sanitizeSnapshot({ cart, draft, quote: checkoutQuoteFromCart(cart, draft.country) });
+  const quote = await quoteForDraft(cart, draft);
+  return sanitizeSnapshot({ cart, draft, quote });
 }
 
 export async function saveCheckoutContact(email: string): Promise<CheckoutMutationResult> {
@@ -111,14 +120,28 @@ export async function saveCheckoutAddress(input: {
     country: country || CHECKOUT_COUNTRY_GB,
     addressEntry: input.addressEntry ?? "manual",
   };
+  const countryChanged = normalizeCountry(draft.country) !== normalizeCountry(current.country);
+  if (countryChanged) {
+    draft.quoteLock = null;
+    draft.step = "address";
+  }
   const nextQuote = checkoutQuoteFromCart(cart, draft.country);
   const errors = validateDeliverableCheckoutAddress(draft);
   if (hasCheckoutFieldErrors(errors)) {
     draft.addressEntry = "manual";
+    draft.step = "address";
+    if (countryChanged) {
+      try {
+        await persistDraft(sessionId, draft);
+      } catch {
+        return { status: "error" };
+      }
+    }
     return { status: "invalid", cart, draft, quote: nextQuote, errors };
   }
   if (checkoutUnavailableBlocked(cart)) {
     draft.step = "address";
+    draft.quoteLock = null;
     try {
       await persistDraft(sessionId, draft);
     } catch {
@@ -126,13 +149,29 @@ export async function saveCheckoutAddress(input: {
     }
     return { status: "blocked", cart, draft, quote: nextQuote };
   }
+  const frozen = await freezeSavedQuote(draft.country);
+  if (frozen.status === "error") {
+    return { status: "error" };
+  }
+  if (frozen.status === "blocked") {
+    draft.step = "address";
+    draft.quoteLock = frozen.lock;
+    try {
+      await persistDraft(sessionId, draft);
+    } catch {
+      return { status: "error" };
+    }
+    return { status: "blocked", cart, draft, quote: nextQuote };
+  }
+  draft.quoteLock = frozen.lock;
   draft.step = "review";
+  const savedQuote = frozen.lock ? checkoutQuoteFromLock(frozen.lock) : nextQuote;
   try {
     await persistDraft(sessionId, draft);
   } catch {
     return { status: "error" };
   }
-  return { status: "ok", cart, draft, quote: nextQuote };
+  return { status: "ok", cart, draft, quote: savedQuote };
 }
 
 export async function setCheckoutStep(step: CheckoutStepId): Promise<CheckoutMutationResult> {
@@ -187,7 +226,69 @@ async function loadCheckout(): Promise<{
     return null;
   }
   const current = await readCheckoutDraft(sessionId);
-  return { sessionId, cart, current, quote: checkoutQuoteFromCart(cart, current.country) };
+  return { sessionId, cart, current, quote: await quoteForDraft(cart, current) };
+}
+
+async function quoteForDraft(cart: PublicCart, draft: PublicCheckoutDraft): Promise<CheckoutQuote> {
+  const liveQuote = checkoutQuoteFromCart(cart, draft.country);
+  const held = quoteLockForCountry(draft.quoteLock, draft.country);
+  if (!held) {
+    return liveQuote;
+  }
+  try {
+    const lines = await readFreezeLines();
+    if (
+      lines &&
+      lockCoversLines(
+        held,
+        lines.map((line) => ({ variantId: line.productVariantId, quantity: line.quantity })),
+      )
+    ) {
+      return checkoutQuoteFromLock(held);
+    }
+  } catch {
+    return liveQuote;
+  }
+  return liveQuote;
+}
+
+async function freezeSavedQuote(country: string): Promise<
+  | { status: "open"; lock: null }
+  | { status: "locked"; lock: NonNullable<PublicCheckoutDraft["quoteLock"]> }
+  | { status: "blocked"; lock: PublicCheckoutDraft["quoteLock"] }
+  | { status: "error" }
+> {
+  let lines: Awaited<ReturnType<typeof loadLivePendingPaymentLines>> = null;
+  try {
+    lines = await readFreezeLines();
+  } catch {
+    return { status: "error" };
+  }
+  if (!lines) {
+    return { status: "open", lock: null };
+  }
+  let lock: PublicCheckoutDraft["quoteLock"] = null;
+  try {
+    lock = await freezeCheckoutQuoteLock({
+      countryCode: country,
+      lines: lines.map((line) => ({
+        variantId: line.productVariantId,
+        quantity: line.quantity,
+        unitPriceMinor: line.unitPriceMinor,
+      })),
+    });
+  } catch {
+    return { status: "error" };
+  }
+  if (!lock || lock.paymentProvider !== "paypal") {
+    return { status: "blocked", lock };
+  }
+  return { status: "locked", lock };
+}
+
+async function readFreezeLines(): Promise<Awaited<ReturnType<typeof loadLivePendingPaymentLines>>> {
+  const user = await getOptionalAccountUser();
+  return loadLivePendingPaymentLines(user?.id ?? null);
 }
 
 async function ensureCheckoutSession(cart: PublicCart): Promise<string | null> {

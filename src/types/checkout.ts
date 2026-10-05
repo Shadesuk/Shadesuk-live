@@ -1,3 +1,4 @@
+import type { CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { PostalAddress } from "@/types/integrations";
 import type { PublicCart } from "@/types/cart";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
@@ -36,6 +37,7 @@ export type PublicCheckoutDraft = {
   postcode: string;
   country: string;
   addressEntry: CheckoutAddressEntry;
+  quoteLock: CheckoutQuoteLock | null;
   expired: boolean;
 };
 
@@ -97,6 +99,7 @@ export function emptyCheckoutDraft(): PublicCheckoutDraft {
     postcode: "",
     country: CHECKOUT_COUNTRY_GB,
     addressEntry: "search",
+    quoteLock: null,
     expired: false,
   };
 }

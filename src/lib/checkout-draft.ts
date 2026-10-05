@@ -1,3 +1,4 @@
+import { encodeCheckoutQuoteLock, parseCheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import {
   decodeGuestCookieValue,
@@ -30,6 +31,7 @@ type CheckoutDraftPayload = {
   postcode: string;
   country: string;
   addressEntry: CheckoutAddressEntry;
+  quoteLock?: ReturnType<typeof encodeCheckoutQuoteLock>;
   updatedAt: number;
 };
 
@@ -53,6 +55,9 @@ export function encodeCheckoutDraftCookie(
     addressEntry: draft.addressEntry,
     updatedAt: now,
   };
+  if (draft.quoteLock) {
+    payload.quoteLock = encodeCheckoutQuoteLock(draft.quoteLock);
+  }
   const body = JSON.stringify(payload);
   const hmac = signGuestCookiePayload(sessionId, body, secret);
   return encodeGuestCookieValue(body, hmac);
@@ -101,6 +106,7 @@ function parsePayload(raw: unknown, now: number): PublicCheckoutDraft {
   draft.postcode = asText(record.postcode);
   draft.country = asText(record.country) || CHECKOUT_COUNTRY_GB;
   draft.addressEntry = record.addressEntry === "manual" ? "manual" : "search";
+  draft.quoteLock = parseCheckoutQuoteLock(record.quoteLock);
   draft.expired = expired;
   return draft;
 }
