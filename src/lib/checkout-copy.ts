@@ -72,6 +72,7 @@ export const CHECKOUT_START_AGAIN = "Start checkout again";
 export const SHIPPING_MANUAL_NOTE =
   "Orders are prepared for dispatch by hand. Carrier details appear once a shipment has been dispatched.";
 export const SHIPPING_INFORMATION = "Shipping information";
+export const SHIPPING_UNAVAILABLE = "Shipping is not available for this country yet.";
 
 export const REVIEW_HEADING = "Your order";
 export const PAYMENT_HEADING = "Payment";

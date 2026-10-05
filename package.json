@@ -12,6 +12,7 @@
     "verify:markets": "npm run verify:run -- scripts/verify-market-config.ts",
     "verify:fx": "npm run verify:run -- scripts/verify-fx.ts",
     "verify:address": "npm run verify:run -- scripts/verify-address.ts",
+    "verify:shipping": "npm run verify:run -- scripts/verify-shipping.ts",
     "verify:pdp": "npm run verify:run -- scripts/verify-pdp.ts",
     "verify:cart": "npm run verify:run -- scripts/verify-cart.ts",
     "verify:checkout": "npm run verify:run -- scripts/verify-checkout.ts",

@@ -39,7 +39,7 @@ export async function getCheckoutSnapshot(): Promise<CheckoutSnapshot> {
   const cart = await getPublicCart();
   const sessionId = await ensureCheckoutSession(cart);
   const draft = await readCheckoutDraft(sessionId);
-  return sanitizeSnapshot({ cart, draft, quote: checkoutQuoteFromCart(cart) });
+  return sanitizeSnapshot({ cart, draft, quote: checkoutQuoteFromCart(cart, draft.country) });
 }
 
 export async function saveCheckoutContact(email: string): Promise<CheckoutMutationResult> {
@@ -186,7 +186,7 @@ async function loadCheckout(): Promise<{
     return null;
   }
   const current = await readCheckoutDraft(sessionId);
-  return { sessionId, cart, current, quote: checkoutQuoteFromCart(cart) };
+  return { sessionId, cart, current, quote: checkoutQuoteFromCart(cart, current.country) };
 }
 
 async function ensureCheckoutSession(cart: PublicCart): Promise<string | null> {

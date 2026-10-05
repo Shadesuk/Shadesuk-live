@@ -6,6 +6,7 @@ import {
   authoritativeCheckoutQuote,
   type CheckoutQuote,
 } from "@/lib/checkout-quote";
+import { resolveShippingOptions } from "@/lib/shipping/options";
 import {
   formatUkPostcode,
   hasCheckoutFieldErrors,
@@ -96,6 +97,7 @@ export type BuildPendingPaymentAttemptResult =
 export function quotePendingPaymentLines(
   lines: readonly PendingPaymentLine[],
   client?: ClientMoneyOverride,
+  country?: string,
 ): CheckoutQuote {
   const subtotalMinor = lines.reduce((sum, line) => {
     if (!Number.isInteger(line.lineTotalMinor) || line.lineTotalMinor < 0) {
@@ -111,6 +113,7 @@ export function quotePendingPaymentLines(
     subtotal: client?.subtotal,
     shipping: client?.shipping,
     total: client?.total,
+    country,
   });
 }
 
@@ -156,15 +159,18 @@ export function buildPendingPaymentAttempt(input: {
     }
   }
 
-  const quote = quotePendingPaymentLines(input.lines, input.clientQuote);
-  if (quote.currency !== STORE_CURRENCY) {
+  const country = normalizeCountry(input.draft.country);
+  const quote = quotePendingPaymentLines(input.lines, input.clientQuote, country);
+  if (quote.currency !== STORE_CURRENCY || quote.shippingStatus !== "priced") {
+    return { ok: false, reason: "blocked" };
+  }
+  if (resolveShippingOptions(country).status !== "priced") {
     return { ok: false, reason: "blocked" };
   }
 
   const reference = (input.createReference ?? createOrderReference)();
   const firstName = input.draft.firstName.trim();
   const lastName = input.draft.lastName.trim();
-  const country = normalizeCountry(input.draft.country);
   const postcode = country === "GB" ? formatUkPostcode(input.draft.postcode) : input.draft.postcode.trim();
 
   const attempt: PendingPaymentAttempt = {

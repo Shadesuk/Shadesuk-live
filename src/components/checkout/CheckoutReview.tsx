@@ -30,6 +30,7 @@ import {
   PAYMENT_VERIFIED_NEXT,
   REVIEW_HEADING,
   SHIPPING_HEADING,
+  SHIPPING_UNAVAILABLE,
   UK_STANDARD_DELIVERY,
   UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
@@ -65,6 +66,7 @@ export function CheckoutReview({
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string>("");
   const [paypalReady, setPaypalReady] = useState(false);
+  const payable = draft.country === "GB" && quote.shippingStatus === "priced";
   const addressLines = [
     `${draft.firstName} ${draft.lastName}`.trim(),
     draft.line1,
@@ -76,7 +78,7 @@ export function CheckoutReview({
 
   useEffect(() => {
     const slot = paypalSlotRef.current;
-    if (!slot || pending) {
+    if (!slot || pending || !payable) {
       return;
     }
     let cancelled = false;
@@ -165,7 +167,7 @@ export function CheckoutReview({
       cancelled = true;
       unmount();
     };
-  }, [pending, router]);
+  }, [payable, pending, router]);
 
   return (
     <div className={styles.review} data-checkout-review>
@@ -228,10 +230,12 @@ export function CheckoutReview({
             {EDIT}
           </Button>
         </div>
-        <p className="text-small">{UK_STANDARD_DELIVERY}</p>
-        <p className="text-small">{formatGbpMinor(quote.shippingMinor)}</p>
+        <p className="text-small">{quote.shippingStatus === "priced" ? (quote.shippingLabel ?? UK_STANDARD_DELIVERY) : "Shipping"}</p>
+        <p className="text-small">
+          {quote.shippingStatus === "priced" ? formatGbpMinor(quote.shippingMinor) : SHIPPING_UNAVAILABLE}
+        </p>
         <p className="text-micro">{ESTIMATED_DELIVERY_LABEL}</p>
-        <p className="text-small">{ESTIMATED_DELIVERY_WINDOW}</p>
+        <p className="text-small">{quote.estimatedDelivery ?? ESTIMATED_DELIVERY_WINDOW}</p>
         <p className="text-small">{draft.email}</p>
         {addressLines.map((line) => (
           <p key={line} className="text-small">
@@ -245,22 +249,31 @@ export function CheckoutReview({
           {PAYMENT_HEADING}
         </h3>
         <PaymentMethods />
-        <div
-          ref={paypalSlotRef}
-          className={styles.paypalSlot}
-          data-paypal-button
-          data-paypal-ready={paypalReady ? "true" : "false"}
-          aria-busy={paymentBusy}
-        />
-        <p id="checkout-payment-next" className="text-small">
-          {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
-        </p>
-        {paymentUi === "cancelled" ? (
+        {payable ? null : (
           <p className="text-small" role="status">
-            {PAYMENT_CANCELLED}
+            {SHIPPING_UNAVAILABLE}
           </p>
+        )}
+        {payable ? (
+          <>
+            <div
+              ref={paypalSlotRef}
+              className={styles.paypalSlot}
+              data-paypal-button
+              data-paypal-ready={paypalReady ? "true" : "false"}
+              aria-busy={paymentBusy}
+            />
+            <p id="checkout-payment-next" className="text-small">
+              {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
+            </p>
+            {paymentUi === "cancelled" ? (
+              <p className="text-small" role="status">
+                {PAYMENT_CANCELLED}
+              </p>
+            ) : null}
+            {paymentUi === "error" && paymentError ? <InlineError>{paymentError}</InlineError> : null}
+          </>
         ) : null}
-        {paymentUi === "error" && paymentError ? <InlineError>{paymentError}</InlineError> : null}
       </section>
 
       <div className={styles.actions}>

@@ -8,12 +8,16 @@ import {
   BACK,
   CONTINUE,
   DELIVERY_HEADING,
+  ESTIMATED_DELIVERY_LABEL,
   SHIPPING_BODY,
   SHIPPING_HEADING,
   SHIPPING_INFORMATION,
   SHIPPING_MANUAL_NOTE,
   SHIPPING_MINIMUM,
+  SHIPPING_UNAVAILABLE,
 } from "@/lib/checkout-copy";
+import { formatGbpMinor } from "@/lib/money";
+import { resolveShippingOptions } from "@/lib/shipping/options";
 import { normalizeCountry } from "@/lib/checkout-validate";
 import { routes } from "@/lib/navigation";
 import type { AddressLookupView, AddressRetrieveView, CheckoutFieldErrors } from "@/types/checkout";
@@ -52,6 +56,8 @@ export function CheckoutAddress({
   retrieve,
 }: CheckoutAddressProps) {
   const [submitted, setSubmitted] = useState(false);
+  const shipping = resolveShippingOptions(value.country);
+  const priced = shipping.status === "priced" ? shipping.options[0] : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,8 +123,22 @@ export function CheckoutAddress({
         <h3 id="checkout-shipping-heading" className="text-micro">
           {SHIPPING_HEADING}
         </h3>
-        <p className="text-small">{SHIPPING_MINIMUM}</p>
-        <p className="text-small">{SHIPPING_BODY}</p>
+        {priced ? (
+          <>
+            <p className="text-small">{priced.label}</p>
+            <p className="text-small">{formatGbpMinor(priced.amountMinor)}</p>
+            <p className="text-micro">{ESTIMATED_DELIVERY_LABEL}</p>
+            <p className="text-small">{priced.estimatedDelivery}</p>
+            {value.country === "GB" ? (
+              <>
+                <p className="text-small">{SHIPPING_MINIMUM}</p>
+                <p className="text-small">{SHIPPING_BODY}</p>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-small">{SHIPPING_UNAVAILABLE}</p>
+        )}
         <p className="text-small">{SHIPPING_MANUAL_NOTE}</p>
         <p className="text-small">
           <a href={routes.shipping}>{SHIPPING_INFORMATION} →</a>
