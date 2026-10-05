@@ -346,6 +346,21 @@ alter table public.shipping_methods enable row level security;
 alter table public.shipping_rates enable row level security;
 alter table public.fx_rates enable row level security;
 
+-- Live projects grant anon and authenticated every privilege, including
+-- TRUNCATE, on new public tables. RLS does not cover TRUNCATE. Revoke that
+-- default before the least-privilege grants below.
+revoke all on table
+  public.currencies,
+  public.markets,
+  public.market_payment_methods,
+  public.countries,
+  public.shipping_zones,
+  public.shipping_zone_countries,
+  public.shipping_methods,
+  public.shipping_rates,
+  public.fx_rates
+from anon, authenticated;
+
 grant select on table
   public.currencies,
   public.markets,

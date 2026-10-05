@@ -207,8 +207,42 @@ for (const zone of V1_SHIPPING_ZONES) {
     throw new Error(`Migration is missing shipping zone ${zone.id}.`);
   }
 }
+const revokeAllAt = migration.indexOf("revoke all on table");
+const firstGrantAt = migration.indexOf("grant select on table");
+if (revokeAllAt < 0 || firstGrantAt < 0 || revokeAllAt > firstGrantAt) {
+  throw new Error("Default table privileges must be revoked before any grant.");
+}
+const revokeBlock = migration.slice(revokeAllAt, firstGrantAt);
+for (const table of [
+  "public.currencies",
+  "public.markets",
+  "public.market_payment_methods",
+  "public.countries",
+  "public.shipping_zones",
+  "public.shipping_zone_countries",
+  "public.shipping_methods",
+  "public.shipping_rates",
+  "public.fx_rates",
+]) {
+  if (!revokeBlock.includes(table)) {
+    throw new Error(`REVOKE ALL must cover ${table} for anon and authenticated.`);
+  }
+}
+if (!revokeBlock.includes("from anon, authenticated")) {
+  throw new Error("REVOKE ALL must target anon and authenticated.");
+}
 if (!migration.includes("grant select on table public.fx_rates to anon, authenticated")) {
   throw new Error("FX reads must be available without the service role.");
+}
+if (
+  /grant\s+(insert|update|delete|truncate|all)[^;]*public\.fx_rates[^;]*to\s+anon/i.test(migration) ||
+  /grant\s+[^;]*public\.fx_rates[^;]*to\s+[^;]*\banon\b[^;]*\b(insert|update|delete|truncate)\b/i.test(migration)
+) {
+  throw new Error("anon must not receive a write grant on fx_rates.");
+}
+const fxGrant = migration.match(/grant select, insert, update, delete on table[\s\S]*?to authenticated;/);
+if (fxGrant?.[0]?.includes("public.fx_rates")) {
+  throw new Error("authenticated must not receive config writes on fx_rates.");
 }
 if (!migration.includes("revoke update, delete, truncate on table public.fx_rates")) {
   throw new Error("FX history must revoke update and delete.");
