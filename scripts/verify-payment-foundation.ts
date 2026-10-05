@@ -310,6 +310,25 @@ if (
 if (built.attempt.order.total_minor !== 5365) {
   throw new Error("Order totals must match the server quote, not the client total.");
 }
+for (const country of ["DE", "US", "IN"] as const) {
+  const foreign = buildPendingPaymentAttempt({
+    draft: {
+      ...draft,
+      country,
+      city: country === "DE" ? "Berlin" : country === "US" ? "New York" : "Mumbai",
+      postcode: country === "DE" ? "10117" : country === "US" ? "10001" : "400001",
+      line1: "1 Example Street",
+    },
+    lines,
+    createReference: () => "SHU-TESTREF0001",
+  });
+  if (foreign.ok) {
+    throw new Error(`Pending PayPal payment must reject ${country} until a later quote phase.`);
+  }
+  if (foreign.reason !== "invalid" || !foreign.errors.country) {
+    throw new Error(`Pending PayPal payment must reject ${country} until a later quote phase.`);
+  }
+}
 
 async function verifyInitiationFlow(): Promise<void> {
   let paypalAmount: number | null = null;

@@ -157,6 +157,27 @@ const lookupUi = read("src/components/address/AddressLookup.tsx");
 if (!lookupUi.includes("FIND_ADDRESS") || !lookupUi.includes("ENTER_ADDRESS_MANUALLY")) {
   throw new Error("UK find button and manual fallback must stay.");
 }
+if (lookupUi.includes("onManual()")) {
+  throw new Error("Lookup failures must not force the manual form open.");
+}
+if (!lookupUi.includes('autoCapitalize={unitedKingdom ? "characters" : "off"}')) {
+  throw new Error("Only the UK postcode search may force capital letters.");
+}
+if (!lookupUi.includes("unitedKingdom && result.suggestions.length === 1")) {
+  throw new Error("Only a single UK postcode may be retrieved automatically.");
+}
+const checkoutAddress = read("src/components/checkout/CheckoutAddress.tsx");
+const countryAt = checkoutAddress.indexOf("AddressCountryField");
+const lookupAt = checkoutAddress.indexOf("<AddressLookup");
+if (countryAt < 0 || lookupAt < 0 || countryAt > lookupAt) {
+  throw new Error("Country must be visible before address search.");
+}
+if (!read("src/services/checkout.ts").includes("validateDeliverableCheckoutAddress")) {
+  throw new Error("Checkout save must keep non-GB orders off the payment path.");
+}
+if (!read("src/lib/payment/pending-attempt.ts").includes("validateDeliverableCheckoutAddress")) {
+  throw new Error("Payment attempts must stay GB-only.");
+}
 if (!lookupUi.includes("scheduleAutocomplete") || !lookupUi.includes("AUTOCOMPLETE_DEBOUNCE_MS = 300")) {
   throw new Error("Non-UK lookup must debounce autocomplete.");
 }

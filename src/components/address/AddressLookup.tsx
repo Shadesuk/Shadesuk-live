@@ -4,10 +4,17 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import {
+  ADDRESS_AUTOCOMPLETE_HINT,
+  ADDRESS_AUTOCOMPLETE_LABEL,
+  ADDRESS_AUTOCOMPLETE_PLACEHOLDER,
   ADDRESS_LOOKUP_EMPTY,
+  ADDRESS_LOOKUP_EMPTY_INTL,
   ADDRESS_LOOKUP_ERROR,
+  ADDRESS_LOOKUP_ERROR_INTL,
   ADDRESS_LOOKUP_LOADING,
+  ADDRESS_LOOKUP_LOADING_INTL,
   ADDRESS_LOOKUP_UNAVAILABLE,
+  ADDRESS_LOOKUP_UNAVAILABLE_INTL,
   ADDRESS_SEARCH_HINT,
   ADDRESS_SEARCH_LABEL,
   ADDRESS_SEARCH_PLACEHOLDER,
@@ -23,9 +30,6 @@ import styles from "./AddressLookup.module.css";
 
 type LookupStatus = "idle" | "loading" | "empty" | "unavailable" | "error" | "invalid" | "selected";
 
-const ADDRESS_AUTOCOMPLETE_LABEL = "Address";
-const ADDRESS_AUTOCOMPLETE_PLACEHOLDER = "Search for an address";
-const ADDRESS_AUTOCOMPLETE_HINT = "Search, or enter the address manually.";
 const AUTOCOMPLETE_DEBOUNCE_MS = 300;
 
 type AddressLookupProps = {
@@ -112,7 +116,6 @@ export function AddressLookup({
         return;
       }
       setStatus("error");
-      onManual();
       return;
     }
     if (requestId !== requestRef.current) {
@@ -120,20 +123,17 @@ export function AddressLookup({
     }
     if (result.status === "unavailable") {
       setStatus("unavailable");
-      onManual();
       return;
     }
     if (result.status === "error") {
       setStatus("error");
-      onManual();
       return;
     }
     if (result.suggestions.length === 0) {
       setStatus("empty");
-      onManual();
       return;
     }
-    if (result.suggestions.length === 1 && result.suggestions[0]) {
+    if (unitedKingdom && result.suggestions.length === 1 && result.suggestions[0]) {
       await choose(result.suggestions[0], requestId);
       return;
     }
@@ -153,7 +153,6 @@ export function AddressLookup({
       }
       setSuggestions([]);
       setStatus("error");
-      onManual();
       return;
     }
     if (requestId !== requestRef.current) {
@@ -162,15 +161,13 @@ export function AddressLookup({
     if (result.status !== "ok") {
       setSuggestions([]);
       setStatus(result.status === "unavailable" ? "unavailable" : "error");
-      onManual();
       return;
     }
     onSelect(result.address);
-    onQueryChange(result.address.postcode);
+    onQueryChange(unitedKingdom ? result.address.postcode : result.address.line1 || query);
     setSuggestions([]);
     setStatus("selected");
     setActiveIndex(-1);
-    onManual();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -212,7 +209,7 @@ export function AddressLookup({
           placeholder={unitedKingdom ? ADDRESS_SEARCH_PLACEHOLDER : ADDRESS_AUTOCOMPLETE_PLACEHOLDER}
           hint={unitedKingdom ? ADDRESS_SEARCH_HINT : ADDRESS_AUTOCOMPLETE_HINT}
           autoComplete={unitedKingdom ? "postal-code" : "street-address"}
-          autoCapitalize="characters"
+          autoCapitalize={unitedKingdom ? "characters" : "off"}
           spellCheck={false}
           value={query}
           disabled={disabled || pending}
@@ -235,35 +232,37 @@ export function AddressLookup({
           }}
           onKeyDown={handleKeyDown}
         />
-        <Button
-          className={styles.findButton}
-          type="button"
-          variant="secondary"
-          loading={pending}
-          disabled={disabled}
-          onClick={() => void runSearch()}
-        >
-          {FIND_ADDRESS}
-        </Button>
+        {unitedKingdom ? (
+          <Button
+            className={styles.findButton}
+            type="button"
+            variant="secondary"
+            loading={pending}
+            disabled={disabled}
+            onClick={() => void runSearch()}
+          >
+            {FIND_ADDRESS}
+          </Button>
+        ) : null}
       </div>
       {status === "loading" ? (
         <p className="text-small" role="status">
-          {ADDRESS_LOOKUP_LOADING}
+          {unitedKingdom ? ADDRESS_LOOKUP_LOADING : ADDRESS_LOOKUP_LOADING_INTL}
         </p>
       ) : null}
       {status === "unavailable" ? (
         <p className="text-small" role="status">
-          {ADDRESS_LOOKUP_UNAVAILABLE}
+          {unitedKingdom ? ADDRESS_LOOKUP_UNAVAILABLE : ADDRESS_LOOKUP_UNAVAILABLE_INTL}
         </p>
       ) : null}
       {status === "empty" ? (
         <p className="text-small" role="status">
-          {ADDRESS_LOOKUP_EMPTY}
+          {unitedKingdom ? ADDRESS_LOOKUP_EMPTY : ADDRESS_LOOKUP_EMPTY_INTL}
         </p>
       ) : null}
       {status === "error" ? (
         <p className="text-small" role="status">
-          {ADDRESS_LOOKUP_ERROR}
+          {unitedKingdom ? ADDRESS_LOOKUP_ERROR : ADDRESS_LOOKUP_ERROR_INTL}
         </p>
       ) : null}
       {showList ? (

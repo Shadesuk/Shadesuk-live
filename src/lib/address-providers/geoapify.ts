@@ -7,6 +7,8 @@ import type { AddressLookupProvider, AddressSuggestion, PostalAddress } from "@/
 /**
  * Geoapify autocomplete for supported countries other than the United Kingdom.
  * The API key stays on the server. UK lookup does not use this adapter.
+ * Checkout Server Actions already rate-limit lookup calls. This adapter does
+ * not add a second limiter and does not run in the browser.
  */
 
 export const GEOAPIFY_BASE_URL = "https://api.geoapify.com";

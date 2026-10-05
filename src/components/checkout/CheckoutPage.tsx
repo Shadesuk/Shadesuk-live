@@ -195,8 +195,11 @@ export function CheckoutPage({
   function handleSelect(selected: PostalAddress) {
     setAddress((current) => mergeLookupPostalAddress(current, selected));
     setShowForm(true);
-    setQuery(selected.postcode);
+    setQuery(selected.country === "GB" ? selected.postcode : selected.line1);
     track("address_autocomplete_used");
+    window.requestAnimationFrame(() => {
+      document.getElementById("checkout-line1")?.focus();
+    });
   }
 
   return (

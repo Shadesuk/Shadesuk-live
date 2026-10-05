@@ -27,6 +27,36 @@ export type AddressFormValue = {
   country: string;
 };
 
+type AddressCountryFieldProps = {
+  id: string;
+  value: string;
+  error?: string;
+  disabled?: boolean;
+  onChange: (country: string) => void;
+};
+
+export function AddressCountryField({ id, value, error, disabled = false, onChange }: AddressCountryFieldProps) {
+  return (
+    <FieldSelect
+      id={id}
+      name="country"
+      label={COUNTRY_LABEL}
+      autoComplete="country"
+      value={value || CHECKOUT_COUNTRY_GB}
+      required
+      disabled={disabled}
+      error={error}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {checkoutCountryOptions().map((option) => (
+        <option key={option.code} value={option.code}>
+          {option.name}
+        </option>
+      ))}
+    </FieldSelect>
+  );
+}
+
 type AddressFormProps = {
   idPrefix: string;
   value: AddressFormValue;
@@ -120,37 +150,18 @@ export function AddressForm({
         error={errors?.county}
         onChange={(event) => patch({ county: event.target.value })}
       />
-      <div className={styles.row}>
-        <Field
-          id={`${idPrefix}-postcode`}
-          name="postcode"
-          label={fields.postal}
-          autoComplete="postal-code"
-          autoCapitalize="characters"
-          value={value.postcode}
-          required
-          disabled={disabled}
-          error={errors?.postcode}
-          onChange={(event) => patch({ postcode: event.target.value })}
-        />
-        <FieldSelect
-          id={`${idPrefix}-country`}
-          name="country"
-          label={COUNTRY_LABEL}
-          autoComplete="country"
-          value={country}
-          required
-          disabled={disabled}
-          error={errors?.country}
-          onChange={(event) => patch({ country: event.target.value })}
-        >
-          {checkoutCountryOptions().map((option) => (
-            <option key={option.code} value={option.code}>
-              {option.name}
-            </option>
-          ))}
-        </FieldSelect>
-      </div>
+      <Field
+        id={`${idPrefix}-postcode`}
+        name="postcode"
+        label={fields.postal}
+        autoComplete="postal-code"
+        autoCapitalize={country === CHECKOUT_COUNTRY_GB ? "characters" : "off"}
+        value={value.postcode}
+        required
+        disabled={disabled}
+        error={errors?.postcode}
+        onChange={(event) => patch({ postcode: event.target.value })}
+      />
     </div>
   );
 }

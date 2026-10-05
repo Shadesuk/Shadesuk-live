@@ -7,7 +7,7 @@ import {
   hasCheckoutFieldErrors,
   normalizeCountry,
   normalizeEmailInput,
-  validateCheckoutAddress,
+  validateDeliverableCheckoutAddress,
   validateCheckoutEmail,
 } from "@/lib/checkout-validate";
 import {
@@ -96,7 +96,9 @@ export async function saveCheckoutAddress(input: {
   }
 
   const country = normalizeCountry(input.country);
-  const postcode = formatUkPostcode(input.postcode).slice(0, 12);
+  const postcode = (
+    country === CHECKOUT_COUNTRY_GB ? formatUkPostcode(input.postcode) : input.postcode.trim()
+  ).slice(0, 12);
   const draft: PublicCheckoutDraft = {
     ...current,
     firstName: input.firstName.trim().slice(0, 80),
@@ -109,7 +111,7 @@ export async function saveCheckoutAddress(input: {
     country: country || CHECKOUT_COUNTRY_GB,
     addressEntry: input.addressEntry ?? "manual",
   };
-  const errors = validateCheckoutAddress(draft);
+  const errors = validateDeliverableCheckoutAddress(draft);
   if (hasCheckoutFieldErrors(errors)) {
     draft.addressEntry = "manual";
     return { status: "invalid", cart, draft, quote, errors };

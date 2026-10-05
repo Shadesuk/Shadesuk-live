@@ -31,6 +31,10 @@ export function validateCheckoutEmail(email: string): CheckoutFieldErrors {
   return {};
 }
 
+/**
+ * Account address book and lookup. Seeded markets may be stored.
+ * Checkout orders and payment use validateDeliverableCheckoutAddress.
+ */
 export function validateCheckoutAddress(input: {
   firstName: string;
   lastName: string;
@@ -60,6 +64,22 @@ export function validateCheckoutAddress(input: {
     errors.postcode = POSTCODE_INVALID;
   }
   if (!isSupportedDeliveryCountry(country)) {
+    errors.country = COUNTRY_UNSUPPORTED;
+  }
+  return errors;
+}
+
+/** Charge path stays United Kingdom until a later quote phase. */
+export function validateDeliverableCheckoutAddress(input: {
+  firstName: string;
+  lastName: string;
+  line1: string;
+  city: string;
+  postcode: string;
+  country: string;
+}): CheckoutFieldErrors {
+  const errors = validateCheckoutAddress(input);
+  if (normalizeCountry(input.country) !== CHECKOUT_COUNTRY_GB) {
     errors.country = COUNTRY_UNSUPPORTED;
   }
   return errors;

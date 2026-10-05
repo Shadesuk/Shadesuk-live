@@ -8,6 +8,7 @@ import {
 } from "@/app/(storefront)/checkout/actions";
 import { saveAddressAction } from "@/app/(storefront)/account/actions";
 import {
+  AddressCountryField,
   AddressForm,
   type AddressFormValue,
 } from "@/components/address/AddressForm";
@@ -26,6 +27,7 @@ import {
   SAVED_ADDRESSES_LABEL,
 } from "@/lib/account-copy";
 import { ENTER_ADDRESS_MANUALLY } from "@/lib/checkout-copy";
+import { normalizeCountry } from "@/lib/checkout-validate";
 import { mergeLookupPostalAddress } from "@/lib/address-merge";
 import { routes } from "@/lib/navigation";
 import { CHECKOUT_COUNTRY_GB, type CheckoutFieldErrors } from "@/types/checkout";
@@ -76,7 +78,26 @@ export function AddressEditor({ address }: AddressEditorProps) {
   function applyPostal(next: PostalAddress) {
     setValue((current) => mergeLookupPostalAddress(current, next));
     setShowForm(true);
-    setQuery(next.postcode);
+    setQuery(next.country === "GB" ? next.postcode : next.line1);
+    window.requestAnimationFrame(() => {
+      document.getElementById("account-address-line1")?.focus();
+    });
+  }
+
+  function changeCountry(country: string) {
+    if (normalizeCountry(country) === normalizeCountry(value.country)) {
+      return;
+    }
+    setQuery("");
+    setValue((current) => ({
+      ...current,
+      country,
+      line1: "",
+      line2: "",
+      city: "",
+      county: "",
+      postcode: "",
+    }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -149,6 +170,13 @@ export function AddressEditor({ address }: AddressEditorProps) {
         <option value={ADDRESS_LABEL_WORK}>{ADDRESS_LABEL_WORK}</option>
         <option value={ADDRESS_LABEL_OTHER}>{ADDRESS_LABEL_OTHER}</option>
       </FieldSelect>
+      <AddressCountryField
+        id="account-address-country"
+        value={value.country}
+        error={errors.country}
+        disabled={pending}
+        onChange={changeCountry}
+      />
       <AddressLookup
         query={query}
         country={value.country}
