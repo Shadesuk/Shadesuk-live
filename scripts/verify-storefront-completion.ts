@@ -101,8 +101,12 @@ if (meta.alternates?.canonical == null) {
 const paymentFaq = FAQ_GROUPS.flatMap((group) => group.items).find(
   (item) => item.question === "How do I pay?",
 );
-if (!paymentFaq?.paragraphs.some((paragraph) => paragraph.includes("not live"))) {
-  throw new Error("FAQ payment copy must stay future-tense until payment is wired.");
+if (
+  !paymentFaq?.paragraphs.some((paragraph) => paragraph.includes("PayPal")) ||
+  !paymentFaq.paragraphs.some((paragraph) => paragraph.includes("does not store raw card numbers")) ||
+  !paymentFaq.paragraphs.some((paragraph) => paragraph.includes("server verifies the payment"))
+) {
+  throw new Error("FAQ payment copy must name PayPal, keep card numbers off SHADESUK, and require server verification.");
 }
 
 if (ANALYTICS_EVENTS.includes("page_view") === false || ANALYTICS_EVENTS.includes("purchase") === false) {

@@ -43,7 +43,8 @@
     "verify:payment-webhook": "npm run verify:run -- scripts/verify-payment-webhook.ts",
     "verify:email": "npm run verify:run -- scripts/verify-email.ts",
     "verify:payment-final": "npm run verify:run -- scripts/verify-payment-final.ts",
-    "verify:cancellation": "npm run verify:run -- scripts/verify-cancellation.ts"
+    "verify:cancellation": "npm run verify:run -- scripts/verify-cancellation.ts",
+    "verify:phase8": "npm run verify:run -- scripts/verify-phase8-matrix.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

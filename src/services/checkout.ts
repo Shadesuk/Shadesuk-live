@@ -31,7 +31,6 @@ import {
   CHECKOUT_COUNTRY_GB,
   emptyCheckoutDraft,
   type CheckoutAddressEntry,
-  type CheckoutFieldErrors,
   type CheckoutMutationResult,
   type CheckoutStepId,
   type PublicCheckoutDraft,

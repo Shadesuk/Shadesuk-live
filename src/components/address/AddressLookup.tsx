@@ -60,9 +60,18 @@ export function AddressLookup({
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [status, setStatus] = useState<LookupStatus>("idle");
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [prevCountry, setPrevCountry] = useState(country);
   const requestRef = useRef(0);
   const timerRef = useRef<number | null>(null);
+  const countryRef = useRef(country);
   const unitedKingdom = normalizeCountry(country) === CHECKOUT_COUNTRY_GB;
+
+  if (country !== prevCountry) {
+    setPrevCountry(country);
+    setSuggestions([]);
+    setActiveIndex(-1);
+    setStatus("idle");
+  }
 
   useEffect(() => {
     return () => {
@@ -73,13 +82,15 @@ export function AddressLookup({
   }, []);
 
   useEffect(() => {
+    if (countryRef.current === country) {
+      return;
+    }
+    countryRef.current = country;
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    setSuggestions([]);
-    setActiveIndex(-1);
-    setStatus("idle");
+    requestRef.current += 1;
   }, [country]);
 
   const showList = suggestions.length > 0 && (status === "idle" || status === "selected");
