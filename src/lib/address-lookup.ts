@@ -1,19 +1,20 @@
+import "server-only";
+
+import { createGeoapifyProvider } from "@/lib/address-providers/geoapify";
 import { postcodesIoAddressLookupProvider } from "@/lib/address-providers/postcodes-io";
+import { AddressLookupUnavailableError } from "@/lib/address-lookup-errors";
+import { isSupportedDeliveryCountry, normalizeCountry } from "@/lib/checkout-validate";
+import { CHECKOUT_COUNTRY_GB } from "@/types/checkout";
 import type { AddressLookupProvider, AddressSuggestion, PostalAddress } from "@/types/integrations";
 import type { AddressLookupView, AddressRetrieveView } from "@/types/checkout";
 
+export { AddressLookupUnavailableError };
+
 /**
- * Address lookup is abstracted. Postcodes.io is the default server-side adapter.
- * Swap getAddressLookupProvider() to replace the vendor. Do not call vendors from the browser.
+ * Address lookup stays server-side. GB uses Postcodes.io. Other supported
+ * countries use Geoapify. The browser never receives the Geoapify key.
  */
 export const ADDRESS_LOOKUP_PROVIDER_UNSET = "unset" as const;
-
-export class AddressLookupUnavailableError extends Error {
-  constructor(message = "Address lookup provider is not configured.") {
-    super(message);
-    this.name = "AddressLookupUnavailableError";
-  }
-}
 
 export const unsetAddressLookupProvider: AddressLookupProvider = {
   async search(): Promise<AddressSuggestion[]> {
@@ -24,9 +25,30 @@ export const unsetAddressLookupProvider: AddressLookupProvider = {
   },
 };
 
-/** Default: Postcodes.io. Pass another provider into lookupAddresses/retrieveAddress to swap. */
+/**
+ * GB → Postcodes.io. Other V1 countries → Geoapify. Anything else → null.
+ * A missing Geoapify key still returns a provider; calls fail closed to manual entry.
+ */
+export function getAddressProvider(
+  country: string,
+  env: NodeJS.ProcessEnv = process.env,
+): AddressLookupProvider | null {
+  const code = normalizeCountry(country);
+  if (code === CHECKOUT_COUNTRY_GB) {
+    return postcodesIoAddressLookupProvider;
+  }
+  if (!isSupportedDeliveryCountry(code)) {
+    return null;
+  }
+  return createGeoapifyProvider({
+    apiKey: env.GEOAPIFY_API_KEY,
+    countryCode: code,
+  });
+}
+
+/** Default UK provider. Prefer getAddressProvider(country) at the checkout boundary. */
 export function getAddressLookupProvider(): AddressLookupProvider | null {
-  return postcodesIoAddressLookupProvider;
+  return getAddressProvider(CHECKOUT_COUNTRY_GB);
 }
 
 export function isAddressLookupConfigured(
@@ -49,7 +71,10 @@ export async function lookupAddresses(
   try {
     const suggestions = await provider.search(trimmed);
     return { status: "ok", suggestions };
-  } catch {
+  } catch (error) {
+    if (error instanceof AddressLookupUnavailableError) {
+      return { status: "unavailable" };
+    }
     return { status: "error" };
   }
 }

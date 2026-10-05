@@ -9,12 +9,10 @@ import {
   ADDRESS_LINE_2_PLACEHOLDER,
   CITY_LABEL,
   COUNTRY_LABEL,
-  COUNTY_LABEL,
   FIRST_NAME_LABEL,
   LAST_NAME_LABEL,
-  POSTCODE_LABEL,
-  UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
+import { checkoutCountryOptions, postalFieldCopy } from "@/lib/checkout-validate";
 import { CHECKOUT_COUNTRY_GB, type CheckoutFieldErrors } from "@/types/checkout";
 import styles from "./AddressForm.module.css";
 
@@ -47,6 +45,9 @@ export function AddressForm({
   function patch(partial: Partial<AddressFormValue>) {
     onChange({ ...value, ...partial });
   }
+
+  const country = value.country || CHECKOUT_COUNTRY_GB;
+  const fields = postalFieldCopy(country);
 
   return (
     <div className={styles.form} data-address-form>
@@ -112,7 +113,7 @@ export function AddressForm({
       <Field
         id={`${idPrefix}-county`}
         name="county"
-        label={COUNTY_LABEL}
+        label={fields.region}
         autoComplete="address-level1"
         value={value.county}
         disabled={disabled}
@@ -123,7 +124,7 @@ export function AddressForm({
         <Field
           id={`${idPrefix}-postcode`}
           name="postcode"
-          label={POSTCODE_LABEL}
+          label={fields.postal}
           autoComplete="postal-code"
           autoCapitalize="characters"
           value={value.postcode}
@@ -137,13 +138,17 @@ export function AddressForm({
           name="country"
           label={COUNTRY_LABEL}
           autoComplete="country"
-          value={value.country || CHECKOUT_COUNTRY_GB}
+          value={country}
           required
           disabled={disabled}
           error={errors?.country}
           onChange={(event) => patch({ country: event.target.value })}
         >
-          <option value={CHECKOUT_COUNTRY_GB}>{UNITED_KINGDOM}</option>
+          {checkoutCountryOptions().map((option) => (
+            <option key={option.code} value={option.code}>
+              {option.name}
+            </option>
+          ))}
         </FieldSelect>
       </div>
     </div>

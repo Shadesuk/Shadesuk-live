@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import {
@@ -15,15 +15,22 @@ import {
   FIND_ADDRESS,
   POSTCODE_INVALID,
 } from "@/lib/checkout-copy";
-import { isUkPostcodeLookupQuery } from "@/lib/checkout-validate";
+import { isUkPostcodeLookupQuery, normalizeCountry } from "@/lib/checkout-validate";
+import { CHECKOUT_COUNTRY_GB } from "@/types/checkout";
 import type { AddressSuggestion, PostalAddress } from "@/types/integrations";
 import type { AddressLookupView, AddressRetrieveView } from "@/types/checkout";
 import styles from "./AddressLookup.module.css";
 
 type LookupStatus = "idle" | "loading" | "empty" | "unavailable" | "error" | "invalid" | "selected";
 
+const ADDRESS_AUTOCOMPLETE_LABEL = "Address";
+const ADDRESS_AUTOCOMPLETE_PLACEHOLDER = "Search for an address";
+const ADDRESS_AUTOCOMPLETE_HINT = "Search, or enter the address manually.";
+const AUTOCOMPLETE_DEBOUNCE_MS = 300;
+
 type AddressLookupProps = {
   query: string;
+  country?: string;
   onQueryChange: (query: string) => void;
   onSelect: (address: PostalAddress) => void;
   onManual: () => void;
@@ -34,6 +41,7 @@ type AddressLookupProps = {
 
 export function AddressLookup({
   query,
+  country = CHECKOUT_COUNTRY_GB,
   onQueryChange,
   onSelect,
   onManual,
@@ -47,15 +55,45 @@ export function AddressLookup({
   const [status, setStatus] = useState<LookupStatus>("idle");
   const [activeIndex, setActiveIndex] = useState(-1);
   const requestRef = useRef(0);
+  const timerRef = useRef<number | null>(null);
+  const unitedKingdom = normalizeCountry(country) === CHECKOUT_COUNTRY_GB;
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setSuggestions([]);
+    setActiveIndex(-1);
+    setStatus("idle");
+  }, [country]);
 
   const showList = suggestions.length > 0 && (status === "idle" || status === "selected");
   const activeItem = activeIndex >= 0 ? suggestions[activeIndex] : undefined;
   const activeId = activeItem ? `${listboxId}-${activeItem.id}` : undefined;
   const pending = status === "loading";
 
-  async function runSearch() {
-    const next = query.trim();
-    if (!isUkPostcodeLookupQuery(next)) {
+  function scheduleAutocomplete(next: string) {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+    }
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      void runSearch(next);
+    }, AUTOCOMPLETE_DEBOUNCE_MS);
+  }
+
+  async function runSearch(raw = query) {
+    const next = raw.trim();
+    if (unitedKingdom && !isUkPostcodeLookupQuery(next)) {
       setSuggestions([]);
       setActiveIndex(-1);
       setStatus("invalid");
@@ -170,10 +208,10 @@ export function AddressLookup({
       <div className={styles.find}>
         <Field
           id={inputId}
-          label={ADDRESS_SEARCH_LABEL}
-          placeholder={ADDRESS_SEARCH_PLACEHOLDER}
-          hint={ADDRESS_SEARCH_HINT}
-          autoComplete="postal-code"
+          label={unitedKingdom ? ADDRESS_SEARCH_LABEL : ADDRESS_AUTOCOMPLETE_LABEL}
+          placeholder={unitedKingdom ? ADDRESS_SEARCH_PLACEHOLDER : ADDRESS_AUTOCOMPLETE_PLACEHOLDER}
+          hint={unitedKingdom ? ADDRESS_SEARCH_HINT : ADDRESS_AUTOCOMPLETE_HINT}
+          autoComplete={unitedKingdom ? "postal-code" : "street-address"}
           autoCapitalize="characters"
           spellCheck={false}
           value={query}
@@ -186,9 +224,13 @@ export function AddressLookup({
           aria-controls={showList ? listboxId : undefined}
           aria-activedescendant={activeId}
           onChange={(event) => {
-            onQueryChange(event.target.value);
+            const next = event.target.value;
+            onQueryChange(next);
             if (status === "invalid" || status === "empty" || status === "error" || status === "selected") {
               setStatus("idle");
+            }
+            if (!unitedKingdom && next.trim().length >= 3) {
+              scheduleAutocomplete(next);
             }
           }}
           onKeyDown={handleKeyDown}

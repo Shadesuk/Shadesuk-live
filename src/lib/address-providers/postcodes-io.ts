@@ -1,3 +1,4 @@
+import { structuredAddressToPostal, type StructuredAddress } from "@/lib/address/structured";
 import { formatUkPostcode } from "@/lib/checkout-validate";
 import { CHECKOUT_COUNTRY_GB } from "@/types/checkout";
 import type { AddressLookupProvider, AddressSuggestion, PostalAddress } from "@/types/integrations";
@@ -141,6 +142,14 @@ function toSuggestion(row: Record<string, unknown>): AddressSuggestion | null {
 }
 
 function toPostalAddress(row: Record<string, unknown> | null): PostalAddress | null {
+  const structured = toStructuredAddress(row);
+  if (!structured) {
+    return null;
+  }
+  return structuredAddressToPostal(structured);
+}
+
+function toStructuredAddress(row: Record<string, unknown> | null): StructuredAddress | null {
   if (!row) {
     return null;
   }
@@ -149,17 +158,15 @@ function toPostalAddress(row: Record<string, unknown> | null): PostalAddress | n
     return null;
   }
   const city = asString(row.admin_district) ?? "";
-  const county = asString(row.admin_county) ?? (asString(row.region) !== city ? asString(row.region) : undefined);
-  const address: PostalAddress = {
+  const region = asString(row.admin_county) ?? (asString(row.region) !== city ? asString(row.region) : undefined);
+  return {
     line1: "",
+    line2: "",
     city,
-    postcode: formatUkPostcode(postcode),
-    country: CHECKOUT_COUNTRY_GB,
+    region: region ?? "",
+    postalCode: formatUkPostcode(postcode),
+    countryCode: CHECKOUT_COUNTRY_GB,
   };
-  if (county) {
-    address.county = county;
-  }
-  return address;
 }
 
 function asResultArray(payload: unknown): Record<string, unknown>[] {

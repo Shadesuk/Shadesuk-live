@@ -292,8 +292,8 @@ export function CheckoutPage({
               onSelect={handleSelect}
               onBack={() => void goTo("contact")}
               onSubmit={submitAddress}
-              search={(next) => searchCheckoutAddressAction({ query: next })}
-              retrieve={(id) => retrieveCheckoutAddressAction({ id })}
+              search={(next) => searchCheckoutAddressAction({ query: next, country: address.country })}
+              retrieve={(id) => retrieveCheckoutAddressAction({ id, country: address.country })}
             />
           ) : null}
           {step === "review" ? (

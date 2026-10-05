@@ -151,11 +151,12 @@ export function AddressEditor({ address }: AddressEditorProps) {
       </FieldSelect>
       <AddressLookup
         query={query}
+        country={value.country}
         onQueryChange={setQuery}
         onSelect={applyPostal}
         onManual={() => setShowForm(true)}
-        search={(next) => searchCheckoutAddressAction({ query: next })}
-        retrieve={(id) => retrieveCheckoutAddressAction({ id })}
+        search={(next) => searchCheckoutAddressAction({ query: next, country: value.country })}
+        retrieve={(id) => retrieveCheckoutAddressAction({ id, country: value.country })}
         disabled={pending}
       />
       {showForm ? (

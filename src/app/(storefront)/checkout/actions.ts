@@ -11,7 +11,7 @@ import {
   saveCheckoutContact,
   setCheckoutStep,
 } from "@/services/checkout";
-import { lookupAddresses, retrieveAddress } from "@/lib/address-lookup";
+import { getAddressProvider, lookupAddresses, retrieveAddress } from "@/lib/address-lookup";
 import type {
   AddressLookupView,
   AddressRetrieveView,
@@ -82,6 +82,7 @@ export async function setCheckoutStepAction(input: {
 
 export async function searchCheckoutAddressAction(input: {
   query: string;
+  country?: string;
 }): Promise<AddressLookupView> {
   if (!(await cartActionOriginAllowed()) || hasForbiddenOwnershipKey(input)) {
     return { status: "error" };
@@ -92,11 +93,12 @@ export async function searchCheckoutAddressAction(input: {
   if (!(await addressLookupRateLimitOk())) {
     return { status: "error" };
   }
-  return lookupAddresses(input.query);
+  return lookupAddresses(input.query, getAddressProvider(addressCountry(input.country)));
 }
 
 export async function retrieveCheckoutAddressAction(input: {
   id: string;
+  country?: string;
 }): Promise<AddressRetrieveView> {
   if (!(await cartActionOriginAllowed()) || hasForbiddenOwnershipKey(input)) {
     return { status: "error" };
@@ -107,7 +109,11 @@ export async function retrieveCheckoutAddressAction(input: {
   if (!(await addressLookupRateLimitOk())) {
     return { status: "error" };
   }
-  return retrieveAddress(input.id);
+  return retrieveAddress(input.id, getAddressProvider(addressCountry(input.country)));
+}
+
+function addressCountry(country: string | undefined): string {
+  return typeof country === "string" && country.trim() ? country : "GB";
 }
 
 export async function restartCheckoutDraftAction(): Promise<CheckoutMutationResult> {

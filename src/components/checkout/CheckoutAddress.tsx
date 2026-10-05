@@ -74,6 +74,7 @@ export function CheckoutAddress({
       <h2 className="text-h3">{DELIVERY_HEADING}</h2>
       <AddressLookup
         query={query}
+        country={value.country}
         onQueryChange={onQueryChange}
         onSelect={onSelect}
         onManual={onManual}
