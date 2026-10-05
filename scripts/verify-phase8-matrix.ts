@@ -5,6 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { isGuestCartSessionId } from "../src/contracts/cart/session";
 import { UK_SHIPPING_RATE_MINOR } from "../src/contracts/markets";
 import { captureVerifiedPayment } from "../src/lib/payment/capture-verified";
 import type { PaymentCaptureStore } from "../src/lib/payment/capture-store";
@@ -70,7 +71,9 @@ function providerFor(country: string, currency?: string) {
 const PAYMENT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ORDER_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const VARIANT_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
-const SECRET = "phase8-matrix-secret";
+/** Real guest cookie session ids are 64 hex characters. The HMAC key is separate. */
+const SESSION_ID = "a".repeat(64);
+const COOKIE_SECRET = "phase8-matrix-secret";
 const NOW = 1_700_000_000_000;
 
 function line(unitPriceMinor: number, variantId = VARIANT_ID): PendingPaymentLine {
@@ -374,24 +377,29 @@ void (async () => {
     clientQuote: { totalMinor: 1, currency: "EUR", shippingMinor: 1 },
     now: NOW,
   });
-  const signed = encodeCheckoutDraftCookie(SECRET, draft(ukLock), NOW, SECRET);
+  const signed = encodeCheckoutDraftCookie(SESSION_ID, draft(ukLock), NOW, COOKIE_SECRET);
+  const kept = decodeCheckoutDraftCookie(SESSION_ID, signed, NOW, COOKIE_SECRET);
   const flipped = signed.slice(0, -1) + (signed.endsWith("a") ? "b" : "a");
-  const replayed = decodeCheckoutDraftCookie(SECRET, flipped, NOW, SECRET);
+  const replayed = decodeCheckoutDraftCookie(SESSION_ID, flipped, NOW, COOKIE_SECRET);
   const editedLock = ukLock ? { ...ukLock, chargeTotalMinor: 1 } : null;
-  const editedCookie = encodeCheckoutDraftCookie(SECRET, draft(editedLock), NOW, SECRET);
-  const edited = decodeCheckoutDraftCookie(SECRET, editedCookie, NOW, SECRET);
+  const editedCookie = encodeCheckoutDraftCookie(SESSION_ID, draft(editedLock), NOW, COOKIE_SECRET);
+  const edited = decodeCheckoutDraftCookie(SESSION_ID, editedCookie, NOW, COOKIE_SECRET);
   expect(
     "Audit tamper amount",
-    tamperedQuote.totalMinor === 5365 &&
+    isGuestCartSessionId(SESSION_ID) &&
+      tamperedQuote.totalMinor === 5365 &&
       tamperedQuote.currency === "GBP" &&
       tamperedAttempt.ok === true &&
       tamperedAttempt.ok &&
       tamperedAttempt.attempt.payment.amount_minor === 5365 &&
       tamperedAttempt.attempt.payment.currency === "GBP" &&
+      kept.quoteLock?.chargeTotalMinor === ukLock?.chargeTotalMinor &&
+      kept.quoteLock?.frozenAt === NOW &&
       replayed.quoteLock === null &&
       edited.quoteLock === null &&
+      editedCookie !== signed &&
       quoteLockExpired({ frozenAt: NOW }, NOW + QUOTE_LOCK_TTL_MS),
-    "Client amount, currency, and total are ignored. A broken or edited quote-lock cookie is dropped. A 45-minute-old lock is expired.",
+    "Client amount, currency, and total are ignored. A valid 64-hex session cookie keeps its lock. A flipped signature and an edited lock are dropped. A 45-minute-old lock is expired.",
   );
 
   const reuse = decideIndiaAttemptReuse({
