@@ -32,6 +32,7 @@ import {
 } from "@/lib/checkout-copy";
 import {
   checkoutHasPriceChange,
+  checkoutQuoteFromCart,
   checkoutUnavailableBlocked,
   type CheckoutQuote,
 } from "@/lib/checkout-quote";
@@ -79,6 +80,7 @@ export function CheckoutPage({
   const [cartGone, setCartGone] = useState(false);
   const blocked = checkoutUnavailableBlocked(view);
   const step = draft.step;
+  const summaryQuote = step === "address" ? checkoutQuoteFromCart(view, address.country) : quote;
   usePinPageStart(step, "checkout-heading", true);
   const priceChanged = checkoutHasPriceChange(view);
 
@@ -266,7 +268,7 @@ export function CheckoutPage({
       <div className={styles.layout}>
         <div className={styles.main}>
           <div className={styles.mobileSummary}>
-            <CheckoutSummary cart={view} quote={quote} collapsible />
+            <CheckoutSummary cart={view} quote={summaryQuote} collapsible />
           </div>
           {step === "contact" ? (
             <CheckoutContact
@@ -310,7 +312,7 @@ export function CheckoutPage({
           ) : null}
         </div>
         <div className={styles.desktopSummary}>
-          <CheckoutSummary cart={view} quote={quote} />
+          <CheckoutSummary cart={view} quote={summaryQuote} />
         </div>
       </div>
     </div>

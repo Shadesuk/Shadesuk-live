@@ -9,6 +9,7 @@ import {
   ORDER_SUMMARY_HEADING,
   SUBTOTAL_LABEL,
   TOTAL_LABEL,
+  SHIPPING_UNAVAILABLE,
   UK_STANDARD_DELIVERY,
 } from "@/lib/checkout-copy";
 import styles from "./CheckoutSummary.module.css";
@@ -60,8 +61,10 @@ export function CheckoutSummary({ cart, quote, collapsible = false }: CheckoutSu
           <p className="text-small">{formatGbpMinor(quote.subtotalMinor)}</p>
         </div>
         <div className={styles.row}>
-          <p className="text-small">{UK_STANDARD_DELIVERY}</p>
-          <p className="text-small">{formatGbpMinor(quote.shippingMinor)}</p>
+          <p className="text-small">{quote.shippingStatus === "priced" ? (quote.shippingLabel ?? UK_STANDARD_DELIVERY) : "Shipping"}</p>
+          <p className="text-small">
+            {quote.shippingStatus === "priced" ? formatGbpMinor(quote.shippingMinor) : SHIPPING_UNAVAILABLE}
+          </p>
         </div>
         <div className={styles.total}>
           <p className={`text-micro ${styles.totalLabel}`}>{TOTAL_LABEL}</p>
