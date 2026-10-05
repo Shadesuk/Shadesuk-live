@@ -82,13 +82,14 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
     colourId: colour?.id,
     size: size || undefined,
   });
+  const variantId = variant?.id;
   const galleryImages = useMemo(
     () =>
       selectPdpGalleryImages(product.images, {
         colourId,
-        ...(variant?.id ? { variantId: variant.id } : {}),
+        ...(variantId ? { variantId } : {}),
       }),
-    [product.images, colourId, variant?.id],
+    [product.images, colourId, variantId],
   );
   const colourCount = getColourCount(product);
   const available = isProductAvailable(product) && Boolean(colour?.available);

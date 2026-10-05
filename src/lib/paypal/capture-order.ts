@@ -1,7 +1,6 @@
 import "server-only";
 
 import { STORE_CURRENCY, type StoreCurrency } from "@/contracts/money";
-import { payPalValueToGbpMinor } from "./amount";
 import { paypalFetchJson } from "./client";
 import { parseFetchedOrder, type FetchedPayPalOrder } from "./fetch-order";
 
