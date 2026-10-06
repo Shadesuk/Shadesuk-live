@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 const FOCUSABLE = [
   "a[href]",
@@ -25,6 +25,12 @@ export function useFocusTrap(
   ref: RefObject<HTMLElement | null>,
   onEscape: () => void,
 ) {
+  const onEscapeRef = useRef(onEscape);
+
+  useEffect(() => {
+    onEscapeRef.current = onEscape;
+  }, [onEscape]);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -42,7 +48,7 @@ export function useFocusTrap(
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onEscape();
+        onEscapeRef.current();
         return;
       }
 
@@ -76,5 +82,5 @@ export function useFocusTrap(
       document.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus();
     };
-  }, [open, ref, onEscape]);
+  }, [open, ref]);
 }

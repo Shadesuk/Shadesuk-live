@@ -878,6 +878,39 @@ if (draftCodec.includes("subtotal") || draftCodec.includes("shippingMinor") || d
   throw new Error("Checkout draft persistence must not store payable totals.");
 }
 
+const focusTrap = readFileSync(resolve("src/hooks/useFocusTrap.ts"), "utf8");
+if (!focusTrap.includes("onEscapeRef") || focusTrap.includes("[open, ref, onEscape]")) {
+  throw new Error("Focus trap must keep onEscape in a ref so a new callback does not rebuild the trap.");
+}
+const countrySelector = readFileSync(resolve("src/components/market/CountrySelector.tsx"), "utf8");
+if (!countrySelector.includes("useFocusTrap(open, panelRef")) {
+  throw new Error("Country selector focus must start in the panel, not on the trigger.");
+}
+if (!countrySelector.includes('block: "center"') && !countrySelector.includes('block = openedRef.current ? "nearest" : "center"')) {
+  throw new Error("Opening the country list must centre the selected country.");
+}
+if (!countrySelector.includes('scrollIntoView({ block') || !countrySelector.includes('"nearest"')) {
+  throw new Error("Arrow keys must keep the active country in view.");
+}
+const cookieCss = readFileSync(resolve("src/components/consent/CookieConsent.module.css"), "utf8");
+if (!cookieCss.includes('body[data-country-sheet="open"]')) {
+  throw new Error("The cookie banner must stay behind an open country sheet.");
+}
+const checkoutLayout = readFileSync(resolve("src/app/(storefront)/checkout/layout.tsx"), "utf8");
+const baseCss = readFileSync(resolve("src/styles/base.css"), "utf8");
+const headerSource = readFileSync(resolve("src/components/navigation/SiteHeader.tsx"), "utf8");
+const footerSource = readFileSync(resolve("src/components/navigation/SiteFooter.tsx"), "utf8");
+if (
+  !checkoutLayout.includes("data-checkout") ||
+  !baseCss.includes("body[data-checkout] [data-chrome-country]") ||
+  !headerSource.includes("data-chrome-country") ||
+  !footerSource.includes("data-chrome-country") ||
+  !headerSource.includes("reduced ? null") ||
+  !footerSource.includes("reduced ? null")
+) {
+  throw new Error("Checkout must hide header and footer country selectors even when the bag is empty.");
+}
+
 console.log(
   "Checkout OK: guest shell, signed draft cookie, Postcodes.io server lookup, manual address, £4.65 GBP shipping, server quote, payment stub, session id never public",
 );

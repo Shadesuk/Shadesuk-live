@@ -142,6 +142,7 @@
 
   .sheetHeader {
     display: flex;
+    order: -1;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-12);

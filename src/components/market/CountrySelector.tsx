@@ -25,8 +25,10 @@ export function CountrySelector({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const openedRef = useRef(false);
   const listId = useId();
   const labelId = useId();
   const selected = supportedCountry(value) ?? supportedCountry(CHECKOUT_COUNTRY_GB);
@@ -43,7 +45,7 @@ export function CountrySelector({
     );
   }, [query]);
 
-  useFocusTrap(open, rootRef, () => setOpen(false));
+  useFocusTrap(open, panelRef, () => setOpen(false));
 
   useEffect(() => {
     if (!open) {
@@ -56,7 +58,20 @@ export function CountrySelector({
     if (!open) {
       return;
     }
-    listRef.current?.querySelector<HTMLElement>("[data-active='true']")?.scrollIntoView({ block: "nearest" });
+    document.body.setAttribute("data-country-sheet", "open");
+    return () => {
+      document.body.removeAttribute("data-country-sheet");
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      openedRef.current = false;
+      return;
+    }
+    const block = openedRef.current ? "nearest" : "center";
+    openedRef.current = true;
+    listRef.current?.querySelector<HTMLElement>("[data-active='true']")?.scrollIntoView({ block });
   }, [open, active, countries]);
 
   useEffect(() => {
@@ -134,13 +149,7 @@ export function CountrySelector({
         </svg>
       </button>
       {open ? (
-        <div className={styles.panel} onKeyDown={onKey}>
-          <div className={styles.sheetHeader}>
-            <h2 className={`text-micro ${styles.sheetTitle}`}>Country</h2>
-            <button type="button" className={styles.close} onClick={() => setOpen(false)}>
-              Close
-            </button>
-          </div>
+        <div className={styles.panel} ref={panelRef} onKeyDown={onKey}>
           <input
             ref={searchRef}
             className={styles.search}
@@ -158,6 +167,12 @@ export function CountrySelector({
               setActive(0);
             }}
           />
+          <div className={styles.sheetHeader}>
+            <h2 className={`text-micro ${styles.sheetTitle}`}>Country</h2>
+            <button type="button" className={styles.close} onClick={() => setOpen(false)}>
+              Close
+            </button>
+          </div>
           <ul id={listId} ref={listRef} className={styles.list} role="listbox" aria-label={label}>
             {countries.map((country, index) => {
               const isSelected = country.code === selected?.code;

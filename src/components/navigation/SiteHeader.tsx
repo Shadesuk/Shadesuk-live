@@ -141,7 +141,11 @@ export function SiteHeader({
         )}
 
         <div className={styles.utils}>
-          {reduced ? null : <CountrySelector value={country} onChange={setCountry} />}
+          {reduced ? null : (
+            <span data-chrome-country>
+              <CountrySelector value={country} onChange={setCountry} />
+            </span>
+          )}
           {reduced ? null : (
             <UtilityButton
               onClick={() => setSearchOpen(true)}
