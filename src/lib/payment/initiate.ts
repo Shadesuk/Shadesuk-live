@@ -34,6 +34,7 @@ export type CommitPendingPaymentResult =
   | { status: "invalid"; errors: CheckoutFieldErrors }
   | { status: "empty" }
   | { status: "expired" }
+  | { status: "stale" }
   | { status: "blocked" }
   | { status: "provider_failed"; error: string }
   | { status: "error" };

@@ -125,7 +125,7 @@ const dropped = buildPendingPaymentAttempt({
   draft: draftWith(gb),
   lines: [line(1000)],
 });
-if (dropped.ok || dropped.reason !== "blocked") {
+if (dropped.ok || dropped.reason !== "stale") {
   throw new Error("A lower live total must not be charged at the higher frozen amount.");
 }
 
@@ -133,7 +133,7 @@ const resized = buildPendingPaymentAttempt({
   draft: draftWith(gb),
   lines: [line(4900, 2)],
 });
-if (resized.ok || resized.reason !== "blocked") {
+if (resized.ok || resized.reason !== "stale") {
   throw new Error("A quantity change must invalidate the quote lock.");
 }
 
@@ -175,7 +175,7 @@ const europeOnGb = buildPendingPaymentAttempt({
   draft: draftWith(europe, "GB"),
   lines: [line(100)],
 });
-if (europeOnGb.ok || europeOnGb.reason !== "blocked") {
+if (europeOnGb.ok || europeOnGb.reason !== "stale") {
   throw new Error("A lock for another country must not be charged.");
 }
 
@@ -200,7 +200,7 @@ const razorpayOnGb = buildPendingPaymentAttempt({
   draft: draftWith({ ...gb, paymentProvider: "razorpay" }),
   lines: [line(4900)],
 });
-if (razorpayOnGb.ok || razorpayOnGb.reason !== "blocked") {
+if (razorpayOnGb.ok || razorpayOnGb.reason !== "stale") {
   throw new Error("A Razorpay mapping must not start a PayPal attempt.");
 }
 
@@ -241,7 +241,7 @@ const expiredAttempt = buildPendingPaymentAttempt({
   lines: [line(4900)],
   now: frozenAt + QUOTE_LOCK_TTL_MS,
 });
-if (expiredAttempt.ok || expiredAttempt.reason !== "blocked") {
+if (expiredAttempt.ok || expiredAttempt.reason !== "expired") {
   throw new Error("An expired lock must not be charged.");
 }
 const expiredRead = inspectCheckoutQuoteLock(timed, frozenAt + QUOTE_LOCK_TTL_MS);

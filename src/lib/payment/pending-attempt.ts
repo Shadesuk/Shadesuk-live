@@ -111,7 +111,18 @@ export type PendingPaymentAttempt = {
 export type BuildPendingPaymentAttemptResult =
   | { ok: true; attempt: PendingPaymentAttempt }
   | { ok: false; reason: "invalid"; errors: CheckoutFieldErrors }
-  | { ok: false; reason: "empty" | "expired" | "blocked" };
+  | { ok: false; reason: "empty" | "expired" | "blocked" | "stale" };
+
+function refusePendingAttempt(
+  draft: PublicCheckoutDraft,
+  reason: "empty" | "expired" | "blocked" | "stale",
+  why: string,
+): { ok: false; reason: "empty" | "expired" | "blocked" | "stale" } {
+  if (normalizeCountry(draft.country) === "GB") {
+    console.error("GB PayPal start was refused.", { reason, why });
+  }
+  return { ok: false, reason };
+}
 
 export function quotePendingPaymentLines(
   lines: readonly PendingPaymentLine[],
@@ -145,10 +156,10 @@ export function buildPendingPaymentAttempt(input: {
   now?: number;
 }): BuildPendingPaymentAttemptResult {
   if (input.draft.expired) {
-    return { ok: false, reason: "expired" };
+    return refusePendingAttempt(input.draft, "expired", "checkout_expired");
   }
   if (input.lines.length === 0) {
-    return { ok: false, reason: "empty" };
+    return refusePendingAttempt(input.draft, "empty", "empty_bag");
   }
 
   const email = normalizeEmailInput(input.draft.email);
@@ -164,6 +175,9 @@ export function buildPendingPaymentAttempt(input: {
     }),
   };
   if (hasCheckoutFieldErrors(errors)) {
+    if (normalizeCountry(input.draft.country) === "GB") {
+      console.error("GB PayPal start was refused.", { reason: "invalid", why: "invalid_details" });
+    }
     return { ok: false, reason: "invalid", errors };
   }
 
@@ -175,28 +189,28 @@ export function buildPendingPaymentAttempt(input: {
       line.unitPriceMinor < 0 ||
       line.lineTotalMinor !== line.unitPriceMinor * line.quantity
     ) {
-      return { ok: false, reason: "blocked" };
+      return refusePendingAttempt(input.draft, "blocked", "line_not_chargeable");
     }
   }
 
   const country = normalizeCountry(input.draft.country);
   const now = input.now ?? Date.now();
   if (input.draft.lockExpired || (input.draft.quoteLock != null && quoteLockExpired(input.draft.quoteLock, now))) {
-    return { ok: false, reason: "blocked" };
+    return refusePendingAttempt(input.draft, "expired", "quote_lock_expired");
   }
   const held = quoteLockForCountry(input.draft.quoteLock, country);
   let lines = input.lines;
   let quote: CheckoutQuote;
   if (input.draft.quoteLock) {
     if (!held || held.paymentProvider !== "paypal" || !lockCoversLines(held, linesForLock(input.lines))) {
-      return { ok: false, reason: "blocked" };
+      return refusePendingAttempt(input.draft, "stale", "quote_lock_mismatch");
     }
     const resolved = resolveShippingOptions(country);
     if (resolved.status === "priced") {
       const liveSubtotal = input.lines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
       const liveShipping = resolved.options[0]?.amountMinor ?? 0;
       if (liveTotalUndercutsLock(held, liveSubtotal + liveShipping)) {
-        return { ok: false, reason: "blocked" };
+        return refusePendingAttempt(input.draft, "stale", "quote_lock_mismatch");
       }
     }
     lines = input.lines.map((line) => {
@@ -212,23 +226,23 @@ export function buildPendingPaymentAttempt(input: {
   } else {
     quote = quotePendingPaymentLines(lines, input.clientQuote, country);
     if (resolveShippingOptions(country).status !== "priced") {
-      return { ok: false, reason: "blocked" };
+      return refusePendingAttempt(input.draft, "blocked", "shipping_not_priced");
     }
   }
   if (quote.currency !== STORE_CURRENCY || !quoteIsChargeable(quote)) {
-    return { ok: false, reason: "blocked" };
+    return refusePendingAttempt(input.draft, "blocked", "quote_not_chargeable");
   }
   const chargedSubtotal = lines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
   if (chargedSubtotal !== quote.subtotalMinor) {
-    return { ok: false, reason: "blocked" };
+    return refusePendingAttempt(input.draft, "blocked", "subtotal_mismatch");
   }
 
   const route = resolvePaymentRoute(country);
   if (!route || route.provider !== "paypal" || !isPayPalChargeCurrency(route.paymentCurrency)) {
-    return { ok: false, reason: "blocked" };
+    return refusePendingAttempt(input.draft, "blocked", "route_not_paypal");
   }
   if (route.paymentCurrency !== "GBP" && (!held || held.chargeCurrency !== route.paymentCurrency || !held.fxRateId)) {
-    return { ok: false, reason: "blocked" };
+    return refusePendingAttempt(input.draft, held ? "stale" : "blocked", held ? "quote_lock_mismatch" : "charge_not_locked");
   }
   const chargeAmountMinor = held && route.paymentCurrency !== "GBP" ? held.chargeTotalMinor : quote.totalMinor;
 

@@ -39,6 +39,7 @@ import {
   UK_STANDARD_DELIVERY,
 } from "@/lib/checkout-copy";
 import { useMarket } from "@/components/market/MarketProvider";
+import { QUOTE_LOCK_TTL_MS } from "@/lib/checkout-quote-lock";
 import { chargeDisclosure, presentCheckoutAmount } from "@/lib/market/prices";
 import { isPayPalChargeCurrency, resolvePaymentRoute } from "@/lib/payment/payment-route";
 import { mountPayPalCheckout } from "@/lib/paypal/open-buttons";
@@ -124,6 +125,7 @@ export function CheckoutReview({
         })
       : null;
   const indiaReady = india && chargeReady && frozenCharge != null && quote.shippingStatus === "priced";
+  const paypalFrozenAt = lineLock?.frozenAt ?? draft.quoteLock?.frozenAt ?? null;
   const addressLines = [
     `${draft.firstName} ${draft.lastName}`.trim(),
     draft.line1,
@@ -132,6 +134,19 @@ export function CheckoutReview({
     draft.postcode,
     supportedCountry(draft.country)?.name ?? draft.country,
   ].filter(Boolean);
+
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      if (paypalLockClockExpired(paypalFrozenAt)) {
+        setOfferTotalRefresh(true);
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [paypalFrozenAt]);
 
   useEffect(() => {
     const slot = paypalSlotRef.current;
@@ -159,22 +174,27 @@ export function CheckoutReview({
         mode: config.mode,
         currencyCode: paypalCurrency ?? "GBP",
         createOrder: async () => {
+          if (paypalLockClockExpired(paypalFrozenAt)) {
+            setOfferTotalRefresh(true);
+            setPaymentError("");
+            setPaymentUi("idle");
+            setPaymentBusy(false);
+            return null;
+          }
           setPaymentBusy(true);
           setPaymentError("");
           setPaymentUi("starting");
           const started = await initiateCheckoutPaymentAction();
           if (started.status !== "ok") {
-            if (paypalQuoteMoved(started.status)) {
-              setOfferTotalRefresh(true);
-              setPaymentError("");
-              setPaymentUi("idle");
+            if (started.status === "unavailable") {
+              setPaymentError(PAYMENT_UNAVAILABLE);
+              setPaymentUi("error");
               setPaymentBusy(false);
               return null;
             }
-            setPaymentError(
-              started.status === "unavailable" ? PAYMENT_UNAVAILABLE : PAYMENT_START_ERROR,
-            );
-            setPaymentUi("error");
+            setOfferTotalRefresh(true);
+            setPaymentError("");
+            setPaymentUi("idle");
             setPaymentBusy(false);
             return null;
           }
@@ -235,7 +255,7 @@ export function CheckoutReview({
       cancelled = true;
       unmount();
     };
-  }, [offerTotalRefresh, payable, paypalCurrency, pending, router]);
+  }, [offerTotalRefresh, payable, paypalCurrency, paypalFrozenAt, pending, router]);
 
   return (
     <div className={styles.review} data-checkout-review>
@@ -399,8 +419,8 @@ export function CheckoutReview({
   );
 }
 
-function paypalQuoteMoved(status: string): boolean {
-  return status === "expired" || status === "stale";
+function paypalLockClockExpired(frozenAt: number | null, now = Date.now()): boolean {
+  return frozenAt != null && now >= frozenAt + QUOTE_LOCK_TTL_MS;
 }
 
 function QuoteHold({
