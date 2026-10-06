@@ -67,7 +67,7 @@ export const UK_STANDARD_DELIVERY = "UK Standard Delivery";
 export const CHECKOUT_PRICE_CHANGED =
   "A price in your bag has changed. The total below uses the current price.";
 export const CHECKOUT_PRICE_CONFIRM =
-  "A price in your bag has changed. Return to delivery to confirm this total.";
+  "A price in your bag has changed. Update your total to continue.";
 export const CHECKOUT_QUOTE_STALE = "Return to delivery to confirm this total.";
 export const CHECKOUT_TOTAL_UPDATED =
   "Prices have moved since you started. Update your total to continue.";

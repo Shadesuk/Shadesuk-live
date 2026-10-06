@@ -8,6 +8,8 @@ import { resolve } from "node:path";
 import { isGuestCartSessionId } from "../src/contracts/cart/session";
 import { UK_SHIPPING_RATE_MINOR } from "../src/contracts/markets";
 import { captureVerifiedPayment } from "../src/lib/payment/capture-verified";
+import { closeCheckoutPaymentAttempt } from "../src/services/pending-payment";
+import type { PendingPaymentStore } from "../src/lib/payment/pending-store";
 import type { PaymentCaptureStore } from "../src/lib/payment/capture-store";
 import type { PaymentRow } from "../src/contracts/payment/schema";
 import type { OrderItemRow, OrderRow } from "../src/contracts/order/schema";
@@ -624,6 +626,7 @@ void (async () => {
       "Card payment for India isn't available right now. Your bag is saved. Please try again shortly.",
     ) &&
       indiaCopy.includes("Prices have moved since you started. Update your total to continue.") &&
+      indiaCopy.includes("A price in your bag has changed. Update your total to continue.") &&
       !checkoutUi.includes("CHECKOUT_LOCK_EXPIRED") &&
       indiaNotice.includes("INDIA_CARD_PAYMENT_UNAVAILABLE") &&
       indiaNotice.includes('role="status"') &&
@@ -657,6 +660,32 @@ void (async () => {
       statusForStart.includes("INDIA_CARD_PAYMENT_UNAVAILABLE") &&
       statusForStart.indexOf('status === "unavailable"') < statusForStart.indexOf("return CHECKOUT_QUOTE_STALE"),
     "India card payment uses the server config check. Unavailable is a quiet notice on the bag, Delivery, and Review. A moved total still offers Update total. The test-key guard stays.",
+  );
+
+  const payableExpr = review.slice(review.indexOf("const payable ="), review.indexOf("const disclosure"));
+  const paypalStart = review.slice(
+    review.indexOf('if (started.status !== "ok")'),
+    review.indexOf("paymentIdRef.current = started.paymentId"),
+  );
+  expect(
+    "GB expired lock recovery",
+    payableExpr.includes("!draft.lockExpired") &&
+      payableExpr.includes('paypalCurrency === "GBP"') &&
+      review.includes("function paypalQuoteMoved") &&
+      paypalStart.includes("paypalQuoteMoved(started.status)") &&
+      paypalStart.includes("setOfferTotalRefresh(true)") &&
+      paypalStart.indexOf("setOfferTotalRefresh(true)") < paypalStart.indexOf("PAYMENT_START_ERROR") &&
+      review.includes("<QuoteHold") &&
+      review.includes("CHECKOUT_TOTAL_UPDATED") &&
+      review.includes("UPDATE_TOTAL") &&
+      review.includes("data-checkout-review") &&
+      review.includes("if (!slot || pending || !payable)") &&
+      review.includes("{payable ? (") &&
+      review.slice(review.indexOf("{payable ? (")).includes("offerTotalRefresh") &&
+      review.slice(review.indexOf("{payable ? (")).indexOf("offerTotalRefresh") <
+        review.slice(review.indexOf("{payable ? (")).indexOf("data-paypal-button") &&
+      review.includes("data-paypal-button"),
+    "An expired GB lock is not a live PayPal button. Review keeps Update total, including when PayPal start returns expired or stale.",
   );
 
   const grants = read("supabase/migrations/20261005210000_customer_role_checkout_grants.sql");
@@ -891,6 +920,10 @@ void (async () => {
     "Update total guardrail",
     summarySource.includes("presentCheckoutPartsTotal") &&
       !summarySource.includes("money(quote.totalMinor") &&
+      refreshFn.includes("closeCheckoutPaymentAttempt") &&
+      refreshFn.indexOf("closeCheckoutPaymentAttempt") < refreshFn.indexOf("freezeSavedQuote") &&
+      refreshFn.includes('"cancelled"') &&
+      refreshFn.includes("Checkout total refreshed.") &&
       refreshFn.includes("freezeSavedQuote") &&
       refreshFn.includes("quoteLock: frozen.lock") &&
       refreshFn.includes("lockExpired: false") &&
@@ -910,6 +943,15 @@ void (async () => {
       lookupUsesAutocomplete("AU") &&
       !lookupUsesAutocomplete("GB"),
     "Update total freezes a new lock and rejects a browser amount. Delivery keeps a filled address. France autocompletes.",
+  );
+
+  const refreshedCapture = await captureAfterRefreshCancel();
+  expect(
+    "Refresh cancels open attempt",
+    refreshedCapture.closed &&
+      refreshedCapture.outcome === "rejected" &&
+      refreshedCapture.reason === "payment_cancelled",
+    "Refreshing the total cancels this browser's open PayPal attempt. Capturing that old attempt is rejected.",
   );
 
   printRows();
@@ -987,6 +1029,55 @@ function printRows() {
   for (const row of rows) {
     console.log(`${row.result.padEnd(7)} ${row.id.padEnd(width)}  ${row.detail}`);
   }
+}
+
+async function captureAfterRefreshCancel(): Promise<{
+  closed: boolean;
+  outcome: string;
+  reason?: string;
+}> {
+  const memory = memoryCapture();
+  const pendingStore: PendingPaymentStore = {
+    async insertAttempt() {
+      throw new Error("Refresh must not insert a payment.");
+    },
+    async attachProviderOrderId() {
+      throw new Error("Refresh must not attach a provider order.");
+    },
+    async markInitiationFailed() {
+      throw new Error("Refresh must not fail initiation.");
+    },
+    async loadOpenAttempt() {
+      return null;
+    },
+    async closeOpenAttempt(paymentId, status, reason) {
+      if (paymentId !== memory.state.payment.id) {
+        return;
+      }
+      memory.state.payment = {
+        ...memory.state.payment,
+        status,
+        failure_reason: reason,
+      };
+      memory.state.order = { ...memory.state.order, payment_status: status };
+    },
+  };
+  const closed = await closeCheckoutPaymentAttempt(
+    PAYMENT_ID,
+    "cancelled",
+    "Checkout total refreshed.",
+    { store: pendingStore, boundPaymentId: PAYMENT_ID },
+  );
+  const captured = await captureVerifiedPayment(verifiedInput(), {
+    store: memory.store,
+    resolveCheckoutSessionId: async () => null,
+    onVerifiedPaymentCaptured: async () => undefined,
+  });
+  return {
+    closed,
+    outcome: captured.outcome,
+    reason: captured.outcome === "rejected" ? captured.reason : undefined,
+  };
 }
 
 async function captureOnce(input: {

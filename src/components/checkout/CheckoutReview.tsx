@@ -94,6 +94,13 @@ export function CheckoutReview({
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string>("");
   const [paypalReady, setPaypalReady] = useState(false);
+  const [offerTotalRefresh, setOfferTotalRefresh] = useState(false);
+  const refreshLock = `${draft.lockExpired ? "expired" : "live"}:${lineLock?.frozenAt ?? ""}`;
+  const [seenRefreshLock, setSeenRefreshLock] = useState(refreshLock);
+  if (seenRefreshLock !== refreshLock) {
+    setSeenRefreshLock(refreshLock);
+    setOfferTotalRefresh(false);
+  }
   const india = paymentRail === "india";
   const paypalCurrency =
     route?.provider === "paypal" && isPayPalChargeCurrency(route.paymentCurrency)
@@ -103,6 +110,7 @@ export function CheckoutReview({
     paymentRail !== "india" &&
     paypalCurrency != null &&
     chargeReady &&
+    !draft.lockExpired &&
     quote.shippingStatus === "priced" &&
     (paypalCurrency === "GBP" ||
       Boolean(lineLock && lineLock.chargeCurrency === paypalCurrency && lineLock.fxRateId));
@@ -130,6 +138,9 @@ export function CheckoutReview({
     if (!slot || pending || !payable) {
       return;
     }
+    if (offerTotalRefresh) {
+      return;
+    }
     let cancelled = false;
     let unmount: () => void = () => undefined;
     void (async () => {
@@ -153,6 +164,13 @@ export function CheckoutReview({
           setPaymentUi("starting");
           const started = await initiateCheckoutPaymentAction();
           if (started.status !== "ok") {
+            if (paypalQuoteMoved(started.status)) {
+              setOfferTotalRefresh(true);
+              setPaymentError("");
+              setPaymentUi("idle");
+              setPaymentBusy(false);
+              return null;
+            }
             setPaymentError(
               started.status === "unavailable" ? PAYMENT_UNAVAILABLE : PAYMENT_START_ERROR,
             );
@@ -217,7 +235,7 @@ export function CheckoutReview({
       cancelled = true;
       unmount();
     };
-  }, [payable, paypalCurrency, pending, router]);
+  }, [offerTotalRefresh, payable, paypalCurrency, pending, router]);
 
   return (
     <div className={styles.review} data-checkout-review>
@@ -338,25 +356,34 @@ export function CheckoutReview({
           />
         )}
         {payable ? (
-          <>
-            {disclosure ? <p className="text-small">{disclosure}</p> : null}
-            <div
-              ref={paypalSlotRef}
-              className={styles.paypalSlot}
-              data-paypal-button
-              data-paypal-ready={paypalReady ? "true" : "false"}
-              aria-busy={paymentBusy}
+          offerTotalRefresh ? (
+            <QuoteHold
+              message={CHECKOUT_TOTAL_UPDATED}
+              canRefresh
+              pending={pending}
+              onUpdateTotal={onUpdateTotal}
             />
-            <p id="checkout-payment-next" className="text-small">
-              {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
-            </p>
-            {paymentUi === "cancelled" ? (
-              <p className="text-small" role="status">
-                {PAYMENT_CANCELLED}
+          ) : (
+            <>
+              {disclosure ? <p className="text-small">{disclosure}</p> : null}
+              <div
+                ref={paypalSlotRef}
+                className={styles.paypalSlot}
+                data-paypal-button
+                data-paypal-ready={paypalReady ? "true" : "false"}
+                aria-busy={paymentBusy}
+              />
+              <p id="checkout-payment-next" className="text-small">
+                {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
               </p>
-            ) : null}
-            {paymentUi === "error" && paymentError ? <InlineError>{paymentError}</InlineError> : null}
-          </>
+              {paymentUi === "cancelled" ? (
+                <p className="text-small" role="status">
+                  {PAYMENT_CANCELLED}
+                </p>
+              ) : null}
+              {paymentUi === "error" && paymentError ? <InlineError>{paymentError}</InlineError> : null}
+            </>
+          )
         ) : null}
       </section>
 
@@ -370,6 +397,10 @@ export function CheckoutReview({
       </div>
     </div>
   );
+}
+
+function paypalQuoteMoved(status: string): boolean {
+  return status === "expired" || status === "stale";
 }
 
 function QuoteHold({
