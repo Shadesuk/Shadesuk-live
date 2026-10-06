@@ -87,10 +87,16 @@ export function useFocusTrap(
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       const target = previouslyFocused;
+      const overlay = root;
       // The page can still be inert in this cleanup. Focus after the overlay
-      // has released it, and cancel that restore if the dialog opens again.
+      // has released it, unless the shopper has already moved focus elsewhere.
       restoreFrame.current = requestAnimationFrame(() => {
         restoreFrame.current = requestAnimationFrame(() => {
+          const active = document.activeElement;
+          const stillInOverlay = active instanceof HTMLElement && overlay.contains(active);
+          if (active !== document.body && !stillInOverlay) {
+            return;
+          }
           if (target?.isConnected) {
             target.focus();
           }

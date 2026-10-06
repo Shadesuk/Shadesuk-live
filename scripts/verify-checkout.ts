@@ -882,8 +882,8 @@ const focusTrap = readFileSync(resolve("src/hooks/useFocusTrap.ts"), "utf8");
 if (!focusTrap.includes("onEscapeRef") || focusTrap.includes("[open, ref, onEscape]")) {
   throw new Error("Focus trap must keep onEscape in a ref so a new callback does not rebuild the trap.");
 }
-if (!focusTrap.includes("requestAnimationFrame")) {
-  throw new Error("Focus must return after the overlay closes, not while the page is still inert.");
+if (!focusTrap.includes("requestAnimationFrame") || !focusTrap.includes("document.body")) {
+  throw new Error("Focus must return after the overlay closes, and only if focus has not moved elsewhere.");
 }
 const countrySelector = readFileSync(resolve("src/components/market/CountrySelector.tsx"), "utf8");
 if (!countrySelector.includes("useFocusTrap(open, panelRef")) {
@@ -917,7 +917,8 @@ const baseCss = readFileSync(resolve("src/styles/base.css"), "utf8");
 const headerSource = readFileSync(resolve("src/components/navigation/SiteHeader.tsx"), "utf8");
 const footerSource = readFileSync(resolve("src/components/navigation/SiteFooter.tsx"), "utf8");
 if (
-  !chromeSource.includes("window.location.pathname") ||
+  chromeSource.includes("window.location") ||
+  !chromeSource.includes("usePathname()") ||
   !chromeSource.includes("data-checkout={checkout ?") ||
   chromeSource.includes("useLayoutEffect") ||
   !baseCss.includes("[data-checkout] [data-chrome-country]") ||
@@ -926,7 +927,7 @@ if (
   !headerSource.includes("reduced ? null") ||
   !footerSource.includes("reduced ? null")
 ) {
-  throw new Error("Checkout must hide header and footer country selectors from the first paint, even when the bag is empty.");
+  throw new Error("Checkout chrome must follow usePathname() so selectors hide on checkout and return when the rendered route leaves it.");
 }
 
 console.log(

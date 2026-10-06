@@ -74,14 +74,7 @@ function isCheckoutPath(pathname: string | null | undefined): boolean {
 }
 
 function useCheckoutRoute(): boolean {
-  const pathname = usePathname();
-  if (isCheckoutPath(pathname)) {
-    return true;
-  }
-  // The router pathname can leave checkout just after hydration and put the
-  // header selectors back. The address bar is already checkout in that paint.
-  if (typeof window === "undefined") {
-    return false;
-  }
-  return isCheckoutPath(window.location.pathname);
+  // usePathname() is the rendered App Router URL. It updates when Next commits
+  // a route, including a logo click to home, before the address bar catches up.
+  return isCheckoutPath(usePathname());
 }
