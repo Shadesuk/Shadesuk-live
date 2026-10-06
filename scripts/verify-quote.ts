@@ -330,8 +330,11 @@ if (!attemptSource.includes("quoteLockExpired") || !attemptSource.includes("live
   throw new Error("Payment must reject an expired lock and a lower live total.");
 }
 const page = read("src/components/checkout/CheckoutPage.tsx");
-if (!page.includes("CHECKOUT_PRICE_CHANGED") || !page.includes("liveCheaper") || !page.includes("CHECKOUT_LOCK_EXPIRED")) {
-  throw new Error("Review must show a lower live price and the expired-lock status.");
+if (!page.includes("CHECKOUT_PRICE_CHANGED") || !page.includes("liveCheaper")) {
+  throw new Error("Review must show a lower live price.");
+}
+if (page.includes("CHECKOUT_LOCK_EXPIRED")) {
+  throw new Error("An expired lock uses Review's Update total, not a second checkout banner.");
 }
 if (!page.includes("CHECKOUT_PRICE_CONFIRM") || !page.includes("hideQuoteStale={liveCheaper}")) {
   throw new Error("A lower live price must use one status line, not the stale quote copy as well.");

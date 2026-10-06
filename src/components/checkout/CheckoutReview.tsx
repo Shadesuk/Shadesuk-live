@@ -315,6 +315,7 @@ export function CheckoutReview({
             <>
               {disclosure ? <p className="text-small">{disclosure}</p> : null}
               <IndiaPayment
+                key={lineLock?.frozenAt}
                 amountMinor={frozenCharge.totalMinor}
                 disabled={pending}
                 onUpdateTotal={onUpdateTotal}

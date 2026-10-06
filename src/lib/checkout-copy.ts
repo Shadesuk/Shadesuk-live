@@ -69,7 +69,8 @@ export const CHECKOUT_PRICE_CHANGED =
 export const CHECKOUT_PRICE_CONFIRM =
   "A price in your bag has changed. Return to delivery to confirm this total.";
 export const CHECKOUT_QUOTE_STALE = "Return to delivery to confirm this total.";
-export const CHECKOUT_TOTAL_UPDATED = "Your total has been updated.";
+export const CHECKOUT_TOTAL_UPDATED =
+  "Prices have moved since you started. Update your total to continue.";
 export const UPDATE_TOTAL = "Update total";
 export const INDIA_CARD_PAYMENT_UNAVAILABLE =
   "Card payment for India isn't available right now. Your bag is saved. Please try again shortly.";

@@ -28,7 +28,6 @@ import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/car
 import {
   CHECKOUT_CART_UNAVAILABLE,
   CHECKOUT_ITEM_UNAVAILABLE,
-  CHECKOUT_LOCK_EXPIRED,
   CHECKOUT_PRICE_CHANGED,
   CHECKOUT_PRICE_CONFIRM,
   CHECKOUT_REQUEST_ERROR,
@@ -303,11 +302,6 @@ export function CheckoutPage({
           <ButtonLink href={routes.cart} variant="tertiary">
             Return to bag
           </ButtonLink>
-        </p>
-      ) : null}
-      {draft.lockExpired ? (
-        <p className="text-small" role="status">
-          {CHECKOUT_LOCK_EXPIRED}
         </p>
       ) : null}
       {liveCheaper ? (

@@ -623,7 +623,8 @@ void (async () => {
     indiaCopy.includes(
       "Card payment for India isn't available right now. Your bag is saved. Please try again shortly.",
     ) &&
-      indiaCopy.includes("Your total has been updated.") &&
+      indiaCopy.includes("Prices have moved since you started. Update your total to continue.") &&
+      !checkoutUi.includes("CHECKOUT_LOCK_EXPIRED") &&
       indiaNotice.includes("INDIA_CARD_PAYMENT_UNAVAILABLE") &&
       indiaNotice.includes('role="status"') &&
       !indiaNotice.includes("InlineError") &&
