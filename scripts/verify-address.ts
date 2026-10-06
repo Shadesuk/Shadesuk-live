@@ -3,7 +3,7 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { V1_COUNTRIES } from "../src/contracts/markets";
+import { SUPPORTED_COUNTRIES } from "../src/contracts/countries";
 import { structuredAddressToPostal } from "../src/lib/address/structured";
 import { getAddressProvider, lookupAddresses, retrieveAddress } from "../src/lib/address-lookup";
 import { createGeoapifyProvider, GEOAPIFY_BASE_URL } from "../src/lib/address-providers/geoapify";
@@ -50,8 +50,11 @@ const gbStreet = await lookupAddresses("221B Baker Street", getAddressProvider("
 if (gbStreet.status !== "ok" || gbStreet.suggestions.length !== 0) {
   throw new Error("UK lookup must still refuse street text before Postcodes.io.");
 }
-if (getAddressProvider("JP", { ...emptyEnv, GEOAPIFY_API_KEY: "test" }) !== null) {
-  throw new Error("A country outside the seeded markets must not resolve a provider.");
+if (getAddressProvider("JP", { ...emptyEnv, GEOAPIFY_API_KEY: "test" }) === null) {
+  throw new Error("Japan must resolve the Geoapify provider.");
+}
+if (getAddressProvider("ZZ", { ...emptyEnv, GEOAPIFY_API_KEY: "test" }) !== null) {
+  throw new Error("A country outside the supported list must not resolve a provider.");
 }
 
 const missingKey = await lookupAddresses("Berlin", getAddressProvider("DE", emptyEnv));
@@ -122,8 +125,12 @@ if (requested.some((url) => url.includes("bad"))) {
 }
 
 const options = checkoutCountryOptions();
-if (options.length !== V1_COUNTRIES.length || options[0]?.code !== "GB") {
-  throw new Error("Checkout countries must follow the seeded market list.");
+if (
+  options.length !== SUPPORTED_COUNTRIES.length ||
+  options.length < 150 ||
+  !options.some((country) => country.code === "GB")
+) {
+  throw new Error("Checkout countries must be the full supported list.");
 }
 if (postalFieldCopy("GB").postal !== "Postcode" || postalFieldCopy("US").postal !== "ZIP code") {
   throw new Error("Postal field labels must follow the country.");
@@ -163,8 +170,14 @@ if (lookupUi.includes("onManual()")) {
 if (!lookupUi.includes('autoCapitalize={unitedKingdom ? "characters" : "off"}')) {
   throw new Error("Only the UK postcode search may force capital letters.");
 }
-if (!lookupUi.includes("unitedKingdom && result.suggestions.length === 1")) {
-  throw new Error("Only a single UK postcode may be retrieved automatically.");
+if (lookupUi.includes("unitedKingdom && result.suggestions.length === 1")) {
+  throw new Error("A UK search must not resolve until the shopper selects a suggestion.");
+}
+if (!lookupUi.includes("new AbortController()")) {
+  throw new Error("Address lookup must cancel a stale request with AbortController.");
+}
+if (lookupUi.includes("disabled={disabled || pending}")) {
+  throw new Error("Address search must keep the field editable while a lookup is in flight.");
 }
 const checkoutAddress = read("src/components/checkout/CheckoutAddress.tsx");
 const countryAt = checkoutAddress.indexOf("AddressCountryField");

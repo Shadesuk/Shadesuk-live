@@ -128,12 +128,16 @@ const europeFacts = paypalChargeFacts({
   shippingMethodId: europe.shippingMethodId,
 });
 if (
+  europe.chargeCurrency !== "EUR" ||
+  europe.paymentProvider !== "paypal" ||
   europeFacts.fx_rate_id !== "fx-eur-1" ||
   europeFacts.fx_version !== 4 ||
   europeFacts.fx_rate !== "1.005" ||
-  europeFacts.charge_subtotal_minor + europeFacts.charge_shipping_minor !== 200
+  europeFacts.charge_subtotal_minor !== 101 ||
+  europeFacts.charge_shipping_minor !== 101 ||
+  europeFacts.charge_subtotal_minor + europeFacts.charge_shipping_minor !== europe.chargeTotalMinor
 ) {
-  throw new Error("A non-GBP PayPal lock must keep the FX rate value with the GBP charge.");
+  throw new Error("A EUR PayPal lock must keep the FX rate and the EUR charge parts.");
 }
 
 const india = createCheckoutQuoteLock({

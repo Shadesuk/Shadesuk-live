@@ -1,4 +1,4 @@
-import { V1_COUNTRIES, type V1CountryCode } from "@/contracts/markets";
+import { SUPPORTED_COUNTRIES, supportedCountry } from "@/contracts/countries";
 import {
   ADDRESS_LINE_1_REQUIRED,
   CITY_REQUIRED,
@@ -69,7 +69,7 @@ export function validateCheckoutAddress(input: {
   return errors;
 }
 
-/** Charge path stays United Kingdom until a later quote phase. */
+/** Supported destinations can be charged. Unknown countries cannot. */
 export function validateDeliverableCheckoutAddress(input: {
   firstName: string;
   lastName: string;
@@ -78,20 +78,15 @@ export function validateDeliverableCheckoutAddress(input: {
   postcode: string;
   country: string;
 }): CheckoutFieldErrors {
-  const errors = validateCheckoutAddress(input);
-  if (normalizeCountry(input.country) !== CHECKOUT_COUNTRY_GB) {
-    errors.country = COUNTRY_UNSUPPORTED;
-  }
-  return errors;
+  return validateCheckoutAddress(input);
 }
 
 export function isSupportedDeliveryCountry(country: string): boolean {
-  const code = normalizeCountry(country);
-  return V1_COUNTRIES.some((row) => row.code === code);
+  return supportedCountry(normalizeCountry(country)) != null;
 }
 
-export function checkoutCountryOptions(): ReadonlyArray<{ code: V1CountryCode; name: string }> {
-  return V1_COUNTRIES.map((country) => ({ code: country.code, name: country.name }));
+export function checkoutCountryOptions(): ReadonlyArray<{ code: string; name: string }> {
+  return SUPPORTED_COUNTRIES.map((country) => ({ code: country.code, name: country.name }));
 }
 
 export function postalFieldCopy(country: string): { postal: string; region: string } {

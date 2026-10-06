@@ -5,7 +5,10 @@ import Link from "next/link";
 import type { PublicCart } from "@/types/cart";
 import { displayLineTotal, displayLockedChargeMinor, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
-import { formatGbp, formatGbpMinor, formatInrMinor } from "@/lib/money";
+import { useMarket } from "@/components/market/MarketProvider";
+import { presentCheckoutAmount } from "@/lib/market/prices";
+import { resolvePaymentRoute } from "@/lib/payment/payment-route";
+import { supportedCountry } from "@/contracts/countries";
 import {
   ORDER_SUMMARY_HEADING,
   SUBTOTAL_LABEL,
@@ -21,6 +24,8 @@ type CheckoutSummaryProps = {
   lineLock?: CheckoutQuoteLock | null;
   frozenCharge?: { subtotalMinor: number; shippingMinor: number; totalMinor: number } | null;
   collapsible?: boolean;
+  country?: string;
+  onChangeDelivery?: () => void;
 };
 
 export function CheckoutSummary({
@@ -29,16 +34,30 @@ export function CheckoutSummary({
   lineLock = null,
   frozenCharge = null,
   collapsible = false,
+  country = "GB",
+  onChangeDelivery,
 }: CheckoutSummaryProps) {
-  const subtotalLabel = frozenCharge
-    ? formatInrMinor(frozenCharge.subtotalMinor)
-    : formatGbpMinor(quote.subtotalMinor);
-  const shippingLabel = frozenCharge
-    ? formatInrMinor(frozenCharge.shippingMinor)
-    : quote.shippingStatus === "priced"
-      ? formatGbpMinor(quote.shippingMinor)
+  const { rates } = useMarket();
+  const route = resolvePaymentRoute(country);
+  const displayCurrency = frozenCharge ? "INR" : (route?.displayCurrency ?? "GBP");
+  const chargeCurrency = frozenCharge ? "INR" : (route?.paymentCurrency ?? "GBP");
+  const money = (gbpMinor: number, chargeMinor?: number | null) =>
+    presentCheckoutAmount({
+      gbpMinor,
+      chargeMinor,
+      displayCurrency,
+      chargeCurrency,
+      rates,
+      cents: displayCurrency === chargeCurrency,
+    });
+  const lockedCharge =
+    !frozenCharge && lineLock && lineLock.chargeCurrency === chargeCurrency ? lineLock : null;
+  const subtotalLabel = money(quote.subtotalMinor, frozenCharge?.subtotalMinor ?? lockedCharge?.chargeSubtotalMinor);
+  const shippingLabel =
+    quote.shippingStatus === "priced" || frozenCharge
+      ? money(quote.shippingMinor, frozenCharge?.shippingMinor ?? lockedCharge?.chargeShippingMinor)
       : SHIPPING_UNAVAILABLE;
-  const totalLabel = frozenCharge ? formatInrMinor(frozenCharge.totalMinor) : formatGbpMinor(quote.totalMinor);
+  const totalLabel = money(quote.totalMinor, frozenCharge?.totalMinor ?? lockedCharge?.chargeTotalMinor);
   const content = (
     <>
       <ul className={styles.lines}>
@@ -68,12 +87,25 @@ export function CheckoutSummary({
                 {variant ? <p className="text-micro">{variant}</p> : null}
                 <p className="text-small">Qty {item.quantity}</p>
               </div>
-              <p className={`text-small ${styles.price}`}>{formatSummaryLine(lineLock, item, Boolean(frozenCharge))}</p>
+              <p className={`text-small ${styles.price}`}>
+                {money(
+                  Math.round(displayLineTotal(lineLock, item) * 100),
+                  frozenCharge || lockedCharge ? displayLockedChargeMinor(lineLock, item) : null,
+                )}
+              </p>
             </li>
           );
         })}
       </ul>
       <div className={styles.totals}>
+        {onChangeDelivery ? (
+          <p className={`text-small ${styles.delivering}`}>
+            Delivering to {supportedCountry(country)?.name ?? country}.{" "}
+            <button type="button" className={styles.change} onClick={onChangeDelivery}>
+              Change
+            </button>
+          </p>
+        ) : null}
         <div className={styles.row}>
           <p className="text-small">{SUBTOTAL_LABEL}</p>
           <p className="text-small">{subtotalLabel}</p>
@@ -114,14 +146,3 @@ export function CheckoutSummary({
   );
 }
 
-function formatSummaryLine(
-  lock: CheckoutQuoteLock | null,
-  item: { variantId?: string; quantity: number; lineTotal: number },
-  indiaCharge: boolean,
-): string {
-  if (!indiaCharge) {
-    return formatGbp(displayLineTotal(lock, item));
-  }
-  const chargeMinor = displayLockedChargeMinor(lock, item);
-  return chargeMinor == null ? formatGbp(displayLineTotal(lock, item)) : formatInrMinor(chargeMinor);
-}

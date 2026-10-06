@@ -22,10 +22,14 @@ type PageProps = {
 
 export default async function CheckoutRoute({ searchParams }: PageProps) {
   const params = await searchParams;
-  const [{ cart, draft, quote }, accountUser] = await Promise.all([
-    getCheckoutSnapshot(),
-    getOptionalAccountUser(),
-  ]);
+  let snapshot: Awaited<ReturnType<typeof getCheckoutSnapshot>>;
+  try {
+    snapshot = await getCheckoutSnapshot();
+  } catch {
+    redirect(routes.cart);
+  }
+  const { cart, draft, quote } = snapshot;
+  const accountUser = await getOptionalAccountUser();
   if (cart.items.length === 0) {
     redirect(routes.cart);
   }

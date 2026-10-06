@@ -284,8 +284,8 @@ async function freezeSavedQuote(country: string): Promise<
   } catch {
     return { status: "error" };
   }
-  if (!lock || lock.paymentProvider !== "paypal") {
-    return { status: "blocked", lock };
+  if (!lock) {
+    return { status: "blocked", lock: null };
   }
   return { status: "locked", lock };
 }

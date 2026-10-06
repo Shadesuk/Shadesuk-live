@@ -1,8 +1,9 @@
 import "server-only";
 
+import { FX_QUOTE_CURRENCIES } from "./observations";
 import { fetchFrankfurterLatestRates } from "./frankfurter";
 import { fxUpdateAuthorized, resolveFxUpdateSecret } from "./auth";
-import { runFxRefresh, type FxRefreshOutcome } from "./refresh";
+import { runFxRefresh, type FxRateInsert, type FxRefreshOutcome } from "./refresh";
 import { insertFxObservations, loadLatestFxRates } from "./store";
 
 export type FxRefreshHttpResult = {
@@ -57,7 +58,7 @@ export async function handleFxRefreshRequest(input: {
           );
         },
         previous,
-        insert: insertFxObservations,
+        insert: insertFxRows,
       });
     });
 
@@ -68,4 +69,30 @@ export async function handleFxRefreshRequest(input: {
   }
   console.info("fx_refresh_ok", { inserted: outcome.inserted });
   return { status: 200, body: outcome };
+}
+
+/**
+ * Required EUR/USD/INR rows commit on their own. Display currencies wait
+ * until their currency rows exist and do not roll the required batch back.
+ */
+async function insertFxRows(rows: readonly FxRateInsert[]): Promise<number> {
+  const required = rows.filter((row) =>
+    (FX_QUOTE_CURRENCIES as readonly string[]).includes(row.quote_currency),
+  );
+  const extra = rows.filter(
+    (row) => !(FX_QUOTE_CURRENCIES as readonly string[]).includes(row.quote_currency),
+  );
+  if (required.length > 0) {
+    await insertFxObservations(required);
+  }
+  if (extra.length === 0) {
+    return required.length;
+  }
+  try {
+    await insertFxObservations(extra);
+  } catch {
+    console.error("fx_optional_persist_failed");
+    return required.length;
+  }
+  return required.length + extra.length;
 }

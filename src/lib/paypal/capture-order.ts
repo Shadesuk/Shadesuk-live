@@ -1,6 +1,6 @@
 import "server-only";
 
-import { STORE_CURRENCY, type StoreCurrency } from "@/contracts/money";
+import { isPayPalChargeCurrency, type PayPalChargeCurrency } from "@/lib/payment/payment-route";
 import { paypalFetchJson } from "./client";
 import { parseFetchedOrder, type FetchedPayPalOrder } from "./fetch-order";
 
@@ -8,7 +8,7 @@ export type CapturedPayPalOrder = {
   providerOrderId: string;
   providerPaymentId: string;
   amountMinor: number;
-  currency: StoreCurrency;
+  currency: PayPalChargeCurrency;
   providerStatus: string;
   captureStatus: string;
 };
@@ -71,8 +71,8 @@ export function fromFetchedOrder(order: FetchedPayPalOrder): CapturePayPalOrderR
       error: `PayPal capture is not completed (${order.captureStatus ?? order.providerStatus}).`,
     };
   }
-  if (order.currency !== STORE_CURRENCY) {
-    return { ok: false, error: "PayPal capture currency must be GBP." };
+  if (!isPayPalChargeCurrency(order.currency)) {
+    return { ok: false, error: "PayPal capture currency must be GBP, EUR, or USD." };
   }
   return {
     ok: true,
@@ -80,7 +80,7 @@ export function fromFetchedOrder(order: FetchedPayPalOrder): CapturePayPalOrderR
       providerOrderId: order.providerOrderId,
       providerPaymentId: order.providerPaymentId,
       amountMinor: order.amountMinor,
-      currency: STORE_CURRENCY,
+      currency: order.currency,
       providerStatus: order.providerStatus,
       captureStatus: order.captureStatus ?? "COMPLETED",
     },

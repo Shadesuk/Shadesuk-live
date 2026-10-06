@@ -14,11 +14,41 @@ export const FX_QUOTE_CURRENCIES = V1_CURRENCIES.map((currency) => currency.code
     code !== CATALOGUE_BASE_CURRENCY,
 );
 
+/** Frankfurter symbols used for display. Missing rows do not fail the required set. */
+export const FX_OPTIONAL_QUOTE_CURRENCIES = [
+  "AUD",
+  "BRL",
+  "CAD",
+  "CHF",
+  "CNY",
+  "HKD",
+  "IDR",
+  "ILS",
+  "JPY",
+  "KRW",
+  "MXN",
+  "MYR",
+  "NOK",
+  "NZD",
+  "PHP",
+  "SGD",
+  "THB",
+  "TRY",
+  "ZAR",
+] as const;
+
 export type FxQuoteCurrency = (typeof FX_QUOTE_CURRENCIES)[number];
+export type FxOptionalQuoteCurrency = (typeof FX_OPTIONAL_QUOTE_CURRENCIES)[number];
+export type FxStoredQuoteCurrency = FxQuoteCurrency | FxOptionalQuoteCurrency;
+
+export const FX_STORED_QUOTE_CURRENCIES: readonly FxStoredQuoteCurrency[] = [
+  ...FX_QUOTE_CURRENCIES,
+  ...FX_OPTIONAL_QUOTE_CURRENCIES,
+];
 
 export type FxObservation = {
   baseCurrency: typeof CATALOGUE_BASE_CURRENCY;
-  quoteCurrency: FxQuoteCurrency;
+  quoteCurrency: FxStoredQuoteCurrency;
   rate: string;
   effectiveOn: string;
   source: typeof FRANKFURTER_SOURCE;
@@ -40,8 +70,8 @@ function quoteRateLiterals(body: string): string {
   );
 }
 
-function isQuoteCurrency(value: string): value is FxQuoteCurrency {
-  return (FX_QUOTE_CURRENCIES as readonly string[]).includes(value);
+function isStoredQuoteCurrency(value: string): value is FxStoredQuoteCurrency {
+  return (FX_STORED_QUOTE_CURRENCIES as readonly string[]).includes(value);
 }
 
 export function isCalendarDate(value: string, now = new Date()): boolean {
@@ -67,9 +97,17 @@ export function effectiveAtFromDate(effectiveOn: string): string {
   return `${effectiveOn}T00:00:00.000Z`;
 }
 
+function isRequiredQuote(value: string): value is FxQuoteCurrency {
+  return (FX_QUOTE_CURRENCIES as readonly string[]).includes(value);
+}
+
 /**
  * Parse the v2 latest-rates array. Requires every V1 quote currency once,
- * base GBP, and one shared calendar date. Extra currencies are ignored.
+ * each with base GBP, a valid calendar date, and a positive rate.
+ * Frankfurter publishes those dates independently, so EUR, USD, and INR
+ * may not share a day. Known display currencies are kept when their own
+ * date and rate are valid. A bad optional row is skipped. Anything else
+ * is ignored. A bad required row fails the batch.
  */
 export function parseFrankfurterLatestRates(
   body: string,
@@ -85,8 +123,7 @@ export function parseFrankfurterLatestRates(
     return { ok: false, reason: "malformed" };
   }
 
-  const found = new Map<FxQuoteCurrency, FxObservation>();
-  let effectiveOn: string | null = null;
+  const found = new Map<FxStoredQuoteCurrency, FxObservation>();
 
   for (const item of parsed) {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
@@ -103,19 +140,22 @@ export function parseFrankfurterLatestRates(
     if (base !== CATALOGUE_BASE_CURRENCY) {
       return { ok: false, reason: "malformed" };
     }
-    if (!isQuoteCurrency(quote)) {
+    if (!isStoredQuoteCurrency(quote)) {
       continue;
     }
+    const required = isRequiredQuote(quote);
     if (!isCalendarDate(date, now)) {
-      return { ok: false, reason: "invalid_date" };
+      if (required) {
+        return { ok: false, reason: "invalid_date" };
+      }
+      continue;
     }
     if (!parsePositiveDecimalRate(rate)) {
-      return { ok: false, reason: "invalid_rate" };
+      if (required) {
+        return { ok: false, reason: "invalid_rate" };
+      }
+      continue;
     }
-    if (effectiveOn && effectiveOn !== date) {
-      return { ok: false, reason: "invalid_date" };
-    }
-    effectiveOn = date;
     if (found.has(quote)) {
       return { ok: false, reason: "malformed" };
     }
@@ -128,10 +168,10 @@ export function parseFrankfurterLatestRates(
     });
   }
 
-  if (found.size !== FX_QUOTE_CURRENCIES.length) {
+  if (!FX_QUOTE_CURRENCIES.every((quote) => found.has(quote))) {
     return { ok: false, reason: "incomplete" };
   }
-  const observations = FX_QUOTE_CURRENCIES.map((quote) => found.get(quote)).filter(
+  const observations = FX_STORED_QUOTE_CURRENCIES.map((quote) => found.get(quote)).filter(
     (row): row is FxObservation => row != null,
   );
   return { ok: true, observations };

@@ -1,0 +1,157 @@
+.root {
+  position: relative;
+}
+
+.label {
+  display: block;
+  margin-bottom: var(--space-8);
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: color 120ms ease-out;
+}
+
+.trigger:hover,
+.trigger:active {
+  color: var(--color-navy);
+}
+
+.arrow {
+  flex: 0 0 auto;
+  color: var(--color-navy);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.panel {
+  position: absolute;
+  z-index: var(--z-overlay);
+  top: calc(100% + var(--space-8));
+  right: 0;
+  width: 320px;
+  background: var(--color-off-white);
+  border: 1px solid var(--color-stone);
+}
+
+.search {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-16);
+  border: 0;
+  border-bottom: 1px solid var(--color-stone);
+  background: var(--color-off-white);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.search:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.list {
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-16);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.row:hover,
+.row:active,
+.row[data-active="true"] {
+  background: var(--color-stone);
+}
+
+.row[aria-selected="true"] {
+  color: var(--color-navy);
+}
+
+.sheetHeader {
+  display: none;
+}
+
+.sheetTitle {
+  margin: 0;
+}
+
+.close {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-8);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.mark {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: var(--color-navy);
+}
+
+@media (max-width: 767px) {
+  .panel {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-drawer);
+    display: flex;
+    flex-direction: column;
+    width: auto;
+    border: 0;
+  }
+
+  .sheetHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-12);
+    min-height: 44px;
+    padding: 0 var(--space-16);
+    border-bottom: 1px solid var(--color-stone);
+  }
+
+  .list {
+    flex: 1;
+    max-height: none;
+  }
+}

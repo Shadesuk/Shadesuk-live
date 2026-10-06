@@ -10,6 +10,8 @@ import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton"
 import { BrandMark } from "./BrandMark";
 import { NavLink } from "./NavLink";
 import linkStyles from "./NavLink.module.css";
+import { CountrySelector } from "@/components/market/CountrySelector";
+import { useMarket } from "@/components/market/MarketProvider";
 import styles from "./SiteFooter.module.css";
 
 const paymentLine = `${SECURE_CARD_PAYMENT}. ${ALL_MAJOR_CARDS}.`;
@@ -96,6 +98,7 @@ function MobilePaymentTrust() {
 
 export function SiteFooter({ reduced = false }: { reduced?: boolean }) {
   const year = new Date().getFullYear();
+  const { country, setCountry } = useMarket();
 
   return (
     <footer className={styles.footer} data-reduced={reduced || undefined}>
@@ -124,6 +127,11 @@ export function SiteFooter({ reduced = false }: { reduced?: boolean }) {
         {reduced ? null : <MobilePaymentTrust />}
 
         <div className={styles.bottom}>
+          {reduced ? null : (
+            <span data-chrome-country>
+              <CountrySelector value={country} onChange={setCountry} />
+            </span>
+          )}
           <p className={`text-small ${styles.legal}`}>
             © {year} SHADESUK. All rights reserved.
           </p>

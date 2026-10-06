@@ -2,6 +2,8 @@ import "server-only";
 
 import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
+import { isPayPalChargeCurrency } from "@/lib/payment/payment-route";
+import { payPalValueToChargeMinor } from "@/lib/paypal/amount";
 import {
   captureVerifiedPayment,
   type CaptureVerifiedPaymentDependencies,
@@ -13,7 +15,6 @@ import {
   type PaymentWebhookStore,
   type WebhookPaymentRecord,
 } from "@/lib/payment/webhook-store";
-import { payPalValueToGbpMinor } from "@/lib/paypal/amount";
 import { resolvePayPalWebhookId } from "@/lib/paypal/config";
 import {
   verifyPayPalWebhookSignature,
@@ -155,8 +156,8 @@ export async function handlePayPalWebhook(
   if (!amount) {
     return rejected();
   }
-  const webhookAmountMinor = payPalValueToGbpMinor(amount.value, amount.currency_code);
-  if (webhookAmountMinor == null) {
+  const webhookAmount = payPalValueToChargeMinor(amount.value, amount.currency_code);
+  if (!webhookAmount) {
     return rejected();
   }
 
@@ -170,10 +171,17 @@ export async function handlePayPalWebhook(
   if (resolved.payment.provider !== PAYMENT_PROVIDER_PAYPAL) {
     return rejected();
   }
-  if (resolved.payment.currency !== STORE_CURRENCY || resolved.order.currency !== STORE_CURRENCY) {
+  const chargeCurrency = resolved.payment.currency;
+  if (resolved.order.currency !== STORE_CURRENCY || !isPayPalChargeCurrency(chargeCurrency)) {
     return rejected();
   }
-  if (webhookAmountMinor !== resolved.payment.amount_minor) {
+  if (
+    webhookAmount.currency !== chargeCurrency ||
+    webhookAmount.amountMinor !== resolved.payment.amount_minor
+  ) {
+    return rejected();
+  }
+  if (chargeCurrency === STORE_CURRENCY && resolved.payment.amount_minor !== resolved.order.total_minor) {
     return rejected();
   }
 
@@ -203,6 +211,10 @@ async function handleCompletedCapture(
   if (resolved.payment.status === "failed" || resolved.payment.status === "cancelled") {
     return retryable();
   }
+  const chargeCurrency = resolved.payment.currency;
+  if (!isPayPalChargeCurrency(chargeCurrency)) {
+    return rejected();
+  }
 
   const verified: ServerVerifiedPayment =
     resolved.payment.status === "captured" || resolved.order.payment_status === "captured"
@@ -219,7 +231,7 @@ async function handleCompletedCapture(
           providerOrderId,
           providerPaymentId,
           amountMinor: resolved.payment.amount_minor,
-          currency: "GBP",
+          currency: chargeCurrency,
           paymentStatus: resolved.payment.status === "authorized" ? "authorized" : "created",
           orderPaymentStatus:
             resolved.order.payment_status === "authorized" ? "authorized" : "created",

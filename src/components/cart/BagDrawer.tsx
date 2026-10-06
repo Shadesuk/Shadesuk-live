@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Drawer } from "@/components/ui/Drawer";
 import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/cart-copy";
-import { formatGbp } from "@/lib/money";
+import { DisplayPrice } from "@/components/market/DisplayPrice";
 import { routes } from "@/lib/navigation";
 import { CartLine } from "./CartLine";
 import { useCart } from "./CartProvider";
@@ -89,7 +89,9 @@ export function BagDrawer() {
           <div className={styles.footer}>
             <div className={styles.total}>
               <p className="text-micro">Subtotal</p>
-              <p className="text-small">{formatGbp(cart.subtotal)}</p>
+              <p className="text-small">
+                <DisplayPrice amountMajor={cart.subtotal} />
+              </p>
             </div>
             <div className={styles.actions}>
               <ButtonLink href={routes.checkout} onClick={closeBag}>

@@ -3,7 +3,7 @@ import {
   effectiveAtFromDate,
   parseFrankfurterLatestRates,
   type FxObservation,
-  type FxQuoteCurrency,
+  type FxStoredQuoteCurrency,
 } from "./observations";
 
 /** Reject a move strictly larger than 15% from the last active rate. */
@@ -20,7 +20,7 @@ export type FxRateInsert = {
 };
 
 export type PriorFxRate = {
-  quoteCurrency: FxQuoteCurrency;
+  quoteCurrency: FxStoredQuoteCurrency;
   rate: string;
   effectiveAt: string;
 };
@@ -86,7 +86,7 @@ export function planFxPersistence(
  */
 export async function runFxRefresh(input: {
   fetchBody: () => Promise<string>;
-  insert: (rows: readonly FxRateInsert[]) => Promise<void>;
+  insert: (rows: readonly FxRateInsert[]) => Promise<void | number>;
   previous?: readonly PriorFxRate[];
   now?: Date;
 }): Promise<FxRefreshOutcome> {
@@ -110,12 +110,16 @@ export async function runFxRefresh(input: {
   if (plan.action === "skip") {
     return { ok: true, inserted: 0, keptLastRates: true, reason: "unchanged" };
   }
+  let inserted = plan.rows.length;
   try {
-    await input.insert(plan.rows);
+    const written = await input.insert(plan.rows);
+    if (typeof written === "number") {
+      inserted = written;
+    }
   } catch {
     return { ok: false, inserted: 0, keptLastRates: true, reason: "persist_failed" };
   }
-  return { ok: true, inserted: plan.rows.length, keptLastRates: false };
+  return { ok: true, inserted, keptLastRates: false };
 }
 
 function relativeMoveExceedsBand(previous: DecimalRate, next: DecimalRate): boolean {

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { cx } from "@/lib/cx";
 import { track } from "@/lib/analytics";
-import { formatGbp } from "@/lib/money";
+import { DisplayPrice } from "@/components/market/DisplayPrice";
 import {
   getAvailabilityLabel,
   getColourCount,
@@ -115,11 +115,11 @@ export function ProductCard({ product, priority = false, list }: ProductCardProp
           <h3 className={`text-small ${styles.name}`}>{product.name}</h3>
           <p className={`text-small ${styles.price}`}>
             {compareAt != null ? <span className="visually-hidden">Sale price </span> : null}
-            {formatGbp(product.price)}
+            <DisplayPrice amountMajor={product.price} />
             {compareAt != null ? (
               <s className={styles.compare}>
                 <span className="visually-hidden"> Regular price </span>
-                {formatGbp(compareAt)}
+                <DisplayPrice amountMajor={compareAt} />
               </s>
             ) : null}
           </p>

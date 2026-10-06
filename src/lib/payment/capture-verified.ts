@@ -2,6 +2,7 @@ import "server-only";
 
 import { PAYMENT_PROVIDER_PAYPAL } from "@/contracts/payment/schema";
 import { STORE_CURRENCY } from "@/contracts/money";
+import { isPayPalChargeCurrency } from "@/lib/payment/payment-route";
 import { isUuid } from "@/lib/ids";
 import { onVerifiedPaymentCaptured } from "@/lib/payment/after-captured";
 import {
@@ -106,13 +107,13 @@ export async function captureVerifiedPayment(
   if (loaded.payment.provider !== PAYMENT_PROVIDER_PAYPAL) {
     return { outcome: "rejected", reason: "provider_mismatch" };
   }
-  if (loaded.payment.currency !== STORE_CURRENCY || loaded.order.currency !== STORE_CURRENCY) {
+  if (loaded.order.currency !== STORE_CURRENCY || !isPayPalChargeCurrency(loaded.payment.currency)) {
     return { outcome: "rejected", reason: "currency_mismatch" };
   }
   if (
     !Number.isInteger(loaded.payment.amount_minor) ||
     loaded.payment.amount_minor < 1 ||
-    loaded.payment.amount_minor !== loaded.order.total_minor
+    (loaded.payment.currency === STORE_CURRENCY && loaded.payment.amount_minor !== loaded.order.total_minor)
   ) {
     return { outcome: "rejected", reason: "amount_invalid" };
   }

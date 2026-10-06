@@ -1,14 +1,14 @@
 import "server-only";
 
-import { STORE_CURRENCY, type StoreCurrency } from "@/contracts/money";
-import { payPalValueToGbpMinor } from "./amount";
+import type { PayPalChargeCurrency } from "@/lib/payment/payment-route";
+import { payPalValueToChargeMinor } from "./amount";
 import { paypalFetchJson } from "./client";
 
 export type FetchedPayPalOrder = {
   providerOrderId: string;
   providerStatus: string;
   amountMinor: number;
-  currency: StoreCurrency;
+  currency: PayPalChargeCurrency;
   customId: string | null;
   invoiceId: string | null;
   /** Capture id when a COMPLETED capture is present; otherwise null. */
@@ -63,9 +63,9 @@ export function parseFetchedOrder(
     return { ok: false, error: "PayPal order is missing amount." };
   }
   const amountRow = amount as Record<string, unknown>;
-  const amountMinor = payPalValueToGbpMinor(amountRow.value, amountRow.currency_code);
-  if (amountMinor == null) {
-    return { ok: false, error: "PayPal order is not a GBP amount with two decimal places." };
+  const parsedAmount = payPalValueToChargeMinor(amountRow.value, amountRow.currency_code);
+  if (!parsedAmount) {
+    return { ok: false, error: "PayPal order is not a GBP, EUR, or USD amount with two decimal places." };
   }
 
   const capture = firstCompletedCapture(unit);
@@ -74,8 +74,8 @@ export function parseFetchedOrder(
     order: {
       providerOrderId,
       providerStatus: typeof row.status === "string" ? row.status : "",
-      amountMinor,
-      currency: STORE_CURRENCY,
+      amountMinor: parsedAmount.amountMinor,
+      currency: parsedAmount.currency,
       customId: typeof unit.custom_id === "string" ? unit.custom_id.trim() : null,
       invoiceId: typeof unit.invoice_id === "string" ? unit.invoice_id.trim() : null,
       providerPaymentId: capture?.id ?? null,

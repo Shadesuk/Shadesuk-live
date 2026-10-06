@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 const FOCUSABLE = [
   "a[href]",
@@ -13,7 +13,10 @@ const FOCUSABLE = [
 
 function getFocusable(root: HTMLElement) {
   return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-    (element) => !element.hasAttribute("disabled") && element.tabIndex !== -1,
+    (element) =>
+      !element.hasAttribute("disabled") &&
+      element.tabIndex !== -1 &&
+      element.getClientRects().length > 0,
   );
 }
 
@@ -21,11 +24,21 @@ export function useFocusTrap(
   open: boolean,
   ref: RefObject<HTMLElement | null>,
   onEscape: () => void,
+  initialFocus?: RefObject<HTMLElement | null>,
 ) {
+  const onEscapeRef = useRef(onEscape);
+  const restoreFrame = useRef(0);
+
+  useEffect(() => {
+    onEscapeRef.current = onEscape;
+  }, [onEscape]);
+
   useEffect(() => {
     if (!open) {
       return;
     }
+
+    cancelAnimationFrame(restoreFrame.current);
 
     const root = ref.current;
     if (!root) {
@@ -34,12 +47,14 @@ export function useFocusTrap(
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const focusable = getFocusable(root);
-    (focusable[0] ?? root).focus();
+    const preferred = initialFocus?.current;
+    const start = preferred && root.contains(preferred) ? preferred : (focusable[0] ?? root);
+    start.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onEscape();
+        onEscapeRef.current();
         return;
       }
 
@@ -71,7 +86,22 @@ export function useFocusTrap(
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      previouslyFocused?.focus();
+      const target = previouslyFocused;
+      const overlay = root;
+      // The page can still be inert in this cleanup. Focus after the overlay
+      // has released it, unless the shopper has already moved focus elsewhere.
+      restoreFrame.current = requestAnimationFrame(() => {
+        restoreFrame.current = requestAnimationFrame(() => {
+          const active = document.activeElement;
+          const stillInOverlay = active instanceof HTMLElement && overlay.contains(active);
+          if (active !== document.body && !stillInOverlay) {
+            return;
+          }
+          if (target?.isConnected) {
+            target.focus();
+          }
+        });
+      });
     };
-  }, [open, ref, onEscape]);
+  }, [open, ref, initialFocus]);
 }

@@ -441,11 +441,14 @@ const unitedStates = validateCheckoutAddress({
 if (hasCheckoutFieldErrors(unitedStates)) {
   throw new Error("A seeded United States address must pass.");
 }
+if (hasCheckoutFieldErrors(validateCheckoutAddress({ ...validAddressInput(), country: "JP", postcode: "1000001" }))) {
+  throw new Error("Japan is a supported delivery country.");
+}
 if (
-  validateCheckoutAddress({ ...validAddressInput(), country: "JP" }).country !==
-  "Delivery is currently available in the United Kingdom."
+  validateCheckoutAddress({ ...validAddressInput(), country: "ZZ" }).country !==
+  "Delivery is not available for that country."
 ) {
-  throw new Error("A country outside the seeded markets must be rejected.");
+  throw new Error("A country outside the supported list must be rejected.");
 }
 if (formatUkPostcode("sw1a1aa") !== "SW1A 1AA") {
   throw new Error("UK postcodes must format with an inward-code space.");
@@ -873,6 +876,58 @@ if (!quoteSource.includes("UK_STANDARD_DELIVERY_MINOR") || !quoteSource.includes
 const draftCodec = readFileSync(resolve("src/lib/checkout-draft.ts"), "utf8");
 if (draftCodec.includes("subtotal") || draftCodec.includes("shippingMinor") || draftCodec.includes("totalMinor")) {
   throw new Error("Checkout draft persistence must not store payable totals.");
+}
+
+const focusTrap = readFileSync(resolve("src/hooks/useFocusTrap.ts"), "utf8");
+if (!focusTrap.includes("onEscapeRef") || focusTrap.includes("[open, ref, onEscape]")) {
+  throw new Error("Focus trap must keep onEscape in a ref so a new callback does not rebuild the trap.");
+}
+if (!focusTrap.includes("requestAnimationFrame") || !focusTrap.includes("document.body")) {
+  throw new Error("Focus must return after the overlay closes, and only if focus has not moved elsewhere.");
+}
+const countrySelector = readFileSync(resolve("src/components/market/CountrySelector.tsx"), "utf8");
+if (!countrySelector.includes("useFocusTrap(open, panelRef")) {
+  throw new Error("Country selector focus must start in the panel, not on the trigger.");
+}
+if (!countrySelector.includes("useFocusTrap(open, panelRef, () => setOpen(false), searchRef)")) {
+  throw new Error("Country selector focus must start in the search box.");
+}
+const closeBeforeSearch =
+  countrySelector.indexOf("sheetHeader") !== -1 &&
+  countrySelector.indexOf("sheetHeader") < countrySelector.indexOf("<input");
+if (!closeBeforeSearch) {
+  throw new Error("Close must come before the search field in the country sheet.");
+}
+const countryCss = readFileSync(resolve("src/components/market/CountrySelector.module.css"), "utf8");
+if (countryCss.includes("order: -1")) {
+  throw new Error("The country sheet must not reorder Close with CSS.");
+}
+if (!countrySelector.includes('block: "center"') && !countrySelector.includes('block = openedRef.current ? "nearest" : "center"')) {
+  throw new Error("Opening the country list must centre the selected country.");
+}
+if (!countrySelector.includes('scrollIntoView({ block') || !countrySelector.includes('"nearest"')) {
+  throw new Error("Arrow keys must keep the active country in view.");
+}
+const cookieCss = readFileSync(resolve("src/components/consent/CookieConsent.module.css"), "utf8");
+if (!cookieCss.includes('body[data-country-sheet="open"]')) {
+  throw new Error("The cookie banner must stay behind an open country sheet.");
+}
+const chromeSource = readFileSync(resolve("src/components/navigation/SiteChrome.tsx"), "utf8");
+const baseCss = readFileSync(resolve("src/styles/base.css"), "utf8");
+const headerSource = readFileSync(resolve("src/components/navigation/SiteHeader.tsx"), "utf8");
+const footerSource = readFileSync(resolve("src/components/navigation/SiteFooter.tsx"), "utf8");
+if (
+  chromeSource.includes("window.location") ||
+  !chromeSource.includes("usePathname()") ||
+  !chromeSource.includes("data-checkout={checkout ?") ||
+  chromeSource.includes("useLayoutEffect") ||
+  !baseCss.includes("[data-checkout] [data-chrome-country]") ||
+  !headerSource.includes("data-chrome-country") ||
+  !footerSource.includes("data-chrome-country") ||
+  !headerSource.includes("reduced ? null") ||
+  !footerSource.includes("reduced ? null")
+) {
+  throw new Error("Checkout chrome must follow usePathname() so selectors hide on checkout and return when the rendered route leaves it.");
 }
 
 console.log(

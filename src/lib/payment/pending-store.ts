@@ -4,7 +4,7 @@ import { parseOrderItemRow, parseOrderRow } from "@/lib/order-rows";
 import type { OrderItemRow, OrderRow } from "@/contracts/order/schema";
 import { PAYMENT_PROVIDER_PAYPAL, type PaymentRow } from "@/contracts/payment/schema";
 import { isSchemaPaymentStatus } from "@/contracts/payment/schema";
-import { STORE_CURRENCY } from "@/contracts/money";
+import { isChargeCurrency } from "@/lib/payment/payment-route";
 import { createSupabaseAdminClient, hasSupabaseSecretKey } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type {
@@ -258,7 +258,7 @@ export function parsePaymentRow(value: unknown): PaymentRow | null {
     return null;
   }
   const row = value as Record<string, unknown>;
-  if (!isSchemaPaymentStatus(row.status) || row.currency !== STORE_CURRENCY) {
+  if (!isSchemaPaymentStatus(row.status) || typeof row.currency !== "string" || !isChargeCurrency(row.currency)) {
     return null;
   }
   const id = asString(row.id);
@@ -277,7 +277,7 @@ export function parsePaymentRow(value: unknown): PaymentRow | null {
     provider_order_id: asString(row.provider_order_id),
     provider_payment_id: asString(row.provider_payment_id),
     amount_minor: amountMinor,
-    currency: STORE_CURRENCY,
+    currency: row.currency,
     status: row.status,
     failure_reason: typeof row.failure_reason === "string" ? row.failure_reason : null,
     captured_at: typeof row.captured_at === "string" ? row.captured_at : null,

@@ -12,7 +12,7 @@ import {
   EMPTY_BAG_DESCRIPTION,
   EMPTY_BAG_TITLE,
 } from "@/lib/cart-copy";
-import { formatGbp } from "@/lib/money";
+import { DisplayPrice } from "@/components/market/DisplayPrice";
 import { routes } from "@/lib/navigation";
 import type { PublicCart } from "@/types/cart";
 import type { Product } from "@/types/catalogue";
@@ -82,7 +82,9 @@ export function CartPage({ initialCart, suggestions }: CartPageProps) {
               </h2>
               <div className={styles.summaryRow}>
                 <p className="text-small">Subtotal</p>
-                <p className="text-small">{formatGbp(view.subtotal)}</p>
+                <p className="text-small">
+                  <DisplayPrice amountMajor={view.subtotal} />
+                </p>
               </div>
               <div className={styles.summaryRow}>
                 <p className="text-small">Shipping</p>
@@ -90,7 +92,9 @@ export function CartPage({ initialCart, suggestions }: CartPageProps) {
               </div>
               <div className={styles.summaryTotal}>
                 <p className="text-micro">Total</p>
-                <p className="text-small">{formatGbp(view.subtotal)}</p>
+                <p className="text-small">
+                  <DisplayPrice amountMajor={view.subtotal} />
+                </p>
               </div>
               <p className={`text-micro ${styles.note}`}>Secure card payment</p>
               <p className={`text-small ${styles.note}`}>All major cards accepted</p>

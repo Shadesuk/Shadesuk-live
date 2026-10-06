@@ -1,17 +1,16 @@
 import { minorToMajorGbp, STORE_CURRENCY } from "@/contracts/money";
-import { marketById, marketIdForCountry, resolveConfiguredPaymentProvider } from "@/contracts/markets";
 import { getLocalizedPrice } from "@/contracts/pricing";
 import { normalizeCountry } from "@/lib/checkout-validate";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
+import { resolvePaymentRoute } from "@/lib/payment/payment-route";
 import { resolveShippingOptions, type ShippingCatalogue } from "@/lib/shipping/options";
 
 /**
  * Server quote snapshot. Catalogue and FX changes after this is written
  * cannot change the charged GBP total. Tax and discount stay zero, so
  * total is subtotal plus shipping. Subtotal and shipping are localized
- * separately, then added. The current PayPal charge uses the GBP base
- * total. chargeCurrency amounts are stored for a later charge phase.
- * A razorpay mapping is recorded and is not chargeable here.
+ * separately, then added. The charge currency comes from resolvePaymentRoute.
+ * Orders stay GBP. A missing FX rate does not invent a charge.
  *
  * frozenAt is the lock clock. It is set only when the lock is created.
  * Draft updatedAt does not extend it. The lock expires after QUOTE_LOCK_TTL_MS
@@ -72,22 +71,14 @@ export function createCheckoutQuoteLock(input: {
   if (!option) {
     return null;
   }
-  const marketId = marketIdForCountry(countryCode);
-  const market = marketId ? marketById(marketId) : null;
-  if (!market) {
-    return null;
-  }
-  const paymentProvider = resolveConfiguredPaymentProvider({
-    marketId: market.id,
-    currency: market.currency,
-  });
-  if (paymentProvider !== "paypal" && paymentProvider !== "razorpay") {
+  const route = resolvePaymentRoute(countryCode);
+  if (!route) {
     return null;
   }
   const localized = localizeParts({
     baseSubtotalMinor,
     baseShippingMinor: option.amountMinor,
-    targetCurrency: market.currency,
+    targetCurrency: route.paymentCurrency,
     fx: input.fx ?? null,
   });
   if (!localized) {
@@ -95,7 +86,7 @@ export function createCheckoutQuoteLock(input: {
   }
   return {
     countryCode,
-    chargeCurrency: market.currency,
+    chargeCurrency: route.paymentCurrency,
     baseSubtotalMinor,
     baseShippingMinor: option.amountMinor,
     chargeSubtotalMinor: localized.chargeSubtotalMinor,
@@ -109,7 +100,7 @@ export function createCheckoutQuoteLock(input: {
     shippingMethodId: option.methodId,
     shippingLabel: option.label,
     estimatedDelivery: option.estimatedDelivery,
-    paymentProvider,
+    paymentProvider: route.provider,
     frozenAt: Number.isInteger(input.now) ? (input.now as number) : Date.now(),
     lines,
   };
@@ -404,12 +395,8 @@ function localizeParts(input: {
 }
 
 function chargesMatch(lock: CheckoutQuoteLock): boolean {
-  const marketId = marketIdForCountry(lock.countryCode);
-  const market = marketId ? marketById(marketId) : null;
-  if (!market || market.currency !== lock.chargeCurrency) {
-    return false;
-  }
-  if (resolveConfiguredPaymentProvider({ marketId: market.id, currency: market.currency }) !== lock.paymentProvider) {
+  const route = resolvePaymentRoute(lock.countryCode);
+  if (!route || route.paymentCurrency !== lock.chargeCurrency || route.provider !== lock.paymentProvider) {
     return false;
   }
   const localized = localizeParts({

@@ -1,8 +1,8 @@
 import "server-only";
 
-import { STORE_CURRENCY, type StoreCurrency } from "@/contracts/money";
 import { isUuid } from "@/lib/ids";
-import { gbpMinorToPayPalValue, payPalValueToGbpMinor } from "./amount";
+import { isPayPalChargeCurrency, type PayPalChargeCurrency } from "@/lib/payment/payment-route";
+import { gbpMinorToPayPalValue, payPalValueToChargeMinor } from "./amount";
 import { paypalFetchJson } from "./client";
 import { paypalFailureMessage } from "./errors";
 
@@ -11,7 +11,7 @@ export const PAYPAL_INVOICE_ID_MAX_LENGTH = 127;
 
 export type CreatePayPalOrderInput = {
   amountMinor: number;
-  currency: StoreCurrency;
+  currency: PayPalChargeCurrency;
   /** payments.id — mapped to purchase_units[].custom_id */
   customId: string;
   /** orders.order_reference — mapped to purchase_units[].invoice_id when ≤ 127 */
@@ -21,7 +21,7 @@ export type CreatePayPalOrderInput = {
 export type PayPalOrderCreated = {
   providerOrderId: string;
   amountMinor: number;
-  currency: StoreCurrency;
+  currency: PayPalChargeCurrency;
   providerStatus: string;
   customId: string;
   invoiceId: string;
@@ -38,8 +38,8 @@ export type CreatePayPalOrderResult =
 export async function createPayPalOrder(
   input: CreatePayPalOrderInput,
 ): Promise<CreatePayPalOrderResult> {
-  if (input.currency !== STORE_CURRENCY) {
-    return { ok: false, error: "PayPal orders must use GBP." };
+  if (!isPayPalChargeCurrency(input.currency)) {
+    return { ok: false, error: "PayPal orders must use GBP, EUR, or USD." };
   }
   if (!Number.isInteger(input.amountMinor) || input.amountMinor < 1) {
     return { ok: false, error: "PayPal amount must be a positive integer in pence." };
@@ -73,7 +73,7 @@ export async function createPayPalOrder(
       purchase_units: [
         {
           amount: {
-            currency_code: STORE_CURRENCY,
+            currency_code: input.currency,
             value,
           },
           custom_id: customId,
@@ -116,8 +116,8 @@ export function parseCreatedOrder(
     return { ok: false, error: "PayPal order is missing amount." };
   }
   const amountRow = amount as Record<string, unknown>;
-  const amountMinor = payPalValueToGbpMinor(amountRow.value, amountRow.currency_code);
-  if (amountMinor == null || amountMinor !== expected.amountMinor) {
+  const parsedAmount = payPalValueToChargeMinor(amountRow.value, amountRow.currency_code);
+  if (!parsedAmount || parsedAmount.amountMinor !== expected.amountMinor || parsedAmount.currency !== expected.currency) {
     return { ok: false, error: "PayPal order amount or currency did not match the server quote." };
   }
 
@@ -130,8 +130,8 @@ export function parseCreatedOrder(
     ok: true,
     order: {
       providerOrderId,
-      amountMinor,
-      currency: STORE_CURRENCY,
+      amountMinor: parsedAmount.amountMinor,
+      currency: parsedAmount.currency,
       providerStatus: typeof row.status === "string" ? row.status : "CREATED",
       customId,
       invoiceId,

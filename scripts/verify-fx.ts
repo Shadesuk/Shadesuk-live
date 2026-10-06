@@ -63,6 +63,37 @@ if (malformed.ok || malformed.reason !== "malformed") {
   throw new Error("A malformed body must be rejected.");
 }
 
+const mixedDates = parseFrankfurterLatestRates(
+  JSON.stringify([
+    { date: "2026-10-06", base: "GBP", quote: "EUR", rate: 1.1762 },
+    { date: "2026-10-05", base: "GBP", quote: "INR", rate: 127.28 },
+    { date: "2026-10-06", base: "GBP", quote: "USD", rate: 1.3231 },
+    { date: "2026-10-06", base: "GBP", quote: "AUD", rate: 1.91 },
+    { date: "2026-10-04", base: "GBP", quote: "CAD", rate: 0 },
+    { date: "not-a-date", base: "GBP", quote: "JPY", rate: 190 },
+    { date: "2026-10-05", base: "GBP", quote: "XXX", rate: 1 },
+  ]),
+  now,
+);
+if (!mixedDates.ok) {
+  throw new Error("Mixed Frankfurter dates must still keep EUR, USD, and INR.");
+}
+const mixedQuotes = mixedDates.observations.map((row) => row.quoteCurrency).sort();
+if (mixedQuotes.join(",") !== "AUD,EUR,INR,USD") {
+  throw new Error(`Optional rows with a bad date or rate must be skipped, got ${mixedQuotes.join(",")}.`);
+}
+const mixedInr = mixedDates.observations.find((row) => row.quoteCurrency === "INR");
+if (mixedInr?.effectiveOn !== "2026-10-05") {
+  throw new Error("Each quote must keep its own Frankfurter date.");
+}
+const badRequiredDate = parseFrankfurterLatestRates(
+  sample.replace('"date":"2026-10-05","base":"GBP","quote":"EUR"', '"date":"not-a-date","base":"GBP","quote":"EUR"'),
+  now,
+);
+if (badRequiredDate.ok || badRequiredDate.reason !== "invalid_date") {
+  throw new Error("A bad date on EUR, USD, or INR must fail the batch.");
+}
+
 if (parsePositiveDecimalRate("0") || parsePositiveDecimalRate("-1") || parsePositiveDecimalRate("NaN")) {
   throw new Error("Non-positive rate strings must be rejected.");
 }

@@ -15,6 +15,7 @@ import { CheckoutExpired } from "@/components/checkout/CheckoutExpired";
 import { CheckoutReview } from "@/components/checkout/CheckoutReview";
 import { CheckoutSummary } from "@/components/checkout/CheckoutSummary";
 import { useCart } from "@/components/cart/CartProvider";
+import { useMarket } from "@/components/market/MarketProvider";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { InlineError } from "@/components/ui/InlineError";
@@ -70,6 +71,7 @@ export function CheckoutPage({
 }: CheckoutPageProps) {
   const router = useRouter();
   const { applyCart } = useCart();
+  const { country: marketCountry } = useMarket();
   const [view, setView] = useState(initialCart);
   const [draft, setDraft] = useState(initialDraft);
   const [quote, setQuote] = useState(initialQuote);
@@ -85,13 +87,16 @@ export function CheckoutPage({
   const [cartGone, setCartGone] = useState(false);
   const blocked = checkoutUnavailableBlocked(view);
   const step = draft.step;
-  const summaryQuote = step === "address" ? checkoutQuoteFromCart(view, address.country) : quote;
+  const activeCountry =
+    step === "review" || draft.line1 ? address.country || draft.country : marketCountry;
+  const deliveryAddress = address.country === activeCountry ? address : { ...address, country: activeCountry };
+  const summaryQuote = step === "address" ? checkoutQuoteFromCart(view, activeCountry) : quote;
   const reviewLock =
     step !== "address" && draft.quoteLock && quoteMatchesLock(draft.quoteLock, quote) ? draft.quoteLock : null;
   const chargeReady = step !== "review" || !draft.quoteLock || Boolean(reviewLock);
   usePinPageStart(step, "checkout-heading", true);
   const priceChanged = checkoutHasPriceChange(view);
-  const liveQuote = checkoutQuoteFromCart(view, step === "address" ? address.country : draft.country);
+  const liveQuote = checkoutQuoteFromCart(view, step === "review" ? draft.country : activeCountry);
   const reviewCharge = step === "review" ? draft.quoteLock : null;
   const frozenCharge =
     paymentRail === "india" && reviewCharge?.chargeCurrency === "INR"
@@ -304,8 +309,10 @@ export function CheckoutPage({
             <CheckoutSummary
               cart={view}
               quote={summaryQuote}
+              country={step === "review" ? draft.country : activeCountry}
               lineLock={frozenCharge ? draft.quoteLock : reviewLock}
               frozenCharge={frozenCharge}
+              onChangeDelivery={step === "review" ? () => void goTo("address") : undefined}
               collapsible
             />
           </div>
@@ -322,7 +329,7 @@ export function CheckoutPage({
           ) : null}
           {step === "address" ? (
             <CheckoutAddress
-              value={address}
+              value={deliveryAddress}
               query={query}
               showForm={showForm}
               errors={errors}
@@ -336,8 +343,8 @@ export function CheckoutPage({
               onSelect={handleSelect}
               onBack={() => void goTo("contact")}
               onSubmit={submitAddress}
-              search={(next) => searchCheckoutAddressAction({ query: next, country: address.country })}
-              retrieve={(id) => retrieveCheckoutAddressAction({ id, country: address.country })}
+              search={(next) => searchCheckoutAddressAction({ query: next, country: activeCountry })}
+              retrieve={(id) => retrieveCheckoutAddressAction({ id, country: activeCountry })}
             />
           ) : null}
           {step === "review" ? (
@@ -359,8 +366,10 @@ export function CheckoutPage({
           <CheckoutSummary
             cart={view}
             quote={summaryQuote}
+            country={step === "review" ? draft.country : activeCountry}
             lineLock={frozenCharge ? draft.quoteLock : reviewLock}
             frozenCharge={frozenCharge}
+            onChangeDelivery={step === "review" ? () => void goTo("address") : undefined}
           />
         </div>
       </div>

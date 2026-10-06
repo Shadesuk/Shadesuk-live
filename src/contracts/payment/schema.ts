@@ -1,4 +1,4 @@
-import type { StoreCurrency } from "../money";
+import type { ChargeCurrency } from "@/lib/payment/payment-route";
 import { STORE_CURRENCY } from "../money";
 import type { PaymentStatus } from "../order/schema";
 import { PAYMENT_STATUSES } from "../order/schema";
@@ -19,7 +19,7 @@ export type PaymentRow = {
   provider_order_id: string | null;
   provider_payment_id: string | null;
   amount_minor: number;
-  currency: StoreCurrency;
+  currency: ChargeCurrency;
   status: PaymentStatus;
   failure_reason: string | null;
   captured_at: string | null;

@@ -61,7 +61,7 @@ export function AddressLookup({
   const [status, setStatus] = useState<LookupStatus>("idle");
   const [activeIndex, setActiveIndex] = useState(-1);
   const [prevCountry, setPrevCountry] = useState(country);
-  const requestRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<number | null>(null);
   const countryRef = useRef(country);
   const unitedKingdom = normalizeCountry(country) === CHECKOUT_COUNTRY_GB;
@@ -78,6 +78,7 @@ export function AddressLookup({
       if (timerRef.current !== null) {
         window.clearTimeout(timerRef.current);
       }
+      abortRef.current?.abort();
     };
   }, []);
 
@@ -90,7 +91,7 @@ export function AddressLookup({
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    requestRef.current += 1;
+    abortRef.current?.abort();
   }, [country]);
 
   const showList = suggestions.length > 0 && (status === "idle" || status === "selected");
@@ -98,7 +99,15 @@ export function AddressLookup({
   const activeId = activeItem ? `${listboxId}-${activeItem.id}` : undefined;
   const pending = status === "loading";
 
+  function beginRequest(): AbortSignal {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    return controller.signal;
+  }
+
   function scheduleAutocomplete(next: string) {
+    abortRef.current?.abort();
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
     }
@@ -111,27 +120,27 @@ export function AddressLookup({
   async function runSearch(raw = query) {
     const next = raw.trim();
     if (unitedKingdom && !isUkPostcodeLookupQuery(next)) {
+      abortRef.current?.abort();
       setSuggestions([]);
       setActiveIndex(-1);
       setStatus("invalid");
       return;
     }
-    const requestId = requestRef.current + 1;
-    requestRef.current = requestId;
+    const signal = beginRequest();
     setStatus("loading");
     setSuggestions([]);
     setActiveIndex(-1);
     let result: AddressLookupView;
     try {
-      result = await search(next);
-    } catch {
-      if (requestId !== requestRef.current) {
+      result = await whenCurrent(search(next), signal);
+    } catch (error) {
+      if (isAbortError(error) || signal.aborted) {
         return;
       }
       setStatus("error");
       return;
     }
-    if (requestId !== requestRef.current) {
+    if (signal.aborted) {
       return;
     }
     if (result.status === "unavailable") {
@@ -146,29 +155,26 @@ export function AddressLookup({
       setStatus("empty");
       return;
     }
-    if (unitedKingdom && result.suggestions.length === 1 && result.suggestions[0]) {
-      await choose(result.suggestions[0], requestId);
-      return;
-    }
     setSuggestions(result.suggestions);
     setStatus("idle");
     setActiveIndex(0);
   }
 
-  async function choose(suggestion: AddressSuggestion, requestId = requestRef.current) {
+  async function choose(suggestion: AddressSuggestion) {
+    const signal = beginRequest();
     setStatus("loading");
     let result: AddressRetrieveView;
     try {
-      result = await retrieve(suggestion.id);
-    } catch {
-      if (requestId !== requestRef.current) {
+      result = await whenCurrent(retrieve(suggestion.id), signal);
+    } catch (error) {
+      if (isAbortError(error) || signal.aborted) {
         return;
       }
       setSuggestions([]);
       setStatus("error");
       return;
     }
-    if (requestId !== requestRef.current) {
+    if (signal.aborted) {
       return;
     }
     if (result.status !== "ok") {
@@ -225,7 +231,7 @@ export function AddressLookup({
           autoCapitalize={unitedKingdom ? "characters" : "off"}
           spellCheck={false}
           value={query}
-          disabled={disabled || pending}
+          disabled={disabled}
           error={status === "invalid" ? POSTCODE_INVALID : undefined}
           role="combobox"
           aria-autocomplete="list"
@@ -233,10 +239,17 @@ export function AddressLookup({
           aria-expanded={showList}
           aria-controls={showList ? listboxId : undefined}
           aria-activedescendant={activeId}
-          onChange={(event) => {
+            onChange={(event) => {
             const next = event.target.value;
             onQueryChange(next);
-            if (status === "invalid" || status === "empty" || status === "error" || status === "selected") {
+            abortRef.current?.abort();
+            if (
+              status === "loading" ||
+              status === "invalid" ||
+              status === "empty" ||
+              status === "error" ||
+              status === "selected"
+            ) {
               setStatus("idle");
             }
             if (!unitedKingdom && next.trim().length >= 3) {
@@ -310,4 +323,32 @@ export function AddressLookup({
       ) : null}
     </div>
   );
+}
+
+function whenCurrent<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(new DOMException("The operation was aborted.", "AbortError"));
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(new DOMException("The operation was aborted.", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(signal.aborted ? new DOMException("The operation was aborted.", "AbortError") : error);
+      },
+    );
+  });
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
