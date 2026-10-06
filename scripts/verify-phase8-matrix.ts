@@ -543,6 +543,7 @@ void (async () => {
       verifySignature: async () => ({ ok: false, error: "bad signature" }),
     },
   );
+  process.env.RAZORPAY_MODE = "test";
   process.env.RAZORPAY_KEY_ID = "rzp_test_phase8matrix";
   process.env.RAZORPAY_KEY_SECRET = "test_secret_phase8";
   process.env.RAZORPAY_WEBHOOK_SECRET = "test_webhook_phase8";
@@ -635,7 +636,10 @@ void (async () => {
       indiaAvailability.includes("resolveRazorpayServerConfig().ok") &&
       !indiaAvailability.includes("INDIA_PAYMENTS") &&
       razorpayConfig.includes("rzp_test_") &&
-      razorpayConfig.includes('reason: "live_key"') &&
+      razorpayConfig.includes("rzp_live_") &&
+      razorpayConfig.includes('reason: "mode"') &&
+      razorpayConfig.includes('reason: "key_mismatch"') &&
+      !razorpayConfig.includes("until Syed says otherwise") &&
       cartRoute.includes("indiaCardPaymentConfigured()") &&
       checkoutRoute.includes("indiaCardPaymentConfigured()") &&
       !checkoutRoute.toLowerCase().includes("razorpay") &&
@@ -659,7 +663,7 @@ void (async () => {
       statusForStart.includes('status === "unavailable"') &&
       statusForStart.includes("INDIA_CARD_PAYMENT_UNAVAILABLE") &&
       statusForStart.indexOf('status === "unavailable"') < statusForStart.indexOf("return CHECKOUT_QUOTE_STALE"),
-    "India card payment uses the server config check. Unavailable is a quiet notice on the bag, Delivery, and Review. A moved total still offers Update total. The test-key guard stays.",
+    "India card payment uses the server config check. Unavailable is a quiet notice on the bag, Delivery, and Review. A moved total still offers Update total. Live keys require RAZORPAY_MODE=live.",
   );
 
   const payableExpr = review.slice(review.indexOf("const payable ="), review.indexOf("const disclosure"));

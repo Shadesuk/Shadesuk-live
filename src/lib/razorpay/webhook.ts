@@ -12,6 +12,8 @@ export type RazorpayWebhookResult = {
 
 /**
  * Verifies the Razorpay webhook against the raw body.
+ * The secret is the mode-resolved RAZORPAY_WEBHOOK_SECRET, so live mode checks the live secret.
+ * Dashboard registration is manual: POST /api/webhooks/razorpay with x-razorpay-signature.
  * Capture still goes through the amount check. A bad signature does not capture.
  */
 export async function handleRazorpayWebhook(input: {

@@ -9,8 +9,10 @@ import { createCheckoutQuoteLock, QUOTE_LOCK_TTL_MS } from "../src/lib/checkout-
 import { buildIndiaCharge } from "../src/lib/payment/india-charge";
 import { checkoutPaymentRail, resolvePaymentProvider } from "../src/lib/payment/resolve-provider";
 import { assessRazorpayCapture } from "../src/lib/razorpay/assess";
+import { indiaCaptureStep } from "../src/lib/razorpay/capture-claim";
 import { indiaWebhookHttpStatus } from "../src/lib/razorpay/commit";
 import { resolveRazorpayServerConfig } from "../src/lib/razorpay/config";
+import { handleRazorpayWebhook } from "../src/lib/razorpay/webhook";
 import { isRazorpayPaymentId } from "../src/lib/razorpay/ids";
 import { createRazorpayOrder, razorpayOrderPayload } from "../src/lib/razorpay/order";
 import { decideIndiaAttemptReuse, type IndiaOpenAttempt } from "../src/lib/razorpay/reuse";
@@ -144,6 +146,7 @@ const testConfig = {
   keyId: "rzp_test_routing",
   keySecret: "test-secret",
   webhookSecret: "test-webhook",
+  mode: "test" as const,
 };
 
 async function assertOrderCreate() {
@@ -172,6 +175,53 @@ async function assertOrderCreate() {
   });
   if (drifted.ok) {
     throw new Error("A Razorpay amount that differs from the lock must fail.");
+  }
+}
+
+async function assertLiveWebhookSecret() {
+  const saved = {
+    mode: process.env.RAZORPAY_MODE,
+    keyId: process.env.RAZORPAY_KEY_ID,
+    keySecret: process.env.RAZORPAY_KEY_SECRET,
+    webhook: process.env.RAZORPAY_WEBHOOK_SECRET,
+  };
+  const restore = (name: "RAZORPAY_MODE" | "RAZORPAY_KEY_ID" | "RAZORPAY_KEY_SECRET" | "RAZORPAY_WEBHOOK_SECRET", value: string | undefined) => {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  };
+  try {
+    process.env.RAZORPAY_MODE = "test";
+    process.env.RAZORPAY_KEY_ID = "rzp_live_routingcheck";
+    process.env.RAZORPAY_KEY_SECRET = "routing_secret";
+    process.env.RAZORPAY_WEBHOOK_SECRET = "routing_live_hook";
+    const mismatch = await handleRazorpayWebhook({ rawBody: "{}", signature: "00" });
+    if (mismatch.status !== 503) {
+      throw new Error("A live key in test mode must fail closed before the webhook runs.");
+    }
+    delete process.env.RAZORPAY_MODE;
+    const unset = await handleRazorpayWebhook({ rawBody: "{}", signature: "00" });
+    if (unset.status !== 503) {
+      throw new Error("An unset Razorpay mode must fail closed before the webhook runs.");
+    }
+    process.env.RAZORPAY_MODE = "live";
+    process.env.RAZORPAY_KEY_ID = "rzp_live_routingcheck";
+    const raw = JSON.stringify({ event: "ping" });
+    const liveSignature = createHmac("sha256", "routing_live_hook").update(raw).digest("hex");
+    const bad = await handleRazorpayWebhook({ rawBody: raw, signature: "00" });
+    const signed = await handleRazorpayWebhook({ rawBody: raw, signature: liveSignature });
+    const otherSecret = createHmac("sha256", "routing_test_hook").update(raw).digest("hex");
+    const wrongSecret = await handleRazorpayWebhook({ rawBody: raw, signature: otherSecret });
+    if (bad.status !== 400 || signed.status !== 200 || wrongSecret.status !== 400) {
+      throw new Error("Live mode must verify the webhook with the live webhook secret.");
+    }
+  } finally {
+    restore("RAZORPAY_MODE", saved.mode);
+    restore("RAZORPAY_KEY_ID", saved.keyId);
+    restore("RAZORPAY_KEY_SECRET", saved.keySecret);
+    restore("RAZORPAY_WEBHOOK_SECRET", saved.webhook);
   }
 }
 
@@ -299,9 +349,58 @@ if (
     returnedAmountMinor: india.chargeTotalMinor,
     returnedCurrency: "GBP",
     incomingPaymentId: "pay_test",
+  }) !== "reject" ||
+  assessRazorpayCapture({
+    stored: { ...stored, status: "failed", providerPaymentId: "pay_old" },
+    returnedAmountMinor: india.chargeTotalMinor,
+    returnedCurrency: "INR",
+    incomingPaymentId: "pay_test",
   }) !== "reject"
 ) {
-  throw new Error("Amount and currency mismatches must reject capture.");
+  throw new Error("Amount, currency, and old-attempt mismatches must reject capture.");
+}
+if (
+  indiaCaptureStep({ claim: "claimed", remoteStatus: "authorized" }) !== "capture" ||
+  indiaCaptureStep({ claim: "in_progress", remoteStatus: "authorized" }) !== "retry" ||
+  indiaCaptureStep({ claim: "in_progress", remoteStatus: "captured" }) !== "mark" ||
+  indiaCaptureStep({ claim: "rejected", remoteStatus: "authorized" }) !== "reject" ||
+  indiaCaptureStep({ claim: "duplicate", remoteStatus: "authorized" }) !== "duplicate"
+) {
+  throw new Error("Only the claim winner may capture. An old attempt is rejected. A second caller must not capture again.");
+}
+const settleSource = read("src/lib/razorpay/commit.ts");
+const settleStart = settleSource.indexOf("export async function settleIndiaPayment");
+const settleBody = settleStart < 0 ? "" : settleSource.slice(settleStart);
+const claimAt = settleBody.indexOf("claimIndiaPaymentForCapture");
+const captureAt = settleBody.indexOf("captureRazorpayPayment");
+const flagAt = settleBody.indexOf("flagIndiaCaptureUnrecorded");
+const markAt = settleBody.indexOf("markIndiaPaymentCaptured");
+if (claimAt < 0 || captureAt < claimAt || markAt < captureAt || flagAt < markAt) {
+  throw new Error("India settlement must claim the payment row before capture, then flag a capture that our database did not record.");
+}
+if (!settleBody.includes('step === "reject"') || !settleBody.includes("releaseIndiaCaptureClaim")) {
+  throw new Error("A rejected India claim must return before capture, and a failed capture must release the claim.");
+}
+const claimMigration = read("supabase/migrations/20261006120000_india_capture_claim.sql");
+const flagFn = claimMigration.slice(
+  claimMigration.indexOf("function public.flag_india_capture_unrecorded"),
+  claimMigration.indexOf("function public.mark_india_payment_captured"),
+);
+if (
+  !claimMigration.includes("claim_india_payment_for_capture") ||
+  !claimMigration.includes("payments_one_open_india_attempt_key") ||
+  !claimMigration.includes("on public.payments (order_id)") ||
+  !claimMigration.includes("flag_india_capture_unrecorded") ||
+  !claimMigration.includes("razorpay_captured_unrecorded") ||
+  !claimMigration.includes("status in ('created', 'authorized')") ||
+  !claimMigration.includes("and captured_at is null") ||
+  claimMigration.includes("fx_rate_id") ||
+  !claimMigration.includes("grant execute on function public.claim_india_payment_for_capture(uuid, uuid, text) to service_role") ||
+  !flagFn.includes("insert into public.order_events") ||
+  flagFn.includes("failure_reason") ||
+  flagFn.includes("status not in ('created', 'authorized')")
+) {
+  throw new Error("India capture must claim before the provider call, allow one open attempt per order, and keep the reconcile alert on an order event.");
 }
 if (indiaWebhookHttpStatus({ status: "error", terminal: true }) !== 200) {
   throw new Error("A terminal India webhook failure must return 200 so Razorpay stops retrying.");
@@ -355,6 +454,18 @@ if (
 ) {
   throw new Error("A different frozen quote must close the earlier open attempt.");
 }
+if (
+  decideIndiaAttemptReuse({
+    open: null,
+    ownerUserId: null,
+    email: openAttempt.email,
+    frozenAt: india.frozenAt,
+    amountMinor: india.chargeTotalMinor,
+    lines: openAttempt.lines,
+  }) !== "ignore"
+) {
+  throw new Error("A missing cookie attempt must not block a new India order.");
+}
 const priced = {
   status: "priced" as const,
   countryCode: "IN",
@@ -391,18 +502,59 @@ if (cheaper.ok || cheaper.reason !== "stale") {
 }
 
 const missingKeys = resolveRazorpayServerConfig({} as NodeJS.ProcessEnv);
-const liveKey = resolveRazorpayServerConfig({
+const liveWithoutMode = resolveRazorpayServerConfig({
   RAZORPAY_KEY_ID: "rzp_live_example",
   RAZORPAY_KEY_SECRET: "secret",
   RAZORPAY_WEBHOOK_SECRET: "hook",
 } as unknown as NodeJS.ProcessEnv);
-const testKey = resolveRazorpayServerConfig({
+const testWithoutMode = resolveRazorpayServerConfig({
   RAZORPAY_KEY_ID: "rzp_test_example",
   RAZORPAY_KEY_SECRET: "secret",
   RAZORPAY_WEBHOOK_SECRET: "hook",
 } as unknown as NodeJS.ProcessEnv);
-if (missingKeys.ok || missingKeys.reason !== "missing" || liveKey.ok || liveKey.reason !== "live_key" || !testKey.ok) {
-  throw new Error("Razorpay must fail closed without test keys and must reject live keys.");
+const liveInTest = resolveRazorpayServerConfig({
+  RAZORPAY_MODE: "test",
+  RAZORPAY_KEY_ID: "rzp_live_example",
+  RAZORPAY_KEY_SECRET: "secret",
+  RAZORPAY_WEBHOOK_SECRET: "hook",
+} as unknown as NodeJS.ProcessEnv);
+const testInLive = resolveRazorpayServerConfig({
+  RAZORPAY_MODE: "live",
+  RAZORPAY_KEY_ID: "rzp_test_example",
+  RAZORPAY_KEY_SECRET: "secret",
+  RAZORPAY_WEBHOOK_SECRET: "hook",
+} as unknown as NodeJS.ProcessEnv);
+const testKey = resolveRazorpayServerConfig({
+  RAZORPAY_MODE: "test",
+  RAZORPAY_KEY_ID: "rzp_test_example",
+  RAZORPAY_KEY_SECRET: "secret",
+  RAZORPAY_WEBHOOK_SECRET: "hook",
+} as unknown as NodeJS.ProcessEnv);
+const liveKey = resolveRazorpayServerConfig({
+  RAZORPAY_MODE: "live",
+  RAZORPAY_KEY_ID: "rzp_live_example",
+  RAZORPAY_KEY_SECRET: "secret",
+  RAZORPAY_WEBHOOK_SECRET: "hook",
+} as unknown as NodeJS.ProcessEnv);
+if (
+  missingKeys.ok ||
+  missingKeys.reason !== "missing" ||
+  liveWithoutMode.ok ||
+  liveWithoutMode.reason !== "mode" ||
+  testWithoutMode.ok ||
+  testWithoutMode.reason !== "mode" ||
+  liveInTest.ok ||
+  liveInTest.reason !== "key_mismatch" ||
+  testInLive.ok ||
+  testInLive.reason !== "key_mismatch" ||
+  !testKey.ok ||
+  testKey.config.mode !== "test" ||
+  testKey.config.webhookSecret !== "hook" ||
+  !liveKey.ok ||
+  liveKey.config.mode !== "live" ||
+  liveKey.config.webhookSecret !== "hook"
+) {
+  throw new Error("Razorpay must fail closed when mode is unset or the key prefix does not match the mode.");
 }
 
 for (const file of [
@@ -429,13 +581,45 @@ if (review.toLowerCase().includes("checkout.js") || !review.includes('paymentRai
 if (!read("src/components/checkout/IndiaPayment.tsx").includes("https://checkout.razorpay.com/v1/checkout.js")) {
   throw new Error("India payment must load checkout.js only from its own component.");
 }
-if (!read(".env.example").includes("\nRAZORPAY_KEY_ID=") || read(".env.example").includes("NEXT_PUBLIC_RAZORPAY")) {
-  throw new Error(".env.example must document server-only Razorpay test keys.");
+const envExample = read(".env.example");
+if (
+  !envExample.includes("\nRAZORPAY_MODE=") ||
+  !envExample.includes("\nRAZORPAY_KEY_ID=") ||
+  !envExample.includes("/api/webhooks/razorpay") ||
+  !envExample.includes("RAZORPAY_MODE=live") ||
+  envExample.includes("NEXT_PUBLIC_RAZORPAY")
+) {
+  throw new Error(".env.example must document RAZORPAY_MODE and the webhook path without public secrets.");
+}
+const webhookRoute = read("src/app/api/webhooks/razorpay/route.ts");
+if (!webhookRoute.includes("/api/webhooks/razorpay") || !webhookRoute.includes("x-razorpay-signature")) {
+  throw new Error("The Razorpay webhook route must document its path and verify the signature header.");
+}
+const indiaAlert = read("src/components/admin/AdminIndiaCaptureAlerts.tsx");
+const indiaAlertService = read("src/services/admin-india-capture-alerts.ts");
+if (
+  !read("src/components/admin/AdminDashboard.tsx").includes("<AdminIndiaCaptureAlerts />") ||
+  !indiaAlert.includes("ADMIN_INDIA_CAPTURE_ALERTS_BODY") ||
+  !indiaAlert.includes("data-india-capture-alerts") ||
+  !indiaAlertService.includes("getAdminGate") ||
+  !indiaAlertService.includes("INDIA_CAPTURE_UNRECORDED") ||
+  !indiaAlertService.includes("order_events") ||
+  indiaAlertService.includes('eq("failure_reason"') ||
+  indiaAlertService.includes("/refund")
+) {
+  throw new Error("A Razorpay capture that never became an order must show an admin reconcile alert.");
+}
+for (const file of ["src/lib/razorpay/order.ts", "src/lib/razorpay/commit.ts", "src/lib/razorpay/webhook.ts"]) {
+  const source = read(file);
+  if (source.includes("/refund") || source.includes("refundRazorpay")) {
+    throw new Error(`${file} must not call a Razorpay refund.`);
+  }
 }
 
 assertOrderCreate()
+  .then(() => assertLiveWebhookSecret())
   .then(() => {
-    console.log("Payment routing OK: India/INR Razorpay, locked amount, fail closed, test keys only.");
+    console.log("Payment routing OK: India/INR Razorpay, locked amount, mode fail closed, capture claim.");
   })
   .catch((error: unknown) => {
     console.error(error);

@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { isUuid } from "@/lib/ids";
 import type { IndiaCharge } from "@/lib/payment/india-charge";
 import type { StoredRazorpayPayment } from "./assess";
+import { INDIA_CAPTURE_UNRECORDED, type IndiaCaptureClaimStatus } from "./capture-claim";
 import { isRazorpayOrderId, isRazorpayPaymentId } from "./ids";
 import type { IndiaOpenAttempt } from "./reuse";
 
@@ -187,6 +188,85 @@ export async function loadStoredIndiaPayment(providerOrderId: string): Promise<
   };
 }
 
+export async function claimIndiaPaymentForCapture(input: {
+  paymentId: string;
+  orderId: string;
+  providerPaymentId: string;
+}): Promise<IndiaCaptureClaimStatus> {
+  if (!isUuid(input.paymentId) || !isUuid(input.orderId) || !isRazorpayPaymentId(input.providerPaymentId)) {
+    return "rejected";
+  }
+  if (!indiaPaymentWritesAvailable()) {
+    return "error";
+  }
+  const admin = createSupabaseAdminClient();
+  const result = await admin.rpc("claim_india_payment_for_capture", {
+    p_payment_id: input.paymentId,
+    p_order_id: input.orderId,
+    p_provider_payment_id: input.providerPaymentId,
+  });
+  return readClaimStatus(result.error, rpcRow(result.data).status);
+}
+
+export async function releaseIndiaCaptureClaim(input: {
+  paymentId: string;
+  orderId: string;
+  providerPaymentId: string;
+}): Promise<void> {
+  if (!isUuid(input.paymentId) || !isUuid(input.orderId) || !isRazorpayPaymentId(input.providerPaymentId)) {
+    return;
+  }
+  if (!indiaPaymentWritesAvailable()) {
+    return;
+  }
+  const admin = createSupabaseAdminClient();
+  await admin.rpc("release_india_capture_claim", {
+    p_payment_id: input.paymentId,
+    p_order_id: input.orderId,
+    p_provider_payment_id: input.providerPaymentId,
+  });
+}
+
+/**
+ * Razorpay has the money and our order write failed.
+ * Appends an order event the admin dashboard can list. Does not refund.
+ * The log is the fallback when that event is not stored.
+ */
+export async function flagIndiaCaptureUnrecorded(input: {
+  paymentId: string;
+  orderId: string;
+  providerPaymentId: string;
+  orderReference: string;
+}): Promise<void> {
+  const detail = {
+    orderId: input.orderId,
+    paymentId: input.paymentId,
+    providerPaymentId: input.providerPaymentId,
+    orderReference: input.orderReference,
+    failureReason: INDIA_CAPTURE_UNRECORDED,
+  };
+  if (!isUuid(input.paymentId) || !isUuid(input.orderId) || !isRazorpayPaymentId(input.providerPaymentId) || !indiaPaymentWritesAvailable()) {
+    console.error(
+      "Razorpay captured funds but the order was not recorded. The reconcile alert was not stored. Match this payment in the Razorpay dashboard. This app does not refund it.",
+      detail,
+    );
+    return;
+  }
+  const admin = createSupabaseAdminClient();
+  const result = await admin.rpc("flag_india_capture_unrecorded", {
+    p_payment_id: input.paymentId,
+    p_order_id: input.orderId,
+    p_provider_payment_id: input.providerPaymentId,
+  });
+  const status = rpcRow(result.data).status;
+  if (result.error || (status !== "flagged" && status !== "already_flagged")) {
+    console.error(
+      "Razorpay captured funds but the order was not recorded. The reconcile alert was not stored. Match this payment in the Razorpay dashboard. This app does not refund it.",
+      { ...detail, flagStatus: typeof status === "string" ? status : "error" },
+    );
+  }
+}
+
 export async function markIndiaPaymentCaptured(input: {
   paymentId: string;
   orderId: string;
@@ -220,6 +300,16 @@ export async function markIndiaPaymentFailed(paymentId: string, reason: string):
     p_payment_id: paymentId,
     p_reason: reason.slice(0, 280),
   });
+}
+
+function readClaimStatus(error: unknown, status: unknown): IndiaCaptureClaimStatus {
+  if (error) {
+    return "error";
+  }
+  if (status === "claimed" || status === "in_progress" || status === "duplicate" || status === "rejected") {
+    return status;
+  }
+  return "rejected";
 }
 
 function rpcRow(value: unknown): Record<string, unknown> {

@@ -39,8 +39,11 @@ if (PAYMENT_PROVIDER_PAYPAL !== "paypal" || STORE_CURRENCY !== "GBP") {
 }
 
 const razorpayConfig = read("src/lib/razorpay/config.ts");
-if (!razorpayConfig.includes('import "server-only"') || !razorpayConfig.includes("rzp_live_")) {
-  throw new Error("Razorpay must stay server-only and reject live keys.");
+if (!razorpayConfig.includes('import "server-only"') || !razorpayConfig.includes("rzp_live_") || !razorpayConfig.includes("rzp_test_")) {
+  throw new Error("Razorpay must stay server-only and name both key prefixes.");
+}
+if (!read(".env.example").includes("\nRAZORPAY_MODE=")) {
+  throw new Error(".env.example must document RAZORPAY_MODE.");
 }
 if (!existsSync(resolve(root, "src/app/api/webhooks/razorpay/route.ts"))) {
   throw new Error("Razorpay webhook route must verify the raw body.");
