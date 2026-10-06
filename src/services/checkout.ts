@@ -25,7 +25,11 @@ import {
 } from "@/lib/checkout-quote";
 import { containsForbiddenCartOwnership } from "@/lib/ownership-keys";
 import { bindGuestCartSession, readGuestCartSessionId } from "@/lib/guest-cart-cookie";
-import { readPaymentAttemptId } from "@/lib/payment/attempt-cookie";
+import {
+  clearInvalidPaymentAttemptCookie,
+  clearPaymentAttemptId,
+  readPaymentAttemptId,
+} from "@/lib/payment/attempt-cookie";
 import { getPublicCart } from "@/services/cart";
 import { closeCheckoutPaymentAttempt, loadLivePendingPaymentLines } from "@/services/pending-payment";
 import {
@@ -241,14 +245,21 @@ export async function refreshCheckoutTotal(): Promise<CheckoutMutationResult> {
     };
   }
   const openAttemptId = await readPaymentAttemptId();
-  if (openAttemptId) {
-    const closed = await closeCheckoutPaymentAttempt(
-      openAttemptId,
-      "cancelled",
-      "Checkout total refreshed.",
-    );
-    if (!closed) {
+  if (!openAttemptId) {
+    await clearInvalidPaymentAttemptCookie();
+  } else {
+    let closed = false;
+    try {
+      closed = await closeCheckoutPaymentAttempt(
+        openAttemptId,
+        "cancelled",
+        "Checkout total refreshed.",
+      );
+    } catch {
       return { status: "error" };
+    }
+    if (!closed) {
+      await clearPaymentAttemptId();
     }
   }
   const frozen = await freezeSavedQuote(current.country);

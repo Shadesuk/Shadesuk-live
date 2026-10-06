@@ -922,8 +922,13 @@ void (async () => {
       !summarySource.includes("money(quote.totalMinor") &&
       refreshFn.includes("closeCheckoutPaymentAttempt") &&
       refreshFn.indexOf("closeCheckoutPaymentAttempt") < refreshFn.indexOf("freezeSavedQuote") &&
+      refreshFn.includes("clearInvalidPaymentAttemptCookie") &&
+      refreshFn.includes("clearPaymentAttemptId") &&
+      refreshFn.indexOf("clearPaymentAttemptId") < refreshFn.indexOf("freezeSavedQuote") &&
       refreshFn.includes('"cancelled"') &&
       refreshFn.includes("Checkout total refreshed.") &&
+      refreshFn.includes("} catch {") &&
+      refreshFn.indexOf("} catch {") < refreshFn.indexOf("freezeSavedQuote") &&
       refreshFn.includes("freezeSavedQuote") &&
       refreshFn.includes("quoteLock: frozen.lock") &&
       refreshFn.includes("lockExpired: false") &&
@@ -943,6 +948,22 @@ void (async () => {
       lookupUsesAutocomplete("AU") &&
       !lookupUsesAutocomplete("GB"),
     "Update total freezes a new lock and rejects a browser amount. Delivery keeps a filled address. France autocompletes.",
+  );
+
+  const closeStore = read("src/lib/payment/pending-store.ts");
+  const closeFn = closeStore.slice(
+    closeStore.indexOf("async closeOpenAttempt"),
+    closeStore.indexOf("export function parsePaymentRow"),
+  );
+  expect(
+    "Cancel write stops refresh",
+    closeFn.includes("if (paymentResult.error)") &&
+      closeFn.includes("if (orderResult.error)") &&
+      closeFn.includes('throw new Error("Payment attempt cancel failed.")') &&
+      refreshFn.indexOf("} catch {") < refreshFn.indexOf("const frozen = await freezeSavedQuote") &&
+      refreshFn.indexOf("clearInvalidPaymentAttemptCookie") < refreshFn.indexOf("const frozen = await freezeSavedQuote") &&
+      refreshFn.indexOf("if (!closed)") < refreshFn.indexOf("const frozen = await freezeSavedQuote"),
+    "A Supabase cancel error does not freeze a new lock. A bad attempt cookie is cleared and refresh continues.",
   );
 
   const refreshedCapture = await captureAfterRefreshCancel();

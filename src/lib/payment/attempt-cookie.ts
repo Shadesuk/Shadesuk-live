@@ -16,6 +16,15 @@ export async function readPaymentAttemptId(): Promise<string | null> {
   return isUuid(value) ? value : null;
 }
 
+/** Drops a non-empty attempt cookie that is not a payment id. An empty cookie stays empty. */
+export async function clearInvalidPaymentAttemptCookie(): Promise<void> {
+  const store = await cookies();
+  const value = store.get(PAYMENT_ATTEMPT_COOKIE)?.value ?? "";
+  if (value && !isUuid(value)) {
+    await clearPaymentAttemptId();
+  }
+}
+
 export async function rememberPaymentAttemptId(paymentId: string): Promise<void> {
   if (!isUuid(paymentId)) {
     return;
