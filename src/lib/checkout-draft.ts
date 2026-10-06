@@ -1,3 +1,4 @@
+import { normalizeCountry } from "@/lib/checkout-validate";
 import { encodeCheckoutQuoteLock, inspectCheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import {
@@ -126,7 +127,9 @@ function parsePayload(raw: unknown, now: number): PublicCheckoutDraft {
   const inspected = inspectCheckoutQuoteLock(record.quoteLock, now);
   draft.quoteLock = inspected.lock;
   draft.lockExpired = inspected.expired;
-  if (inspected.expired) {
+  const keepGbReview =
+    inspected.expired && draft.step === "review" && normalizeCountry(draft.country) === CHECKOUT_COUNTRY_GB;
+  if (inspected.expired && !keepGbReview) {
     draft.step = "address";
   }
   draft.expired = expired;

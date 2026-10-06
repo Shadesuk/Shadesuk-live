@@ -265,6 +265,36 @@ const droppedDraft = decodeCheckoutDraftCookie(
 if (droppedDraft.quoteLock || !droppedDraft.lockExpired || droppedDraft.step !== "address") {
   throw new Error("An expired lock must be dropped and return the shopper to delivery.");
 }
+const reviewStepped = { ...draftWith(timed), step: "review" as const, email: "later@example.com", country: "GB" };
+const reviewKept = encodeCheckoutDraftCookie(
+  sessionId,
+  reviewStepped,
+  frozenAt + 20 * 60 * 1000,
+  "verify-quote-secret",
+);
+const reviewDropped = decodeCheckoutDraftCookie(
+  sessionId,
+  reviewKept,
+  frozenAt + QUOTE_LOCK_TTL_MS,
+  "verify-quote-secret",
+);
+if (reviewDropped.quoteLock || !reviewDropped.lockExpired || reviewDropped.step !== "review") {
+  throw new Error("An expired GB review must stay on review so the shopper can update the total.");
+}
+const indiaReview = { ...draftWith(timed, "IN"), step: "review" as const, email: "later@example.com" };
+const indiaKept = encodeCheckoutDraftCookie(sessionId, indiaReview, frozenAt + 20 * 60 * 1000, "verify-quote-secret");
+const indiaDropped = decodeCheckoutDraftCookie(sessionId, indiaKept, frozenAt + QUOTE_LOCK_TTL_MS, "verify-quote-secret");
+if (indiaDropped.quoteLock || !indiaDropped.lockExpired || indiaDropped.step !== "address") {
+  throw new Error("An expired India review still returns to delivery.");
+}
+const stepWriteSource = read("src/services/checkout.ts");
+const stepFn = stepWriteSource.slice(
+  stepWriteSource.indexOf("export async function setCheckoutStep"),
+  stepWriteSource.indexOf("export async function restartExpiredCheckout"),
+);
+if (!stepFn.includes("keepExpiredGbReview") || !stepFn.includes('normalizeCountry(current.country) === CHECKOUT_COUNTRY_GB')) {
+  throw new Error("Opening review after a GB lock expires must not send the shopper back to delivery.");
+}
 const checkoutService = read("src/services/checkout.ts");
 const contactWrite = checkoutService.slice(
   checkoutService.indexOf("export async function saveCheckoutContact"),
