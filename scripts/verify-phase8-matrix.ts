@@ -20,7 +20,18 @@ import {
   quoteLockForCountry,
 } from "../src/lib/checkout-quote-lock";
 import { authoritativeCheckoutQuote, quoteIsChargeable } from "../src/lib/checkout-quote";
-import { formatChargeMinor, formatDisplayGbpMinor, presentCheckoutAmount } from "../src/lib/market/prices";
+import { getLocalizedPrice, multiplyMinorByRateHalfUp, parsePositiveDecimalRate } from "../src/contracts/pricing";
+import { clientSuppliedCheckoutMoney } from "../src/lib/checkout-quote";
+import { lookupUsesAutocomplete } from "../src/lib/checkout-validate";
+import {
+  formatChargeMinor,
+  formatDisplayGbpMinor,
+  formatDisplayMinor,
+  displayMinorFromGbp,
+  presentCheckoutAmount,
+  presentCheckoutPartsTotal,
+  sumPresentedCheckoutMinors,
+} from "../src/lib/market/prices";
 import { encodeCheckoutDraftCookie, decodeCheckoutDraftCookie } from "../src/lib/checkout-draft";
 import { lookupAddresses, getAddressProvider } from "../src/lib/address-lookup";
 import { postcodesIoAddressLookupProvider } from "../src/lib/address-providers/postcodes-io";
@@ -663,6 +674,186 @@ void (async () => {
     "A lower live line price blocks PayPal. The same undercut blocks India. Production India shipping is the £4.65 standard rate.",
   );
 
+  const inrRate = "127.32";
+  const inrRates = [{ currency: "INR", rate: inrRate }];
+  const inrLock = createCheckoutQuoteLock({
+    countryCode: "IN",
+    lines: [{ variantId: VARIANT_ID, quantity: 1, unitPriceMinor: 6599 }],
+    fx: { id: "fx-inr-12732", version: 3, rate: inrRate },
+    now: NOW,
+  });
+  const inrGrand = getLocalizedPrice({
+    baseAmountMinor: 6599 + 465,
+    baseCurrency: "GBP",
+    targetCurrency: "INR",
+    fxRate: inrRate,
+    fxRateId: "fx-inr-12732",
+    fxVersion: 3,
+  });
+  const inrShown = sumPresentedCheckoutMinors({
+    parts: [{ gbpMinor: 6599 }, { gbpMinor: 465 }],
+    displayCurrency: "INR",
+    chargeCurrency: "INR",
+    rates: inrRates,
+  });
+  const inrCharge = inrLock
+    ? buildIndiaCharge({
+        draft: draft(inrLock, "IN"),
+        lines: [line(6599)],
+        now: NOW,
+        createReference: () => "SHU-MATRIXIN0001",
+      })
+    : null;
+  const inrLockTotal = inrLock?.chargeTotalMinor ?? null;
+  const inrGrandTotal = inrGrand.ok ? inrGrand.price.amountMinor : null;
+  expect(
+    "Charge line sum INR",
+    inrLock != null &&
+      inrGrand.ok &&
+      inrLockTotal != null &&
+      inrGrandTotal != null &&
+      inrLockTotal !== inrGrandTotal &&
+      inrLock.chargeSubtotalMinor === 840185 &&
+      inrLock.chargeShippingMinor === 59204 &&
+      inrLockTotal === 899389 &&
+      inrLock.chargeTotalMinor === inrLock.chargeSubtotalMinor + inrLock.chargeShippingMinor &&
+      inrGrandTotal === 899388 &&
+      inrShown?.minor === 899389 &&
+      presentCheckoutPartsTotal({
+        parts: [{ gbpMinor: 6599 }, { gbpMinor: 465 }],
+        displayCurrency: "INR",
+        chargeCurrency: "INR",
+        rates: inrRates,
+      }) === formatChargeMinor(899389, "INR") &&
+      inrCharge?.ok === true &&
+      inrCharge.ok &&
+      inrCharge.charge.payment.amountMinor === 899389,
+    "£65.99 + £4.65 at 127.32 is ₹8993.89 (899389 paise). Converting £70.64 is 899388 and is not the charge.",
+  );
+
+  const diverged = divergentCharge("1.005", 465);
+  const eurLock = diverged
+    ? createCheckoutQuoteLock({
+        countryCode: "FR",
+        lines: [{ variantId: VARIANT_ID, quantity: 1, unitPriceMinor: diverged.subtotal }],
+        fx: { id: "fx-eur-div", version: 1, rate: "1.005" },
+        now: NOW,
+      })
+    : null;
+  const usdLock = diverged
+    ? createCheckoutQuoteLock({
+        countryCode: "US",
+        lines: [{ variantId: VARIANT_ID, quantity: 1, unitPriceMinor: diverged.subtotal }],
+        fx: { id: "fx-usd-div", version: 1, rate: "1.005" },
+        now: NOW,
+      })
+    : null;
+  const eurAttempt = eurLock
+    ? buildPendingPaymentAttempt({
+        draft: draft(eurLock, "FR"),
+        lines: [line(diverged?.subtotal ?? 0)],
+        clientQuote: { totalMinor: 1, currency: "EUR", total: 0.01 },
+        now: NOW,
+        createReference: () => "SHU-MATRIXEU0001",
+      })
+    : null;
+  const usdAttempt = usdLock
+    ? buildPendingPaymentAttempt({
+        draft: draft(usdLock, "US"),
+        lines: [line(diverged?.subtotal ?? 0)],
+        clientQuote: { totalMinor: 1, currency: "USD" },
+        now: NOW,
+        createReference: () => "SHU-MATRIXUS0001",
+      })
+    : null;
+  expect(
+    "Charge line sum EUR USD",
+    diverged != null &&
+      eurLock != null &&
+      usdLock != null &&
+      eurLock.chargeTotalMinor === diverged.summed &&
+      usdLock.chargeTotalMinor === diverged.summed &&
+      eurLock.chargeTotalMinor !== diverged.grand &&
+      usdLock.chargeTotalMinor !== diverged.grand &&
+      eurAttempt?.ok === true &&
+      usdAttempt?.ok === true &&
+      eurAttempt.ok &&
+      usdAttempt.ok &&
+      eurAttempt.attempt.payment.amount_minor === diverged.summed &&
+      usdAttempt.attempt.payment.amount_minor === diverged.summed &&
+      eurAttempt.attempt.paypal.amountMinor !== 1 &&
+      usdAttempt.attempt.paypal.amountMinor !== 1,
+    "Where convert-each-line and convert-total differ by a minor unit, EUR and USD charges use the line sum. A browser total is ignored.",
+  );
+
+  const aedRates = [{ currency: "USD", rate: "1.27" }];
+  const aedGap = divergentDisplay("AED", aedRates, 465);
+  const audRates = [{ currency: "AUD", rate: "1.92" }, { currency: "USD", rate: "1.27" }];
+  const audSame = matchingDisplay("AUD", audRates, 465);
+  expect(
+    "Display line sum AED AUD",
+    aedGap != null &&
+      aedGap.summed !== aedGap.grand &&
+      sumPresentedCheckoutMinors({
+        parts: [{ gbpMinor: aedGap.subtotal }, { gbpMinor: 465 }],
+        displayCurrency: "AED",
+        chargeCurrency: "USD",
+        rates: aedRates,
+      })?.minor === aedGap.summed &&
+      presentCheckoutPartsTotal({
+        parts: [{ gbpMinor: aedGap.subtotal }, { gbpMinor: 465 }],
+        displayCurrency: "AED",
+        chargeCurrency: "USD",
+        rates: aedRates,
+      }) === formatDisplayMinor(aedGap.summed, "AED") &&
+      audSame != null &&
+      sumPresentedCheckoutMinors({
+        parts: [{ gbpMinor: audSame.subtotal }, { gbpMinor: 465 }],
+        displayCurrency: "AUD",
+        chargeCurrency: "USD",
+        rates: audRates,
+      })?.minor === audSame.summed &&
+      audSame.summed === audSame.grand,
+    "AED review total is the sum of the rounded shown lines. AUD stays the sum when those lines already agree.",
+  );
+
+  const summarySource = read("src/components/checkout/CheckoutSummary.tsx");
+  const refreshSource = read("src/services/checkout.ts");
+  const refreshFn = refreshSource.slice(
+    refreshSource.indexOf("export async function refreshCheckoutTotal"),
+    refreshSource.indexOf("async function loadCheckout"),
+  );
+  const refreshAction = read("src/app/(storefront)/checkout/actions.ts");
+  const refreshActionFn = refreshAction.slice(
+    refreshAction.indexOf("export async function refreshCheckoutTotalAction"),
+    refreshAction.indexOf("export async function restartCheckoutDraftAction"),
+  );
+  const checkoutPage = read("src/components/checkout/CheckoutPage.tsx");
+  expect(
+    "Update total guardrail",
+    summarySource.includes("presentCheckoutPartsTotal") &&
+      !summarySource.includes("money(quote.totalMinor") &&
+      refreshFn.includes("freezeSavedQuote") &&
+      refreshFn.includes("quoteLock: frozen.lock") &&
+      refreshFn.includes("lockExpired: false") &&
+      !refreshFn.includes("frozenAt:") &&
+      !refreshFn.includes("quoteLock.frozenAt") &&
+      refreshActionFn.includes("clientSuppliedCheckoutMoney") &&
+      clientSuppliedCheckoutMoney({ total: 344 }) &&
+      clientSuppliedCheckoutMoney({ totalMinor: 1 }) &&
+      clientSuppliedCheckoutMoney({ amountMinor: 1 }) &&
+      clientSuppliedCheckoutMoney({ frozenAt: 1 }) &&
+      !clientSuppliedCheckoutMoney({}) &&
+      QUOTE_LOCK_TTL_MS === 45 * 60 * 1000 &&
+      checkoutPage.includes("refreshCheckoutTotalAction()") &&
+      checkoutPage.includes("current.line1.trim() && !next.line1.trim()") &&
+      lookupUsesAutocomplete("FR") &&
+      lookupUsesAutocomplete("US") &&
+      lookupUsesAutocomplete("AU") &&
+      !lookupUsesAutocomplete("GB"),
+    "Update total freezes a new lock and rejects a browser amount. Delivery keeps a filled address. France autocompletes.",
+  );
+
   printRows();
   if (rows.some((row) => row.result === "FAIL")) {
     process.exitCode = 1;
@@ -671,6 +862,67 @@ void (async () => {
   console.error(error);
   process.exitCode = 1;
 });
+
+function divergentCharge(
+  rateText: string,
+  shippingMinor: number,
+): { subtotal: number; summed: number; grand: number } | null {
+  const rate = parsePositiveDecimalRate(rateText);
+  if (!rate) {
+    return null;
+  }
+  for (let subtotal = 1; subtotal <= 8000; subtotal += 1) {
+    const part = multiplyMinorByRateHalfUp(subtotal, rate);
+    const shipping = multiplyMinorByRateHalfUp(shippingMinor, rate);
+    const grand = multiplyMinorByRateHalfUp(subtotal + shippingMinor, rate);
+    if (part == null || shipping == null || grand == null) {
+      continue;
+    }
+    const summed = part + shipping;
+    if (summed !== grand) {
+      return { subtotal, summed, grand };
+    }
+  }
+  return null;
+}
+
+function divergentDisplay(
+  currency: string,
+  rates: readonly { currency: string; rate: string }[],
+  shippingMinor: number,
+): { subtotal: number; summed: number; grand: number } | null {
+  for (let subtotal = 100; subtotal <= 20000; subtotal += 1) {
+    const part = displayMinorFromGbp(subtotal, currency, rates);
+    const shipping = displayMinorFromGbp(shippingMinor, currency, rates);
+    const grand = displayMinorFromGbp(subtotal + shippingMinor, currency, rates);
+    if (part == null || shipping == null || grand == null) {
+      continue;
+    }
+    if (part + shipping !== grand) {
+      return { subtotal, summed: part + shipping, grand };
+    }
+  }
+  return null;
+}
+
+function matchingDisplay(
+  currency: string,
+  rates: readonly { currency: string; rate: string }[],
+  shippingMinor: number,
+): { subtotal: number; summed: number; grand: number } | null {
+  for (let subtotal = 1000; subtotal <= 20000; subtotal += 50) {
+    const part = displayMinorFromGbp(subtotal, currency, rates);
+    const shipping = displayMinorFromGbp(shippingMinor, currency, rates);
+    const grand = displayMinorFromGbp(subtotal + shippingMinor, currency, rates);
+    if (part == null || shipping == null || grand == null) {
+      continue;
+    }
+    if (part + shipping === grand && part > 0 && shipping > 0) {
+      return { subtotal, summed: part + shipping, grand };
+    }
+  }
+  return null;
+}
 
 function printRows() {
   const width = Math.max(...rows.map((row) => row.id.length));

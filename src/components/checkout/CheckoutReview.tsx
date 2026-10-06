@@ -32,8 +32,10 @@ import {
   REVIEW_HEADING,
   SHIPPING_HEADING,
   CHECKOUT_LOCK_EXPIRED,
+  CHECKOUT_PRICE_CONFIRM,
   CHECKOUT_QUOTE_STALE,
   SHIPPING_UNAVAILABLE,
+  UPDATE_TOTAL,
   UK_STANDARD_DELIVERY,
   UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
@@ -65,6 +67,7 @@ type CheckoutReviewProps = {
   frozenCharge?: FrozenCharge | null;
   pending?: boolean;
   onBack: () => void;
+  onUpdateTotal?: () => void;
 };
 
 type PaymentUiState = "idle" | "starting" | "checkout" | "verifying" | "verified" | "cancelled" | "error";
@@ -80,6 +83,7 @@ export function CheckoutReview({
   frozenCharge = null,
   pending = false,
   onBack,
+  onUpdateTotal,
 }: CheckoutReviewProps) {
   const router = useRouter();
   const { rates } = useMarket();
@@ -311,18 +315,32 @@ export function CheckoutReview({
               <IndiaPayment amountMinor={frozenCharge.totalMinor} disabled={pending} />
             </>
           ) : (
-            <p className="text-small" role="status">
-              {quote.shippingStatus === "priced"
-                ? draft.lockExpired
-                  ? CHECKOUT_LOCK_EXPIRED
-                  : CHECKOUT_QUOTE_STALE
-                : SHIPPING_UNAVAILABLE}
-            </p>
+            <QuoteHold
+              message={
+                quote.shippingStatus === "priced"
+                  ? draft.lockExpired
+                    ? CHECKOUT_LOCK_EXPIRED
+                    : CHECKOUT_QUOTE_STALE
+                  : SHIPPING_UNAVAILABLE
+              }
+              canRefresh={quote.shippingStatus === "priced"}
+              pending={pending}
+              onUpdateTotal={onUpdateTotal}
+            />
           )
-        ) : payable || hideQuoteStale ? null : (
-          <p className="text-small" role="status">
-            {quote.shippingStatus === "priced" ? CHECKOUT_QUOTE_STALE : SHIPPING_UNAVAILABLE}
-          </p>
+        ) : payable ? null : (
+          <QuoteHold
+            message={
+              quote.shippingStatus !== "priced"
+                ? SHIPPING_UNAVAILABLE
+                : hideQuoteStale
+                  ? CHECKOUT_PRICE_CONFIRM
+                  : CHECKOUT_QUOTE_STALE
+            }
+            canRefresh={quote.shippingStatus === "priced"}
+            pending={pending}
+            onUpdateTotal={onUpdateTotal}
+          />
         )}
         {payable ? (
           <>
@@ -355,6 +373,31 @@ export function CheckoutReview({
           Return to bag
         </ButtonLink>
       </div>
+    </div>
+  );
+}
+
+function QuoteHold({
+  message,
+  canRefresh,
+  pending,
+  onUpdateTotal,
+}: {
+  message: string;
+  canRefresh: boolean;
+  pending: boolean;
+  onUpdateTotal?: () => void;
+}) {
+  return (
+    <div>
+      <p className="text-small" role="status">
+        {message}
+      </p>
+      {canRefresh && onUpdateTotal ? (
+        <Button type="button" variant="primary" onClick={onUpdateTotal} disabled={pending}>
+          {UPDATE_TOTAL}
+        </Button>
+      ) : null}
     </div>
   );
 }

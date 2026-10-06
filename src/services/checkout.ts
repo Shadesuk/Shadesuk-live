@@ -215,6 +215,52 @@ export async function restartExpiredCheckout(): Promise<CheckoutMutationResult> 
   return { status: "ok", cart, draft, quote };
 }
 
+/**
+ * Replaces the quote lock with a new one at the live rate.
+ * frozenAt is the creation time inside createCheckoutQuoteLock, so the
+ * 45-minute TTL starts now. The previous lock's expiry is not reused.
+ * The caller must not supply a total; this function reads the cart and FX row.
+ */
+export async function refreshCheckoutTotal(): Promise<CheckoutMutationResult> {
+  const loaded = await loadCheckout();
+  if (!loaded) {
+    return { status: "empty" };
+  }
+  const { sessionId, cart, current, quote } = loaded;
+  if (current.expired) {
+    return { status: "expired", cart, draft: current, quote };
+  }
+  if (!current.email || !current.line1 || !current.postcode) {
+    return {
+      status: "invalid",
+      cart,
+      draft: { ...current, step: current.email ? "address" : "contact" },
+      quote,
+      errors: validateDeliverableCheckoutAddress(current),
+    };
+  }
+  const frozen = await freezeSavedQuote(current.country);
+  if (frozen.status === "error") {
+    return { status: "error" };
+  }
+  if (frozen.status !== "locked" || !frozen.lock) {
+    return { status: "blocked", cart, draft: current, quote };
+  }
+  const draft: PublicCheckoutDraft = {
+    ...current,
+    step: "review",
+    quoteLock: frozen.lock,
+    lockExpired: false,
+  };
+  const savedQuote = checkoutQuoteFromLock(frozen.lock);
+  try {
+    await persistDraft(sessionId, draft);
+  } catch {
+    return { status: "error" };
+  }
+  return { status: "ok", cart, draft, quote: savedQuote };
+}
+
 async function loadCheckout(): Promise<{
   sessionId: string;
   cart: PublicCart;

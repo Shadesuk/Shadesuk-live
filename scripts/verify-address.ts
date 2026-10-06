@@ -6,13 +6,14 @@ import { resolve } from "node:path";
 import { SUPPORTED_COUNTRIES } from "../src/contracts/countries";
 import { structuredAddressToPostal } from "../src/lib/address/structured";
 import { getAddressProvider, lookupAddresses, retrieveAddress } from "../src/lib/address-lookup";
-import { createGeoapifyProvider, GEOAPIFY_BASE_URL } from "../src/lib/address-providers/geoapify";
+import { featureToStructured, createGeoapifyProvider, GEOAPIFY_BASE_URL } from "../src/lib/address-providers/geoapify";
 import { UK_STANDARD_DELIVERY_MINOR } from "../src/lib/checkout-quote";
 import {
   checkoutCountryOptions,
+  hasCheckoutFieldErrors,
+  lookupUsesAutocomplete,
   postalFieldCopy,
   validateCheckoutAddress,
-  hasCheckoutFieldErrors,
 } from "../src/lib/checkout-validate";
 
 const root = resolve(process.cwd());
@@ -57,6 +58,42 @@ if (getAddressProvider("ZZ", { ...emptyEnv, GEOAPIFY_API_KEY: "test" }) !== null
   throw new Error("A country outside the supported list must not resolve a provider.");
 }
 
+if (getAddressProvider("FR", { ...emptyEnv, GEOAPIFY_API_KEY: "test" }) === null) {
+  throw new Error("France must resolve the Geoapify provider.");
+}
+if (!lookupUsesAutocomplete("FR") || !lookupUsesAutocomplete("US") || !lookupUsesAutocomplete("AU")) {
+  throw new Error("France, the US, and Australia must autocomplete.");
+}
+if (lookupUsesAutocomplete("GB") || lookupUsesAutocomplete("ZZ")) {
+  throw new Error("The UK stays on postcode lookup, and an unknown country does not autocomplete.");
+}
+const empire = featureToStructured(
+  {
+    place_id: "place-esb",
+    name: "Empire State Building",
+    formatted: "Empire State Building, 350 5th Avenue, New York, NY 10118, United States of America",
+    address_line1: "Empire State Building",
+    address_line2: "350 5th Avenue, New York, NY 10118, United States of America",
+    housenumber: "350",
+    street: "5th Avenue",
+    city: "New York",
+    state: "New York",
+    postcode: "10118",
+    country_code: "us",
+  },
+  "us",
+);
+if (
+  !empire ||
+  empire.line1 !== "350 5th Avenue" ||
+  empire.line2 !== "Empire State Building" ||
+  empire.city !== "New York" ||
+  empire.region !== "New York" ||
+  empire.postalCode !== "10118" ||
+  empire.line2.includes("10118")
+) {
+  throw new Error("A US place must keep the house number and street on line 1 and the building name on line 2.");
+}
 const missingKey = await lookupAddresses("Berlin", getAddressProvider("DE", emptyEnv));
 if (missingKey.status !== "unavailable") {
   throw new Error("International lookup without GEOAPIFY_API_KEY must fall closed.");
@@ -193,6 +230,15 @@ if (!read("src/lib/payment/pending-attempt.ts").includes("validateDeliverableChe
 }
 if (!lookupUi.includes("scheduleAutocomplete") || !lookupUi.includes("AUTOCOMPLETE_DEBOUNCE_MS = 300")) {
   throw new Error("Non-UK lookup must debounce autocomplete.");
+}
+if (!lookupUi.includes("lookupUsesAutocomplete")) {
+  throw new Error("France must use the same autocomplete path as other non-UK countries.");
+}
+if (!read("src/lib/checkout-copy.ts").includes("We couldn't find that address. Enter it below.")) {
+  throw new Error("An international resolve failure must tell the shopper to enter the address below.");
+}
+if (!lookupUi.includes("onLookupFailed")) {
+  throw new Error("An international resolve failure must move the shopper to manual entry.");
 }
 if (lookupUi.includes("api.geoapify.com") || lookupUi.includes("GEOAPIFY_API_KEY") || lookupUi.includes("NEXT_PUBLIC_")) {
   throw new Error("The lookup UI must not call Geoapify or read its key.");

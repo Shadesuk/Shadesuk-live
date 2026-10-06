@@ -151,6 +151,106 @@ export function presentCheckoutAmount(input: {
   return formatChargeMinor(exact, input.displayCurrency);
 }
 
+type PresentedMinor = {
+  minor: number;
+  currency: string;
+};
+
+/**
+ * One checkout line as shown.
+ * Charge currency: exact minor units (locked charge, otherwise GBP converted
+ * and kept to the cent). Display-only currency: whole major units.
+ * A missing rate falls back to whole GBP. It does not invent a price.
+ */
+export function presentedCheckoutMinor(input: {
+  gbpMinor: number;
+  chargeMinor?: number | null;
+  displayCurrency: string;
+  chargeCurrency: string;
+  rates: readonly PublicFxRate[];
+}): PresentedMinor | null {
+  const cents = input.displayCurrency === input.chargeCurrency;
+  if (!cents) {
+    const shown = displayMinorFromGbp(input.gbpMinor, input.displayCurrency, input.rates);
+    if (shown != null) {
+      return { minor: shown, currency: input.displayCurrency };
+    }
+    const fallback = roundMinorToWholeMajor(input.gbpMinor, 2);
+    return fallback == null ? null : { minor: fallback, currency: "GBP" };
+  }
+  if (input.chargeMinor != null && Number.isInteger(input.chargeMinor) && input.chargeMinor >= 0) {
+    return { minor: input.chargeMinor, currency: input.chargeCurrency };
+  }
+  const exact = exactMinorFromGbp(input.gbpMinor, input.displayCurrency, input.rates);
+  if (exact != null) {
+    return { minor: exact, currency: input.displayCurrency };
+  }
+  if (Number.isInteger(input.gbpMinor) && input.gbpMinor >= 0) {
+    return { minor: input.gbpMinor, currency: "GBP" };
+  }
+  return null;
+}
+
+/**
+ * Checkout total. Each part is converted (or whole-rounded) on its own, then
+ * the parts are added. The GBP grand total is not converted as one figure,
+ * so a 1-minor rounding gap cannot disagree with the quote lock.
+ */
+export function sumPresentedCheckoutMinors(input: {
+  parts: readonly { gbpMinor: number; chargeMinor?: number | null }[];
+  displayCurrency: string;
+  chargeCurrency: string;
+  rates: readonly PublicFxRate[];
+}): PresentedMinor | null {
+  if (input.parts.length === 0) {
+    return null;
+  }
+  let total = 0;
+  let currency: string | null = null;
+  for (const part of input.parts) {
+    const presented = presentedCheckoutMinor({
+      gbpMinor: part.gbpMinor,
+      chargeMinor: part.chargeMinor,
+      displayCurrency: input.displayCurrency,
+      chargeCurrency: input.chargeCurrency,
+      rates: input.rates,
+    });
+    if (!presented) {
+      return null;
+    }
+    if (currency == null) {
+      currency = presented.currency;
+    } else if (currency !== presented.currency) {
+      return null;
+    }
+    total += presented.minor;
+    if (!Number.isSafeInteger(total)) {
+      return null;
+    }
+  }
+  return currency == null ? null : { minor: total, currency };
+}
+
+export function presentCheckoutPartsTotal(input: {
+  parts: readonly { gbpMinor: number; chargeMinor?: number | null }[];
+  displayCurrency: string;
+  chargeCurrency: string;
+  rates: readonly PublicFxRate[];
+}): string {
+  const summed = sumPresentedCheckoutMinors(input);
+  if (!summed) {
+    return "";
+  }
+  const cents = input.displayCurrency === input.chargeCurrency;
+  if (summed.currency === "GBP" && input.displayCurrency !== "GBP") {
+    return cents ? formatChargeMinor(summed.minor, "GBP") : formatDisplayMinor(summed.minor, "GBP");
+  }
+  if (cents) {
+    return formatChargeMinor(summed.minor, input.chargeCurrency);
+  }
+  return formatDisplayMinor(summed.minor, input.displayCurrency);
+}
+
 /** GBP minor units converted to the target currency, kept to the cent. */
 function exactMinorFromGbp(
   gbpMinor: number,

@@ -85,6 +85,16 @@ export function isSupportedDeliveryCountry(country: string): boolean {
   return supportedCountry(normalizeCountry(country)) != null;
 }
 
+/**
+ * Street autocomplete for every supported country except the UK.
+ * France uses the same Geoapify path as the US and Australia.
+ * The UK stays on the postcode find button.
+ */
+export function lookupUsesAutocomplete(country: string): boolean {
+  const code = normalizeCountry(country);
+  return code !== CHECKOUT_COUNTRY_GB && isSupportedDeliveryCountry(code);
+}
+
 export function checkoutCountryOptions(): ReadonlyArray<{ code: string; name: string }> {
   return SUPPORTED_COUNTRIES.map((country) => ({ code: country.code, name: country.name }));
 }

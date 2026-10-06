@@ -22,7 +22,7 @@ import {
   FIND_ADDRESS,
   POSTCODE_INVALID,
 } from "@/lib/checkout-copy";
-import { isUkPostcodeLookupQuery, normalizeCountry } from "@/lib/checkout-validate";
+import { isUkPostcodeLookupQuery, lookupUsesAutocomplete, normalizeCountry } from "@/lib/checkout-validate";
 import { CHECKOUT_COUNTRY_GB } from "@/types/checkout";
 import type { AddressSuggestion, PostalAddress } from "@/types/integrations";
 import type { AddressLookupView, AddressRetrieveView } from "@/types/checkout";
@@ -42,6 +42,8 @@ type AddressLookupProps = {
   retrieve: (id: string) => Promise<AddressRetrieveView>;
   disabled?: boolean;
   allowManual?: boolean;
+  /** Reveal manual entry after an international resolve failure. Does not submit. */
+  onLookupFailed?: () => void;
 };
 
 export function AddressLookup({
@@ -54,6 +56,7 @@ export function AddressLookup({
   retrieve,
   disabled = false,
   allowManual = true,
+  onLookupFailed,
 }: AddressLookupProps) {
   const inputId = useId();
   const listboxId = useId();
@@ -65,6 +68,7 @@ export function AddressLookup({
   const timerRef = useRef<number | null>(null);
   const countryRef = useRef(country);
   const unitedKingdom = normalizeCountry(country) === CHECKOUT_COUNTRY_GB;
+  const autocomplete = lookupUsesAutocomplete(country);
 
   if (country !== prevCountry) {
     setPrevCountry(country);
@@ -138,6 +142,9 @@ export function AddressLookup({
         return;
       }
       setStatus("error");
+      if (autocomplete) {
+        onLookupFailed?.();
+      }
       return;
     }
     if (signal.aborted) {
@@ -149,6 +156,9 @@ export function AddressLookup({
     }
     if (result.status === "error") {
       setStatus("error");
+      if (autocomplete) {
+        onLookupFailed?.();
+      }
       return;
     }
     if (result.suggestions.length === 0) {
@@ -172,6 +182,9 @@ export function AddressLookup({
       }
       setSuggestions([]);
       setStatus("error");
+      if (autocomplete) {
+        onLookupFailed?.();
+      }
       return;
     }
     if (signal.aborted) {
@@ -180,6 +193,9 @@ export function AddressLookup({
     if (result.status !== "ok") {
       setSuggestions([]);
       setStatus(result.status === "unavailable" ? "unavailable" : "error");
+      if (result.status !== "unavailable" && autocomplete) {
+        onLookupFailed?.();
+      }
       return;
     }
     onSelect(result.address);
@@ -220,7 +236,12 @@ export function AddressLookup({
   }
 
   return (
-    <div className={styles.wrap} data-address-lookup data-lookup-status={status}>
+    <div
+      className={styles.wrap}
+      data-address-lookup
+      data-lookup-mode={autocomplete ? "autocomplete" : "postcode"}
+      data-lookup-status={status}
+    >
       <div className={styles.find}>
         <Field
           id={inputId}
@@ -252,7 +273,7 @@ export function AddressLookup({
             ) {
               setStatus("idle");
             }
-            if (!unitedKingdom && next.trim().length >= 3) {
+            if (autocomplete && next.trim().length >= 3) {
               scheduleAutocomplete(next);
             }
           }}

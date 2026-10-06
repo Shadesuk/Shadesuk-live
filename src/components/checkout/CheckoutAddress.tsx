@@ -38,6 +38,7 @@ type CheckoutAddressProps = {
   onSelect: (address: PostalAddress) => void;
   onBack: () => void;
   onSubmit: () => Promise<void>;
+  onLookupFailed?: () => void;
   search: (query: string) => Promise<AddressLookupView>;
   retrieve: (id: string) => Promise<AddressRetrieveView>;
 };
@@ -54,6 +55,7 @@ export function CheckoutAddress({
   onSelect,
   onBack,
   onSubmit,
+  onLookupFailed,
   search,
   retrieve,
 }: CheckoutAddressProps) {
@@ -118,6 +120,7 @@ export function CheckoutAddress({
         retrieve={retrieve}
         disabled={pending}
         allowManual={Boolean(priced)}
+        onLookupFailed={onLookupFailed}
       />
       {showForm && priced ? (
         <AddressForm

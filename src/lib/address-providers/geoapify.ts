@@ -103,21 +103,54 @@ export function featureToStructured(
   if (!returned || returned !== countryCode) {
     return null;
   }
-  const line1 = asString(properties.address_line1) ?? joinStreet(properties);
   const city =
     asString(properties.city) ?? asString(properties.town) ?? asString(properties.village) ?? "";
   const postalCode = asString(properties.postcode) ?? "";
-  if (!city || !postalCode) {
+  const formatted = asString(properties.formatted);
+  const namedLine = asString(properties.address_line1);
+  const street = joinStreet(properties);
+  const line1 = street || namedLine || "";
+  if (!line1 || !city || !postalCode) {
     return null;
   }
+  const building = firstDistinct([asString(properties.name), namedLine], line1);
+  const extra = asString(properties.address_line2);
+  const line2Candidate = building || (extra && extra !== line1 ? extra : "");
+  const line2 =
+    line2Candidate && !looksLikeFormattedAddress(line2Candidate, { formatted, city, postalCode })
+      ? line2Candidate
+      : "";
   return {
     line1,
-    line2: asString(properties.address_line2) ?? "",
+    line2,
     city,
     region: asString(properties.state) ?? asString(properties.county) ?? "",
     postalCode,
     countryCode: countryCode.toUpperCase(),
   };
+}
+
+function firstDistinct(candidates: Array<string | undefined>, line1: string): string {
+  for (const candidate of candidates) {
+    if (candidate && candidate !== line1) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+/** A formatted dump repeats the city and postcode. It is not a street line. */
+function looksLikeFormattedAddress(
+  value: string,
+  context: { formatted?: string; city: string; postalCode: string },
+): boolean {
+  if (context.formatted && value === context.formatted) {
+    return true;
+  }
+  const lower = value.toLowerCase();
+  return (
+    lower.includes(context.postalCode.toLowerCase()) && lower.includes(context.city.toLowerCase())
+  );
 }
 
 function assertConfigured(apiKey: string, baseUrl: string): void {
