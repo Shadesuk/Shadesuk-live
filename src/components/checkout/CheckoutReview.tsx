@@ -34,6 +34,8 @@ import {
   REVIEW_HEADING,
   SHIPPING_HEADING,
   CHECKOUT_TOTAL_UPDATED,
+  EMPTY_BAG_REVIEW,
+  RETURN_TO_BAG,
   SHIPPING_UNAVAILABLE,
   UPDATE_TOTAL,
   UK_STANDARD_DELIVERY,
@@ -90,17 +92,38 @@ export function CheckoutReview({
   const { rates } = useMarket();
   const route = resolvePaymentRoute(draft.country);
   const paypalSlotRef = useRef<HTMLDivElement>(null);
+  const focusUpdateTotalRef = useRef(false);
   const paymentIdRef = useRef<string>("");
   const [paymentUi, setPaymentUi] = useState<PaymentUiState>("idle");
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string>("");
   const [paypalReady, setPaypalReady] = useState(false);
   const [offerTotalRefresh, setOfferTotalRefresh] = useState(false);
+  const [bagEmpty, setBagEmpty] = useState(false);
   const refreshLock = `${draft.lockExpired ? "expired" : "live"}:${lineLock?.frozenAt ?? ""}`;
   const [seenRefreshLock, setSeenRefreshLock] = useState(refreshLock);
   if (seenRefreshLock !== refreshLock) {
     setSeenRefreshLock(refreshLock);
     setOfferTotalRefresh(false);
+    setBagEmpty(false);
+    focusUpdateTotalRef.current = false;
+  }
+
+  function notePayPalFocus() {
+    const slot = paypalSlotRef.current;
+    const active = document.activeElement;
+    if (slot && active instanceof Node && slot.contains(active)) {
+      focusUpdateTotalRef.current = true;
+    }
+  }
+
+  function showPricesMoved() {
+    notePayPalFocus();
+    setBagEmpty(false);
+    setOfferTotalRefresh(true);
+    setPaymentError("");
+    setPaymentUi("idle");
+    setPaymentBusy(false);
   }
   const india = paymentRail === "india";
   const paypalCurrency =
@@ -141,7 +164,7 @@ export function CheckoutReview({
         return;
       }
       if (paypalLockClockExpired(paypalFrozenAt)) {
-        setOfferTotalRefresh(true);
+        showPricesMoved();
       }
     }
     document.addEventListener("visibilitychange", onVisible);
@@ -149,11 +172,22 @@ export function CheckoutReview({
   }, [paypalFrozenAt]);
 
   useEffect(() => {
+    if (!offerTotalRefresh) {
+      return;
+    }
+    const moveFocus = focusUpdateTotalRef.current;
+    focusUpdateTotalRef.current = false;
+    if (moveFocus) {
+      document.getElementById("checkout-update-total")?.focus();
+    }
+  }, [offerTotalRefresh]);
+
+  useEffect(() => {
     const slot = paypalSlotRef.current;
     if (!slot || pending || !payable) {
       return;
     }
-    if (offerTotalRefresh) {
+    if (offerTotalRefresh || bagEmpty) {
       return;
     }
     let cancelled = false;
@@ -175,10 +209,7 @@ export function CheckoutReview({
         currencyCode: paypalCurrency ?? "GBP",
         createOrder: async () => {
           if (paypalLockClockExpired(paypalFrozenAt)) {
-            setOfferTotalRefresh(true);
-            setPaymentError("");
-            setPaymentUi("idle");
-            setPaymentBusy(false);
+            showPricesMoved();
             return null;
           }
           setPaymentBusy(true);
@@ -192,10 +223,15 @@ export function CheckoutReview({
               setPaymentBusy(false);
               return null;
             }
-            setOfferTotalRefresh(true);
-            setPaymentError("");
-            setPaymentUi("idle");
-            setPaymentBusy(false);
+            if (started.status === "empty") {
+              setBagEmpty(true);
+              setOfferTotalRefresh(false);
+              setPaymentError("");
+              setPaymentUi("idle");
+              setPaymentBusy(false);
+              return null;
+            }
+            showPricesMoved();
             return null;
           }
           paymentIdRef.current = started.paymentId;
@@ -255,7 +291,7 @@ export function CheckoutReview({
       cancelled = true;
       unmount();
     };
-  }, [offerTotalRefresh, payable, paypalCurrency, paypalFrozenAt, pending, router]);
+  }, [bagEmpty, offerTotalRefresh, payable, paypalCurrency, paypalFrozenAt, pending, router]);
 
   return (
     <div className={styles.review} data-checkout-review>
@@ -376,34 +412,47 @@ export function CheckoutReview({
           />
         )}
         {payable ? (
-          offerTotalRefresh ? (
-            <QuoteHold
-              message={CHECKOUT_TOTAL_UPDATED}
-              canRefresh
-              pending={pending}
-              onUpdateTotal={onUpdateTotal}
-            />
-          ) : (
-            <>
-              {disclosure ? <p className="text-small">{disclosure}</p> : null}
-              <div
-                ref={paypalSlotRef}
-                className={styles.paypalSlot}
-                data-paypal-button
-                data-paypal-ready={paypalReady ? "true" : "false"}
-                aria-busy={paymentBusy}
-              />
-              <p id="checkout-payment-next" className="text-small">
-                {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
+          <>
+            {disclosure ? <p className="text-small">{disclosure}</p> : null}
+            <div className={styles.paypalSlot}>
+              {bagEmpty ? (
+                <div className={styles.paypalHold}>
+                  <p className="text-small" role="status">
+                    {EMPTY_BAG_REVIEW}
+                  </p>
+                  <ButtonLink href={routes.cart} variant="tertiary">
+                    {RETURN_TO_BAG}
+                  </ButtonLink>
+                </div>
+              ) : offerTotalRefresh ? (
+                <QuoteHold
+                  className={styles.paypalHold}
+                  message={CHECKOUT_TOTAL_UPDATED}
+                  canRefresh
+                  pending={pending}
+                  onUpdateTotal={onUpdateTotal}
+                  updateTotalId="checkout-update-total"
+                />
+              ) : (
+                <div
+                  ref={paypalSlotRef}
+                  className={styles.paypalMount}
+                  data-paypal-button
+                  data-paypal-ready={paypalReady ? "true" : "false"}
+                  aria-busy={paymentBusy}
+                />
+              )}
+            </div>
+            <p id="checkout-payment-next" className="text-small">
+              {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
+            </p>
+            {paymentUi === "cancelled" ? (
+              <p className="text-small" role="status">
+                {PAYMENT_CANCELLED}
               </p>
-              {paymentUi === "cancelled" ? (
-                <p className="text-small" role="status">
-                  {PAYMENT_CANCELLED}
-                </p>
-              ) : null}
-              {paymentUi === "error" && paymentError ? <InlineError>{paymentError}</InlineError> : null}
-            </>
-          )
+            ) : null}
+            {paymentUi === "error" && paymentError ? <InlineError>{paymentError}</InlineError> : null}
+          </>
         ) : null}
       </section>
 
@@ -428,19 +477,29 @@ function QuoteHold({
   canRefresh,
   pending,
   onUpdateTotal,
+  className,
+  updateTotalId,
 }: {
   message: string;
   canRefresh: boolean;
   pending: boolean;
   onUpdateTotal?: () => void;
+  className?: string;
+  updateTotalId?: string;
 }) {
   return (
-    <div>
+    <div className={className}>
       <p className="text-small" role="status">
         {message}
       </p>
       {canRefresh && onUpdateTotal ? (
-        <Button type="button" variant="primary" onClick={onUpdateTotal} disabled={pending}>
+        <Button
+          type="button"
+          variant="primary"
+          id={updateTotalId}
+          onClick={onUpdateTotal}
+          disabled={pending}
+        >
           {UPDATE_TOTAL}
         </Button>
       ) : null}

@@ -111,6 +111,18 @@
   min-height: var(--touch-min);
 }
 
+.paypalMount {
+  width: 100%;
+}
+
+.paypalHold {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+  width: 100%;
+}
+
 .paypalSlot paypal-button {
   --paypal-button-border-radius: var(--radius);
   display: block;

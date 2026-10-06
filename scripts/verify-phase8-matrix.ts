@@ -694,9 +694,20 @@ void (async () => {
       createOrder.indexOf("paypalLockClockExpired") >= 0 &&
       createOrder.indexOf("paypalLockClockExpired") < createOrder.indexOf("initiateCheckoutPaymentAction") &&
       paypalStart.includes('started.status === "unavailable"') &&
-      paypalStart.includes("setOfferTotalRefresh(true)") &&
-      paypalStart.indexOf('started.status === "unavailable"') < paypalStart.indexOf("setOfferTotalRefresh(true)") &&
+      paypalStart.includes('started.status === "empty"') &&
+      paypalStart.includes("showPricesMoved()") &&
+      paypalStart.indexOf('started.status === "unavailable"') < paypalStart.indexOf('started.status === "empty"') &&
+      paypalStart.indexOf('started.status === "empty"') < paypalStart.indexOf("showPricesMoved()") &&
       !paypalStart.includes("PAYMENT_START_ERROR") &&
+      !paypalStart.slice(0, paypalStart.indexOf("showPricesMoved()")).includes("UPDATE_TOTAL") &&
+      review.includes("function showPricesMoved()") &&
+      review.slice(review.indexOf("function showPricesMoved()"), review.indexOf("const india")).includes("setOfferTotalRefresh(true)") &&
+      review.slice(review.indexOf("function showPricesMoved()"), review.indexOf("const india")).includes("notePayPalFocus()") &&
+      review.includes("slot.contains(active)") &&
+      review.includes('getElementById("checkout-update-total")') &&
+      review.includes('updateTotalId="checkout-update-total"') &&
+      review.slice(review.indexOf("function QuoteHold")).includes('role="status"') &&
+      read("src/lib/checkout-copy.ts").includes('export const EMPTY_BAG_REVIEW = "Your bag is empty."') &&
       initiateAction.includes('started.status === "expired"') &&
       initiateAction.includes('started.status === "stale"') &&
       expiredStart.status === "expired" &&
@@ -707,10 +718,24 @@ void (async () => {
       review.includes("if (!slot || pending || !payable)") &&
       review.includes("{payable ? (") &&
       review.slice(review.indexOf("{payable ? (")).includes("offerTotalRefresh") &&
+      review.slice(review.indexOf("{payable ? (")).indexOf("styles.paypalSlot") <
+        review.slice(review.indexOf("{payable ? (")).indexOf("offerTotalRefresh") &&
       review.slice(review.indexOf("{payable ? (")).indexOf("offerTotalRefresh") <
         review.slice(review.indexOf("{payable ? (")).indexOf("data-paypal-button") &&
+      review.slice(review.indexOf("{payable ? (")).indexOf("data-paypal-button") <
+        review.slice(review.indexOf("{payable ? (")).indexOf("checkout-payment-next") &&
+      review.slice(review.indexOf("{payable ? (")).includes("EMPTY_BAG_REVIEW") &&
+      review.slice(review.indexOf("{payable ? (")).includes("RETURN_TO_BAG") &&
+      review.slice(
+        review.indexOf("bagEmpty ? ("),
+        review.indexOf("offerTotalRefresh ? ("),
+      ).includes("EMPTY_BAG_REVIEW") &&
+      !review.slice(
+        review.indexOf("bagEmpty ? ("),
+        review.indexOf("offerTotalRefresh ? ("),
+      ).includes("UPDATE_TOTAL") &&
       review.includes("data-paypal-button"),
-    "An expired GB lock returns expired, not a generic error. Review shows Update total before PayPal starts, and any other start failure except unavailable does the same.",
+    "An expired GB lock returns expired, not a generic error. The prices-moved prompt stays in the PayPal slot, keeps role status, and takes focus from the PayPal button. An empty bag shows Your bag is empty and Return to bag, without Update total.",
   );
 
   const grants = read("supabase/migrations/20261005210000_customer_role_checkout_grants.sql");
