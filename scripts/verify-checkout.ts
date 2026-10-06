@@ -882,9 +882,25 @@ const focusTrap = readFileSync(resolve("src/hooks/useFocusTrap.ts"), "utf8");
 if (!focusTrap.includes("onEscapeRef") || focusTrap.includes("[open, ref, onEscape]")) {
   throw new Error("Focus trap must keep onEscape in a ref so a new callback does not rebuild the trap.");
 }
+if (!focusTrap.includes("requestAnimationFrame")) {
+  throw new Error("Focus must return after the overlay closes, not while the page is still inert.");
+}
 const countrySelector = readFileSync(resolve("src/components/market/CountrySelector.tsx"), "utf8");
 if (!countrySelector.includes("useFocusTrap(open, panelRef")) {
   throw new Error("Country selector focus must start in the panel, not on the trigger.");
+}
+if (!countrySelector.includes("useFocusTrap(open, panelRef, () => setOpen(false), searchRef)")) {
+  throw new Error("Country selector focus must start in the search box.");
+}
+const closeBeforeSearch =
+  countrySelector.indexOf("sheetHeader") !== -1 &&
+  countrySelector.indexOf("sheetHeader") < countrySelector.indexOf("<input");
+if (!closeBeforeSearch) {
+  throw new Error("Close must come before the search field in the country sheet.");
+}
+const countryCss = readFileSync(resolve("src/components/market/CountrySelector.module.css"), "utf8");
+if (countryCss.includes("order: -1")) {
+  throw new Error("The country sheet must not reorder Close with CSS.");
 }
 if (!countrySelector.includes('block: "center"') && !countrySelector.includes('block = openedRef.current ? "nearest" : "center"')) {
   throw new Error("Opening the country list must centre the selected country.");
@@ -896,19 +912,21 @@ const cookieCss = readFileSync(resolve("src/components/consent/CookieConsent.mod
 if (!cookieCss.includes('body[data-country-sheet="open"]')) {
   throw new Error("The cookie banner must stay behind an open country sheet.");
 }
-const checkoutLayout = readFileSync(resolve("src/app/(storefront)/checkout/layout.tsx"), "utf8");
+const chromeSource = readFileSync(resolve("src/components/navigation/SiteChrome.tsx"), "utf8");
 const baseCss = readFileSync(resolve("src/styles/base.css"), "utf8");
 const headerSource = readFileSync(resolve("src/components/navigation/SiteHeader.tsx"), "utf8");
 const footerSource = readFileSync(resolve("src/components/navigation/SiteFooter.tsx"), "utf8");
 if (
-  !checkoutLayout.includes("data-checkout") ||
-  !baseCss.includes("body[data-checkout] [data-chrome-country]") ||
+  !chromeSource.includes("window.location.pathname") ||
+  !chromeSource.includes("data-checkout={checkout ?") ||
+  chromeSource.includes("useLayoutEffect") ||
+  !baseCss.includes("[data-checkout] [data-chrome-country]") ||
   !headerSource.includes("data-chrome-country") ||
   !footerSource.includes("data-chrome-country") ||
   !headerSource.includes("reduced ? null") ||
   !footerSource.includes("reduced ? null")
 ) {
-  throw new Error("Checkout must hide header and footer country selectors even when the bag is empty.");
+  throw new Error("Checkout must hide header and footer country selectors from the first paint, even when the bag is empty.");
 }
 
 console.log(

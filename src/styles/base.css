@@ -19,7 +19,7 @@ html:focus-within {
   }
 }
 
-body[data-checkout] [data-chrome-country] {
+[data-checkout] [data-chrome-country] {
   display: none;
 }
 

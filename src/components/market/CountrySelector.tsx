@@ -45,14 +45,7 @@ export function CountrySelector({
     );
   }, [query]);
 
-  useFocusTrap(open, panelRef, () => setOpen(false));
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    searchRef.current?.focus();
-  }, [open]);
+  useFocusTrap(open, panelRef, () => setOpen(false), searchRef);
 
   useEffect(() => {
     if (!open) {
@@ -150,6 +143,12 @@ export function CountrySelector({
       </button>
       {open ? (
         <div className={styles.panel} ref={panelRef} onKeyDown={onKey}>
+          <div className={styles.sheetHeader}>
+            <h2 className={`text-micro ${styles.sheetTitle}`}>Country</h2>
+            <button type="button" className={styles.close} onClick={() => setOpen(false)}>
+              Close
+            </button>
+          </div>
           <input
             ref={searchRef}
             className={styles.search}
@@ -167,12 +166,6 @@ export function CountrySelector({
               setActive(0);
             }}
           />
-          <div className={styles.sheetHeader}>
-            <h2 className={`text-micro ${styles.sheetTitle}`}>Country</h2>
-            <button type="button" className={styles.close} onClick={() => setOpen(false)}>
-              Close
-            </button>
-          </div>
           <ul id={listId} ref={listRef} className={styles.list} role="listbox" aria-label={label}>
             {countries.map((country, index) => {
               const isSelected = country.code === selected?.code;

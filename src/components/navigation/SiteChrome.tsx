@@ -37,14 +37,13 @@ export function SiteChrome({
   fxRates?: readonly PublicFxRate[];
 }) {
   const { pageLocked, value } = useChromeLocks();
-  const pathname = usePathname();
-  const checkout = pathname === routes.checkout || pathname.startsWith(`${routes.checkout}/`);
+  const checkout = useCheckoutRoute();
 
   return (
     <ChromeProvider value={value}>
       <CartProvider initialCart={initialCart}>
         <MarketProvider initialCountry={initialCountry} hasChoice={countryChosen} rates={fxRates}>
-        <div className={styles.shell}>
+        <div className={styles.shell} data-checkout={checkout ? "" : undefined}>
           <Suspense fallback={null}>
             <AnalyticsPageView />
           </Suspense>
@@ -65,4 +64,24 @@ export function SiteChrome({
       </CartProvider>
     </ChromeProvider>
   );
+}
+
+function isCheckoutPath(pathname: string | null | undefined): boolean {
+  return (
+    pathname === routes.checkout ||
+    (typeof pathname === "string" && pathname.startsWith(`${routes.checkout}/`))
+  );
+}
+
+function useCheckoutRoute(): boolean {
+  const pathname = usePathname();
+  if (isCheckoutPath(pathname)) {
+    return true;
+  }
+  // The router pathname can leave checkout just after hydration and put the
+  // header selectors back. The address bar is already checkout in that paint.
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return isCheckoutPath(window.location.pathname);
 }

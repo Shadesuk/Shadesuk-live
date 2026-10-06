@@ -24,8 +24,10 @@ export function useFocusTrap(
   open: boolean,
   ref: RefObject<HTMLElement | null>,
   onEscape: () => void,
+  initialFocus?: RefObject<HTMLElement | null>,
 ) {
   const onEscapeRef = useRef(onEscape);
+  const restoreFrame = useRef(0);
 
   useEffect(() => {
     onEscapeRef.current = onEscape;
@@ -36,6 +38,8 @@ export function useFocusTrap(
       return;
     }
 
+    cancelAnimationFrame(restoreFrame.current);
+
     const root = ref.current;
     if (!root) {
       return;
@@ -43,7 +47,9 @@ export function useFocusTrap(
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const focusable = getFocusable(root);
-    (focusable[0] ?? root).focus();
+    const preferred = initialFocus?.current;
+    const start = preferred && root.contains(preferred) ? preferred : (focusable[0] ?? root);
+    start.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -80,7 +86,16 @@ export function useFocusTrap(
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      previouslyFocused?.focus();
+      const target = previouslyFocused;
+      // The page can still be inert in this cleanup. Focus after the overlay
+      // has released it, and cancel that restore if the dialog opens again.
+      restoreFrame.current = requestAnimationFrame(() => {
+        restoreFrame.current = requestAnimationFrame(() => {
+          if (target?.isConnected) {
+            target.focus();
+          }
+        });
+      });
     };
-  }, [open, ref]);
+  }, [open, ref, initialFocus]);
 }
