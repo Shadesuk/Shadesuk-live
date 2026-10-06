@@ -7,6 +7,7 @@ import { GOOGLE_CANCELLED, GOOGLE_FAILED } from "@/lib/account-copy";
 import { routes } from "@/lib/navigation";
 import { getOptionalAccountUser } from "@/lib/account-session";
 import { privatePathMetadata } from "@/lib/seo";
+import { indiaCardPaymentConfigured } from "@/lib/payment/india-card-availability";
 import { checkoutPaymentRail } from "@/lib/payment/resolve-provider";
 import { getCheckoutSnapshot } from "@/services/checkout";
 
@@ -48,6 +49,7 @@ export default async function CheckoutRoute({ searchParams }: PageProps) {
               country: draft.country,
               currency: draft.quoteLock?.chargeCurrency,
             })}
+            indiaCardPaymentReady={indiaCardPaymentConfigured()}
           />
         </ContentWidth>
       </main>

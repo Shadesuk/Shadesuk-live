@@ -33,7 +33,7 @@ export const ADDRESS_AUTOCOMPLETE_LABEL = "Address";
 export const ADDRESS_AUTOCOMPLETE_PLACEHOLDER = "Search for an address";
 export const ADDRESS_AUTOCOMPLETE_HINT = "Search, or enter the address manually.";
 export const ADDRESS_LOOKUP_EMPTY_INTL = "No address found. Enter it manually.";
-export const ADDRESS_LOOKUP_ERROR_INTL = "Address search could not be completed. Enter it manually.";
+export const ADDRESS_LOOKUP_ERROR_INTL = "We couldn't find that address. Enter it below.";
 export const ADDRESS_LOOKUP_UNAVAILABLE_INTL = "Address search is unavailable. Enter it manually.";
 export const ADDRESS_LOOKUP_LOADING_INTL = "Searching addresses…";
 export const ADDRESS_COMPLETE_HINT = "Add your house number and street.";
@@ -67,8 +67,13 @@ export const UK_STANDARD_DELIVERY = "UK Standard Delivery";
 export const CHECKOUT_PRICE_CHANGED =
   "A price in your bag has changed. The total below uses the current price.";
 export const CHECKOUT_PRICE_CONFIRM =
-  "A price in your bag has changed. Return to delivery to confirm this total.";
+  "A price in your bag has changed. Update your total to continue.";
 export const CHECKOUT_QUOTE_STALE = "Return to delivery to confirm this total.";
+export const CHECKOUT_TOTAL_UPDATED =
+  "Prices have moved since you started. Update your total to continue.";
+export const UPDATE_TOTAL = "Update total";
+export const INDIA_CARD_PAYMENT_UNAVAILABLE =
+  "Card payment for India isn't available right now. Your bag is saved. Please try again shortly.";
 export const CHECKOUT_LOCK_EXPIRED = "Confirm delivery again to refresh this total.";
 export const CHECKOUT_ITEM_UNAVAILABLE =
   "A shade in your bag is no longer available. Return to your bag to continue.";

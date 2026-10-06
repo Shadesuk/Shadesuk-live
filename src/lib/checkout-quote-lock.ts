@@ -9,7 +9,8 @@ import { resolveShippingOptions, type ShippingCatalogue } from "@/lib/shipping/o
  * Server quote snapshot. Catalogue and FX changes after this is written
  * cannot change the charged GBP total. Tax and discount stay zero, so
  * total is subtotal plus shipping. Subtotal and shipping are localized
- * separately, then added. The charge currency comes from resolvePaymentRoute.
+ * separately, then added. The GBP grand total is not converted on its own.
+ * The charge currency comes from resolvePaymentRoute.
  * Orders stay GBP. A missing FX rate does not invent a charge.
  *
  * frozenAt is the lock clock. It is set only when the lock is created.

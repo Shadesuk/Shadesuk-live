@@ -6,7 +6,7 @@ import type { PublicCart } from "@/types/cart";
 import { displayLineTotal, displayLockedChargeMinor, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
 import { useMarket } from "@/components/market/MarketProvider";
-import { presentCheckoutAmount } from "@/lib/market/prices";
+import { presentCheckoutAmount, presentCheckoutPartsTotal } from "@/lib/market/prices";
 import { resolvePaymentRoute } from "@/lib/payment/payment-route";
 import { supportedCountry } from "@/contracts/countries";
 import {
@@ -52,12 +52,27 @@ export function CheckoutSummary({
     });
   const lockedCharge =
     !frozenCharge && lineLock && lineLock.chargeCurrency === chargeCurrency ? lineLock : null;
-  const subtotalLabel = money(quote.subtotalMinor, frozenCharge?.subtotalMinor ?? lockedCharge?.chargeSubtotalMinor);
+  const subtotalCharge = frozenCharge?.subtotalMinor ?? lockedCharge?.chargeSubtotalMinor;
+  const shippingCharge = frozenCharge?.shippingMinor ?? lockedCharge?.chargeShippingMinor;
+  const subtotalLabel = money(quote.subtotalMinor, subtotalCharge);
   const shippingLabel =
     quote.shippingStatus === "priced" || frozenCharge
-      ? money(quote.shippingMinor, frozenCharge?.shippingMinor ?? lockedCharge?.chargeShippingMinor)
+      ? money(quote.shippingMinor, shippingCharge)
       : SHIPPING_UNAVAILABLE;
-  const totalLabel = money(quote.totalMinor, frozenCharge?.totalMinor ?? lockedCharge?.chargeTotalMinor);
+  const totalParts = [{ gbpMinor: quote.subtotalMinor, chargeMinor: subtotalCharge }];
+  if (
+    quote.shippingStatus === "priced" ||
+    frozenCharge ||
+    quote.totalMinor > quote.subtotalMinor
+  ) {
+    totalParts.push({ gbpMinor: quote.shippingMinor, chargeMinor: shippingCharge });
+  }
+  const totalLabel = presentCheckoutPartsTotal({
+    parts: totalParts,
+    displayCurrency,
+    chargeCurrency,
+    rates,
+  });
   const content = (
     <>
       <ul className={styles.lines}>

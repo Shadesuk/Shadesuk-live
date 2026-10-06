@@ -231,6 +231,9 @@ export function createSupabasePendingPaymentStore(): PendingPaymentStore {
         .is("captured_at", null)
         .select("order_id")
         .maybeSingle();
+      if (paymentResult.error) {
+        throw new Error("Payment attempt cancel failed.");
+      }
       const orderId =
         paymentResult.data &&
         typeof paymentResult.data === "object" &&
@@ -241,7 +244,7 @@ export function createSupabasePendingPaymentStore(): PendingPaymentStore {
       if (!orderId) {
         return;
       }
-      await admin
+      const orderResult = await admin
         .from("orders")
         .update({
           payment_status: status,
@@ -249,6 +252,9 @@ export function createSupabasePendingPaymentStore(): PendingPaymentStore {
         })
         .eq("id", orderId)
         .in("payment_status", ["created", "authorized"]);
+      if (orderResult.error) {
+        throw new Error("Payment attempt cancel failed.");
+      }
     },
   };
 }

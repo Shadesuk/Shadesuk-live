@@ -23,6 +23,24 @@ export type CheckoutQuote = {
   estimatedDelivery: string | null;
 };
 
+const CLIENT_CHECKOUT_MONEY_KEYS = [
+  "amount",
+  "amountMinor",
+  "total",
+  "totalMinor",
+  "currency",
+  "chargeMinor",
+  "chargeTotalMinor",
+  "chargeSubtotalMinor",
+  "chargeShippingMinor",
+  "frozenAt",
+] as const;
+
+/** A browser payload that tries to name the charged amount or extend a lock. */
+export function clientSuppliedCheckoutMoney(input: object): boolean {
+  return CLIENT_CHECKOUT_MONEY_KEYS.some((key) => Object.prototype.hasOwnProperty.call(input, key));
+}
+
 /**
  * Server-owned checkout totals. Client shipping/total/currency arguments are ignored.
  */

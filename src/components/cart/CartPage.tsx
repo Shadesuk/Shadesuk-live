@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { IndiaCardPaymentNotice } from "@/components/checkout/IndiaCardPaymentNotice";
+import { useMarket } from "@/components/market/MarketProvider";
 import { LiveRecentlyViewed } from "@/components/pdp/LiveRecentlyViewed";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,6 +14,7 @@ import {
   EMPTY_BAG_DESCRIPTION,
   EMPTY_BAG_TITLE,
 } from "@/lib/cart-copy";
+import { normalizeCountry } from "@/lib/checkout-validate";
 import { DisplayPrice } from "@/components/market/DisplayPrice";
 import { routes } from "@/lib/navigation";
 import type { PublicCart } from "@/types/cart";
@@ -23,10 +26,13 @@ import styles from "./CartPage.module.css";
 type CartPageProps = {
   initialCart: PublicCart;
   suggestions: Product[];
+  indiaCardPaymentReady?: boolean;
 };
 
-export function CartPage({ initialCart, suggestions }: CartPageProps) {
+export function CartPage({ initialCart, suggestions, indiaCardPaymentReady = true }: CartPageProps) {
   const { cart, updateQuantity, removeItem, error } = useCart();
+  const { country } = useMarket();
+  const indiaCardNotice = !indiaCardPaymentReady && normalizeCountry(country) === "IN";
 
   const view = cart.items.length > 0 || cart.issues.length > 0 ? cart : initialCart;
   const empty = view.items.length === 0;
@@ -39,6 +45,7 @@ export function CartPage({ initialCart, suggestions }: CartPageProps) {
 
   return (
     <div className={styles.page} data-cart>
+      {indiaCardNotice ? <IndiaCardPaymentNotice /> : null}
       {error ? <InlineError /> : null}
       {empty ? (
         <>

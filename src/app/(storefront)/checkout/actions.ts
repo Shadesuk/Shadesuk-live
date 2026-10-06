@@ -5,7 +5,9 @@ import { addressLookupAttemptAllowed } from "@/lib/address-lookup-rate-limit";
 import { cartActionOriginAllowed } from "@/lib/cart-origin-server";
 import { hasForbiddenOwnershipKey } from "@/lib/ownership-keys";
 import { clientAddressFromHeaders } from "@/lib/request-address";
+import { clientSuppliedCheckoutMoney } from "@/lib/checkout-quote";
 import {
+  refreshCheckoutTotal,
   restartExpiredCheckout,
   saveCheckoutAddress,
   saveCheckoutContact,
@@ -114,6 +116,26 @@ export async function retrieveCheckoutAddressAction(input: {
 
 function addressCountry(country: string | undefined): string {
   return typeof country === "string" && country.trim() ? country : "GB";
+}
+
+/**
+ * Fresh quote at the live rate and a new 45-minute lock.
+ * A browser total, minor amount, currency, or expiry is rejected.
+ */
+export async function refreshCheckoutTotalAction(input?: unknown): Promise<CheckoutMutationResult> {
+  if (hasForbiddenOwnershipKey(input)) {
+    return { status: "error" };
+  }
+  if (
+    input != null &&
+    (typeof input !== "object" || Array.isArray(input) || clientSuppliedCheckoutMoney(input))
+  ) {
+    return { status: "error" };
+  }
+  if (!(await cartActionOriginAllowed())) {
+    return { status: "error" };
+  }
+  return refreshCheckoutTotal();
 }
 
 export async function restartCheckoutDraftAction(): Promise<CheckoutMutationResult> {

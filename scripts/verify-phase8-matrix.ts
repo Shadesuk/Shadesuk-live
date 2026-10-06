@@ -8,6 +8,8 @@ import { resolve } from "node:path";
 import { isGuestCartSessionId } from "../src/contracts/cart/session";
 import { UK_SHIPPING_RATE_MINOR } from "../src/contracts/markets";
 import { captureVerifiedPayment } from "../src/lib/payment/capture-verified";
+import { closeCheckoutPaymentAttempt } from "../src/services/pending-payment";
+import type { PendingPaymentStore } from "../src/lib/payment/pending-store";
 import type { PaymentCaptureStore } from "../src/lib/payment/capture-store";
 import type { PaymentRow } from "../src/contracts/payment/schema";
 import type { OrderItemRow, OrderRow } from "../src/contracts/order/schema";
@@ -20,7 +22,18 @@ import {
   quoteLockForCountry,
 } from "../src/lib/checkout-quote-lock";
 import { authoritativeCheckoutQuote, quoteIsChargeable } from "../src/lib/checkout-quote";
-import { formatChargeMinor, formatDisplayGbpMinor, presentCheckoutAmount } from "../src/lib/market/prices";
+import { getLocalizedPrice, multiplyMinorByRateHalfUp, parsePositiveDecimalRate } from "../src/contracts/pricing";
+import { clientSuppliedCheckoutMoney } from "../src/lib/checkout-quote";
+import { lookupUsesAutocomplete } from "../src/lib/checkout-validate";
+import {
+  formatChargeMinor,
+  formatDisplayGbpMinor,
+  formatDisplayMinor,
+  displayMinorFromGbp,
+  presentCheckoutAmount,
+  presentCheckoutPartsTotal,
+  sumPresentedCheckoutMinors,
+} from "../src/lib/market/prices";
 import { encodeCheckoutDraftCookie, decodeCheckoutDraftCookie } from "../src/lib/checkout-draft";
 import { lookupAddresses, getAddressProvider } from "../src/lib/address-lookup";
 import { postcodesIoAddressLookupProvider } from "../src/lib/address-providers/postcodes-io";
@@ -590,6 +603,91 @@ void (async () => {
     "The India branch renders IndiaPayment and does not mount PayPal. PayPal stays behind the payable gate. DE and US without an FX lock cannot start a payment attempt.",
   );
 
+  const indiaNotice = read("src/components/checkout/IndiaCardPaymentNotice.tsx");
+  const indiaCopy = read("src/lib/checkout-copy.ts");
+  const indiaAvailability = read("src/lib/payment/india-card-availability.ts");
+  const razorpayConfig = read("src/lib/razorpay/config.ts");
+  const cartRoute = read("src/app/(storefront)/cart/page.tsx");
+  const cartUi = read("src/components/cart/CartPage.tsx");
+  const checkoutRoute = read("src/app/(storefront)/checkout/page.tsx");
+  const checkoutUi = read("src/components/checkout/CheckoutPage.tsx");
+  const unavailableUi = indiaUi.slice(
+    indiaUi.indexOf('if (configured === "unavailable")'),
+    indiaUi.indexOf("return (\n    <div>"),
+  );
+  const addressStep = checkoutUi.slice(
+    checkoutUi.indexOf('{step === "address" && indiaCardNotice'),
+    checkoutUi.indexOf("{step === \"contact\""),
+  );
+  const statusForStart = indiaUi.slice(indiaUi.indexOf("function statusForStart"));
+  expect(
+    "India card notice",
+    indiaCopy.includes(
+      "Card payment for India isn't available right now. Your bag is saved. Please try again shortly.",
+    ) &&
+      indiaCopy.includes("Prices have moved since you started. Update your total to continue.") &&
+      indiaCopy.includes("A price in your bag has changed. Update your total to continue.") &&
+      !checkoutUi.includes("CHECKOUT_LOCK_EXPIRED") &&
+      indiaNotice.includes("INDIA_CARD_PAYMENT_UNAVAILABLE") &&
+      indiaNotice.includes('role="status"') &&
+      !indiaNotice.includes("InlineError") &&
+      !indiaNotice.includes('role="alert"') &&
+      indiaAvailability.includes("resolveRazorpayServerConfig().ok") &&
+      !indiaAvailability.includes("INDIA_PAYMENTS") &&
+      razorpayConfig.includes("rzp_test_") &&
+      razorpayConfig.includes('reason: "live_key"') &&
+      cartRoute.includes("indiaCardPaymentConfigured()") &&
+      checkoutRoute.includes("indiaCardPaymentConfigured()") &&
+      !checkoutRoute.toLowerCase().includes("razorpay") &&
+      !checkoutUi.toLowerCase().includes("razorpay") &&
+      cartUi.includes("IndiaCardPaymentNotice") &&
+      cartUi.includes('normalizeCountry(country) === "IN"') &&
+      checkoutUi.includes("IndiaCardPaymentNotice") &&
+      addressStep.includes("<IndiaCardPaymentNotice />") &&
+      indiaBranch.includes("!indiaCardPaymentReady") &&
+      indiaBranch.includes("<IndiaCardPaymentNotice") &&
+      indiaBranch.indexOf("<IndiaCardPaymentNotice") < indiaBranch.indexOf("<IndiaPayment") &&
+      indiaBranch.includes("CHECKOUT_TOTAL_UPDATED") &&
+      indiaBranch.includes("<QuoteHold") &&
+      !indiaBranch.includes("CHECKOUT_QUOTE_STALE") &&
+      !indiaBranch.includes("UPDATE_TOTAL") &&
+      review.includes("supportedCountry(draft.country)?.name") &&
+      !review.includes("UNITED_KINGDOM") &&
+      unavailableUi.includes("<IndiaCardPaymentNotice") &&
+      !unavailableUi.includes("CHECKOUT_QUOTE_STALE") &&
+      !unavailableUi.includes("UPDATE_TOTAL") &&
+      statusForStart.includes('status === "unavailable"') &&
+      statusForStart.includes("INDIA_CARD_PAYMENT_UNAVAILABLE") &&
+      statusForStart.indexOf('status === "unavailable"') < statusForStart.indexOf("return CHECKOUT_QUOTE_STALE"),
+    "India card payment uses the server config check. Unavailable is a quiet notice on the bag, Delivery, and Review. A moved total still offers Update total. The test-key guard stays.",
+  );
+
+  const payableExpr = review.slice(review.indexOf("const payable ="), review.indexOf("const disclosure"));
+  const paypalStart = review.slice(
+    review.indexOf('if (started.status !== "ok")'),
+    review.indexOf("paymentIdRef.current = started.paymentId"),
+  );
+  expect(
+    "GB expired lock recovery",
+    payableExpr.includes("!draft.lockExpired") &&
+      payableExpr.includes('paypalCurrency === "GBP"') &&
+      review.includes("function paypalQuoteMoved") &&
+      paypalStart.includes("paypalQuoteMoved(started.status)") &&
+      paypalStart.includes("setOfferTotalRefresh(true)") &&
+      paypalStart.indexOf("setOfferTotalRefresh(true)") < paypalStart.indexOf("PAYMENT_START_ERROR") &&
+      review.includes("<QuoteHold") &&
+      review.includes("CHECKOUT_TOTAL_UPDATED") &&
+      review.includes("UPDATE_TOTAL") &&
+      review.includes("data-checkout-review") &&
+      review.includes("if (!slot || pending || !payable)") &&
+      review.includes("{payable ? (") &&
+      review.slice(review.indexOf("{payable ? (")).includes("offerTotalRefresh") &&
+      review.slice(review.indexOf("{payable ? (")).indexOf("offerTotalRefresh") <
+        review.slice(review.indexOf("{payable ? (")).indexOf("data-paypal-button") &&
+      review.includes("data-paypal-button"),
+    "An expired GB lock is not a live PayPal button. Review keeps Update total, including when PayPal start returns expired or stale.",
+  );
+
   const grants = read("supabase/migrations/20261005210000_customer_role_checkout_grants.sql");
   const snapshot = read("supabase/migrations/20261005200000_order_charge_snapshots.sql");
   const initial = read("supabase/migrations/20260914230750_initial_production_schema.sql");
@@ -663,6 +761,220 @@ void (async () => {
     "A lower live line price blocks PayPal. The same undercut blocks India. Production India shipping is the £4.65 standard rate.",
   );
 
+  const inrRate = "127.32";
+  const inrRates = [{ currency: "INR", rate: inrRate }];
+  const inrLock = createCheckoutQuoteLock({
+    countryCode: "IN",
+    lines: [{ variantId: VARIANT_ID, quantity: 1, unitPriceMinor: 6599 }],
+    fx: { id: "fx-inr-12732", version: 3, rate: inrRate },
+    now: NOW,
+  });
+  const inrGrand = getLocalizedPrice({
+    baseAmountMinor: 6599 + 465,
+    baseCurrency: "GBP",
+    targetCurrency: "INR",
+    fxRate: inrRate,
+    fxRateId: "fx-inr-12732",
+    fxVersion: 3,
+  });
+  const inrShown = sumPresentedCheckoutMinors({
+    parts: [{ gbpMinor: 6599 }, { gbpMinor: 465 }],
+    displayCurrency: "INR",
+    chargeCurrency: "INR",
+    rates: inrRates,
+  });
+  const inrCharge = inrLock
+    ? buildIndiaCharge({
+        draft: draft(inrLock, "IN"),
+        lines: [line(6599)],
+        now: NOW,
+        createReference: () => "SHU-MATRIXIN0001",
+      })
+    : null;
+  const inrLockTotal = inrLock?.chargeTotalMinor ?? null;
+  const inrGrandTotal = inrGrand.ok ? inrGrand.price.amountMinor : null;
+  expect(
+    "Charge line sum INR",
+    inrLock != null &&
+      inrGrand.ok &&
+      inrLockTotal != null &&
+      inrGrandTotal != null &&
+      inrLockTotal !== inrGrandTotal &&
+      inrLock.chargeSubtotalMinor === 840185 &&
+      inrLock.chargeShippingMinor === 59204 &&
+      inrLockTotal === 899389 &&
+      inrLock.chargeTotalMinor === inrLock.chargeSubtotalMinor + inrLock.chargeShippingMinor &&
+      inrGrandTotal === 899388 &&
+      inrShown?.minor === 899389 &&
+      presentCheckoutPartsTotal({
+        parts: [{ gbpMinor: 6599 }, { gbpMinor: 465 }],
+        displayCurrency: "INR",
+        chargeCurrency: "INR",
+        rates: inrRates,
+      }) === formatChargeMinor(899389, "INR") &&
+      inrCharge?.ok === true &&
+      inrCharge.ok &&
+      inrCharge.charge.payment.amountMinor === 899389,
+    "£65.99 + £4.65 at 127.32 is ₹8993.89 (899389 paise). Converting £70.64 is 899388 and is not the charge.",
+  );
+
+  const diverged = divergentCharge("1.005", 465);
+  const eurLock = diverged
+    ? createCheckoutQuoteLock({
+        countryCode: "FR",
+        lines: [{ variantId: VARIANT_ID, quantity: 1, unitPriceMinor: diverged.subtotal }],
+        fx: { id: "fx-eur-div", version: 1, rate: "1.005" },
+        now: NOW,
+      })
+    : null;
+  const usdLock = diverged
+    ? createCheckoutQuoteLock({
+        countryCode: "US",
+        lines: [{ variantId: VARIANT_ID, quantity: 1, unitPriceMinor: diverged.subtotal }],
+        fx: { id: "fx-usd-div", version: 1, rate: "1.005" },
+        now: NOW,
+      })
+    : null;
+  const eurAttempt = eurLock
+    ? buildPendingPaymentAttempt({
+        draft: draft(eurLock, "FR"),
+        lines: [line(diverged?.subtotal ?? 0)],
+        clientQuote: { totalMinor: 1, currency: "EUR", total: 0.01 },
+        now: NOW,
+        createReference: () => "SHU-MATRIXEU0001",
+      })
+    : null;
+  const usdAttempt = usdLock
+    ? buildPendingPaymentAttempt({
+        draft: draft(usdLock, "US"),
+        lines: [line(diverged?.subtotal ?? 0)],
+        clientQuote: { totalMinor: 1, currency: "USD" },
+        now: NOW,
+        createReference: () => "SHU-MATRIXUS0001",
+      })
+    : null;
+  expect(
+    "Charge line sum EUR USD",
+    diverged != null &&
+      eurLock != null &&
+      usdLock != null &&
+      eurLock.chargeTotalMinor === diverged.summed &&
+      usdLock.chargeTotalMinor === diverged.summed &&
+      eurLock.chargeTotalMinor !== diverged.grand &&
+      usdLock.chargeTotalMinor !== diverged.grand &&
+      eurAttempt?.ok === true &&
+      usdAttempt?.ok === true &&
+      eurAttempt.ok &&
+      usdAttempt.ok &&
+      eurAttempt.attempt.payment.amount_minor === diverged.summed &&
+      usdAttempt.attempt.payment.amount_minor === diverged.summed &&
+      eurAttempt.attempt.paypal.amountMinor !== 1 &&
+      usdAttempt.attempt.paypal.amountMinor !== 1,
+    "Where convert-each-line and convert-total differ by a minor unit, EUR and USD charges use the line sum. A browser total is ignored.",
+  );
+
+  const aedRates = [{ currency: "USD", rate: "1.27" }];
+  const aedGap = divergentDisplay("AED", aedRates, 465);
+  const audRates = [{ currency: "AUD", rate: "1.92" }, { currency: "USD", rate: "1.27" }];
+  const audSame = matchingDisplay("AUD", audRates, 465);
+  expect(
+    "Display line sum AED AUD",
+    aedGap != null &&
+      aedGap.summed !== aedGap.grand &&
+      sumPresentedCheckoutMinors({
+        parts: [{ gbpMinor: aedGap.subtotal }, { gbpMinor: 465 }],
+        displayCurrency: "AED",
+        chargeCurrency: "USD",
+        rates: aedRates,
+      })?.minor === aedGap.summed &&
+      presentCheckoutPartsTotal({
+        parts: [{ gbpMinor: aedGap.subtotal }, { gbpMinor: 465 }],
+        displayCurrency: "AED",
+        chargeCurrency: "USD",
+        rates: aedRates,
+      }) === formatDisplayMinor(aedGap.summed, "AED") &&
+      audSame != null &&
+      sumPresentedCheckoutMinors({
+        parts: [{ gbpMinor: audSame.subtotal }, { gbpMinor: 465 }],
+        displayCurrency: "AUD",
+        chargeCurrency: "USD",
+        rates: audRates,
+      })?.minor === audSame.summed &&
+      audSame.summed === audSame.grand,
+    "AED review total is the sum of the rounded shown lines. AUD stays the sum when those lines already agree.",
+  );
+
+  const summarySource = read("src/components/checkout/CheckoutSummary.tsx");
+  const refreshSource = read("src/services/checkout.ts");
+  const refreshFn = refreshSource.slice(
+    refreshSource.indexOf("export async function refreshCheckoutTotal"),
+    refreshSource.indexOf("async function loadCheckout"),
+  );
+  const refreshAction = read("src/app/(storefront)/checkout/actions.ts");
+  const refreshActionFn = refreshAction.slice(
+    refreshAction.indexOf("export async function refreshCheckoutTotalAction"),
+    refreshAction.indexOf("export async function restartCheckoutDraftAction"),
+  );
+  const checkoutPage = read("src/components/checkout/CheckoutPage.tsx");
+  expect(
+    "Update total guardrail",
+    summarySource.includes("presentCheckoutPartsTotal") &&
+      !summarySource.includes("money(quote.totalMinor") &&
+      refreshFn.includes("closeCheckoutPaymentAttempt") &&
+      refreshFn.indexOf("closeCheckoutPaymentAttempt") < refreshFn.indexOf("freezeSavedQuote") &&
+      refreshFn.includes("clearInvalidPaymentAttemptCookie") &&
+      refreshFn.includes("clearPaymentAttemptId") &&
+      refreshFn.indexOf("clearPaymentAttemptId") < refreshFn.indexOf("freezeSavedQuote") &&
+      refreshFn.includes('"cancelled"') &&
+      refreshFn.includes("Checkout total refreshed.") &&
+      refreshFn.includes("} catch {") &&
+      refreshFn.indexOf("} catch {") < refreshFn.indexOf("freezeSavedQuote") &&
+      refreshFn.includes("freezeSavedQuote") &&
+      refreshFn.includes("quoteLock: frozen.lock") &&
+      refreshFn.includes("lockExpired: false") &&
+      !refreshFn.includes("frozenAt:") &&
+      !refreshFn.includes("quoteLock.frozenAt") &&
+      refreshActionFn.includes("clientSuppliedCheckoutMoney") &&
+      clientSuppliedCheckoutMoney({ total: 344 }) &&
+      clientSuppliedCheckoutMoney({ totalMinor: 1 }) &&
+      clientSuppliedCheckoutMoney({ amountMinor: 1 }) &&
+      clientSuppliedCheckoutMoney({ frozenAt: 1 }) &&
+      !clientSuppliedCheckoutMoney({}) &&
+      QUOTE_LOCK_TTL_MS === 45 * 60 * 1000 &&
+      checkoutPage.includes("refreshCheckoutTotalAction()") &&
+      checkoutPage.includes("current.line1.trim() && !next.line1.trim()") &&
+      lookupUsesAutocomplete("FR") &&
+      lookupUsesAutocomplete("US") &&
+      lookupUsesAutocomplete("AU") &&
+      !lookupUsesAutocomplete("GB"),
+    "Update total freezes a new lock and rejects a browser amount. Delivery keeps a filled address. France autocompletes.",
+  );
+
+  const closeStore = read("src/lib/payment/pending-store.ts");
+  const closeFn = closeStore.slice(
+    closeStore.indexOf("async closeOpenAttempt"),
+    closeStore.indexOf("export function parsePaymentRow"),
+  );
+  expect(
+    "Cancel write stops refresh",
+    closeFn.includes("if (paymentResult.error)") &&
+      closeFn.includes("if (orderResult.error)") &&
+      closeFn.includes('throw new Error("Payment attempt cancel failed.")') &&
+      refreshFn.indexOf("} catch {") < refreshFn.indexOf("const frozen = await freezeSavedQuote") &&
+      refreshFn.indexOf("clearInvalidPaymentAttemptCookie") < refreshFn.indexOf("const frozen = await freezeSavedQuote") &&
+      refreshFn.indexOf("if (!closed)") < refreshFn.indexOf("const frozen = await freezeSavedQuote"),
+    "A Supabase cancel error does not freeze a new lock. A bad attempt cookie is cleared and refresh continues.",
+  );
+
+  const refreshedCapture = await captureAfterRefreshCancel();
+  expect(
+    "Refresh cancels open attempt",
+    refreshedCapture.closed &&
+      refreshedCapture.outcome === "rejected" &&
+      refreshedCapture.reason === "payment_cancelled",
+    "Refreshing the total cancels this browser's open PayPal attempt. Capturing that old attempt is rejected.",
+  );
+
   printRows();
   if (rows.some((row) => row.result === "FAIL")) {
     process.exitCode = 1;
@@ -672,11 +984,121 @@ void (async () => {
   process.exitCode = 1;
 });
 
+function divergentCharge(
+  rateText: string,
+  shippingMinor: number,
+): { subtotal: number; summed: number; grand: number } | null {
+  const rate = parsePositiveDecimalRate(rateText);
+  if (!rate) {
+    return null;
+  }
+  for (let subtotal = 1; subtotal <= 8000; subtotal += 1) {
+    const part = multiplyMinorByRateHalfUp(subtotal, rate);
+    const shipping = multiplyMinorByRateHalfUp(shippingMinor, rate);
+    const grand = multiplyMinorByRateHalfUp(subtotal + shippingMinor, rate);
+    if (part == null || shipping == null || grand == null) {
+      continue;
+    }
+    const summed = part + shipping;
+    if (summed !== grand) {
+      return { subtotal, summed, grand };
+    }
+  }
+  return null;
+}
+
+function divergentDisplay(
+  currency: string,
+  rates: readonly { currency: string; rate: string }[],
+  shippingMinor: number,
+): { subtotal: number; summed: number; grand: number } | null {
+  for (let subtotal = 100; subtotal <= 20000; subtotal += 1) {
+    const part = displayMinorFromGbp(subtotal, currency, rates);
+    const shipping = displayMinorFromGbp(shippingMinor, currency, rates);
+    const grand = displayMinorFromGbp(subtotal + shippingMinor, currency, rates);
+    if (part == null || shipping == null || grand == null) {
+      continue;
+    }
+    if (part + shipping !== grand) {
+      return { subtotal, summed: part + shipping, grand };
+    }
+  }
+  return null;
+}
+
+function matchingDisplay(
+  currency: string,
+  rates: readonly { currency: string; rate: string }[],
+  shippingMinor: number,
+): { subtotal: number; summed: number; grand: number } | null {
+  for (let subtotal = 1000; subtotal <= 20000; subtotal += 50) {
+    const part = displayMinorFromGbp(subtotal, currency, rates);
+    const shipping = displayMinorFromGbp(shippingMinor, currency, rates);
+    const grand = displayMinorFromGbp(subtotal + shippingMinor, currency, rates);
+    if (part == null || shipping == null || grand == null) {
+      continue;
+    }
+    if (part + shipping === grand && part > 0 && shipping > 0) {
+      return { subtotal, summed: part + shipping, grand };
+    }
+  }
+  return null;
+}
+
 function printRows() {
   const width = Math.max(...rows.map((row) => row.id.length));
   for (const row of rows) {
     console.log(`${row.result.padEnd(7)} ${row.id.padEnd(width)}  ${row.detail}`);
   }
+}
+
+async function captureAfterRefreshCancel(): Promise<{
+  closed: boolean;
+  outcome: string;
+  reason?: string;
+}> {
+  const memory = memoryCapture();
+  const pendingStore: PendingPaymentStore = {
+    async insertAttempt() {
+      throw new Error("Refresh must not insert a payment.");
+    },
+    async attachProviderOrderId() {
+      throw new Error("Refresh must not attach a provider order.");
+    },
+    async markInitiationFailed() {
+      throw new Error("Refresh must not fail initiation.");
+    },
+    async loadOpenAttempt() {
+      return null;
+    },
+    async closeOpenAttempt(paymentId, status, reason) {
+      if (paymentId !== memory.state.payment.id) {
+        return;
+      }
+      memory.state.payment = {
+        ...memory.state.payment,
+        status,
+        failure_reason: reason,
+      };
+      memory.state.order = { ...memory.state.order, payment_status: status };
+    },
+  };
+  const closed = await closeCheckoutPaymentAttempt(
+    PAYMENT_ID,
+    "cancelled",
+    "Checkout total refreshed.",
+    { store: pendingStore, boundPaymentId: PAYMENT_ID },
+  );
+  const captured = await captureVerifiedPayment(verifiedInput(), {
+    store: memory.store,
+    resolveCheckoutSessionId: async () => null,
+    onVerifiedPaymentCaptured: async () => undefined,
+  });
+  return {
+    closed,
+    outcome: captured.outcome,
+    reason: captured.outcome === "rejected" ? captured.reason : undefined,
+  };
 }
 
 async function captureOnce(input: {

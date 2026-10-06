@@ -14,7 +14,9 @@ import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { InlineError } from "@/components/ui/InlineError";
 import { PaymentMethods } from "@/components/payment/PaymentMethods";
+import { IndiaCardPaymentNotice } from "@/components/checkout/IndiaCardPaymentNotice";
 import { IndiaPayment } from "@/components/checkout/IndiaPayment";
+import { supportedCountry } from "@/contracts/countries";
 import {
   BACK,
   EDIT,
@@ -31,11 +33,10 @@ import {
   PAYMENT_VERIFIED_NEXT,
   REVIEW_HEADING,
   SHIPPING_HEADING,
-  CHECKOUT_LOCK_EXPIRED,
-  CHECKOUT_QUOTE_STALE,
+  CHECKOUT_TOTAL_UPDATED,
   SHIPPING_UNAVAILABLE,
+  UPDATE_TOTAL,
   UK_STANDARD_DELIVERY,
-  UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
 import { useMarket } from "@/components/market/MarketProvider";
 import { chargeDisclosure, presentCheckoutAmount } from "@/lib/market/prices";
@@ -62,9 +63,11 @@ type CheckoutReviewProps = {
   chargeReady?: boolean;
   hideQuoteStale?: boolean;
   paymentRail?: "paypal" | "india" | "unavailable";
+  indiaCardPaymentReady?: boolean;
   frozenCharge?: FrozenCharge | null;
   pending?: boolean;
   onBack: () => void;
+  onUpdateTotal?: () => void;
 };
 
 type PaymentUiState = "idle" | "starting" | "checkout" | "verifying" | "verified" | "cancelled" | "error";
@@ -75,11 +78,12 @@ export function CheckoutReview({
   quote,
   lineLock = null,
   chargeReady = true,
-  hideQuoteStale = false,
   paymentRail = "paypal",
+  indiaCardPaymentReady = true,
   frozenCharge = null,
   pending = false,
   onBack,
+  onUpdateTotal,
 }: CheckoutReviewProps) {
   const router = useRouter();
   const { rates } = useMarket();
@@ -90,6 +94,13 @@ export function CheckoutReview({
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string>("");
   const [paypalReady, setPaypalReady] = useState(false);
+  const [offerTotalRefresh, setOfferTotalRefresh] = useState(false);
+  const refreshLock = `${draft.lockExpired ? "expired" : "live"}:${lineLock?.frozenAt ?? ""}`;
+  const [seenRefreshLock, setSeenRefreshLock] = useState(refreshLock);
+  if (seenRefreshLock !== refreshLock) {
+    setSeenRefreshLock(refreshLock);
+    setOfferTotalRefresh(false);
+  }
   const india = paymentRail === "india";
   const paypalCurrency =
     route?.provider === "paypal" && isPayPalChargeCurrency(route.paymentCurrency)
@@ -99,6 +110,7 @@ export function CheckoutReview({
     paymentRail !== "india" &&
     paypalCurrency != null &&
     chargeReady &&
+    !draft.lockExpired &&
     quote.shippingStatus === "priced" &&
     (paypalCurrency === "GBP" ||
       Boolean(lineLock && lineLock.chargeCurrency === paypalCurrency && lineLock.fxRateId));
@@ -118,12 +130,15 @@ export function CheckoutReview({
     draft.line2,
     [draft.city, draft.county].filter(Boolean).join(", "),
     draft.postcode,
-    draft.country === "GB" ? UNITED_KINGDOM : draft.country,
+    supportedCountry(draft.country)?.name ?? draft.country,
   ].filter(Boolean);
 
   useEffect(() => {
     const slot = paypalSlotRef.current;
     if (!slot || pending || !payable) {
+      return;
+    }
+    if (offerTotalRefresh) {
       return;
     }
     let cancelled = false;
@@ -149,6 +164,13 @@ export function CheckoutReview({
           setPaymentUi("starting");
           const started = await initiateCheckoutPaymentAction();
           if (started.status !== "ok") {
+            if (paypalQuoteMoved(started.status)) {
+              setOfferTotalRefresh(true);
+              setPaymentError("");
+              setPaymentUi("idle");
+              setPaymentBusy(false);
+              return null;
+            }
             setPaymentError(
               started.status === "unavailable" ? PAYMENT_UNAVAILABLE : PAYMENT_START_ERROR,
             );
@@ -213,7 +235,7 @@ export function CheckoutReview({
       cancelled = true;
       unmount();
     };
-  }, [payable, paypalCurrency, pending, router]);
+  }, [offerTotalRefresh, payable, paypalCurrency, pending, router]);
 
   return (
     <div className={styles.review} data-checkout-review>
@@ -305,45 +327,63 @@ export function CheckoutReview({
         </h3>
         {india ? null : <PaymentMethods />}
         {india ? (
-          indiaReady && frozenCharge ? (
+          !indiaCardPaymentReady ? (
+            <IndiaCardPaymentNotice returnToBag />
+          ) : indiaReady && frozenCharge ? (
             <>
               {disclosure ? <p className="text-small">{disclosure}</p> : null}
-              <IndiaPayment amountMinor={frozenCharge.totalMinor} disabled={pending} />
+              <IndiaPayment
+                key={lineLock?.frozenAt}
+                amountMinor={frozenCharge.totalMinor}
+                disabled={pending}
+                onUpdateTotal={onUpdateTotal}
+              />
             </>
           ) : (
-            <p className="text-small" role="status">
-              {quote.shippingStatus === "priced"
-                ? draft.lockExpired
-                  ? CHECKOUT_LOCK_EXPIRED
-                  : CHECKOUT_QUOTE_STALE
-                : SHIPPING_UNAVAILABLE}
-            </p>
+            <QuoteHold
+              message={quote.shippingStatus === "priced" ? CHECKOUT_TOTAL_UPDATED : SHIPPING_UNAVAILABLE}
+              canRefresh={quote.shippingStatus === "priced"}
+              pending={pending}
+              onUpdateTotal={onUpdateTotal}
+            />
           )
-        ) : payable || hideQuoteStale ? null : (
-          <p className="text-small" role="status">
-            {quote.shippingStatus === "priced" ? CHECKOUT_QUOTE_STALE : SHIPPING_UNAVAILABLE}
-          </p>
+        ) : payable ? null : (
+          <QuoteHold
+            message={quote.shippingStatus === "priced" ? CHECKOUT_TOTAL_UPDATED : SHIPPING_UNAVAILABLE}
+            canRefresh={quote.shippingStatus === "priced"}
+            pending={pending}
+            onUpdateTotal={onUpdateTotal}
+          />
         )}
         {payable ? (
-          <>
-            {disclosure ? <p className="text-small">{disclosure}</p> : null}
-            <div
-              ref={paypalSlotRef}
-              className={styles.paypalSlot}
-              data-paypal-button
-              data-paypal-ready={paypalReady ? "true" : "false"}
-              aria-busy={paymentBusy}
+          offerTotalRefresh ? (
+            <QuoteHold
+              message={CHECKOUT_TOTAL_UPDATED}
+              canRefresh
+              pending={pending}
+              onUpdateTotal={onUpdateTotal}
             />
-            <p id="checkout-payment-next" className="text-small">
-              {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
-            </p>
-            {paymentUi === "cancelled" ? (
-              <p className="text-small" role="status">
-                {PAYMENT_CANCELLED}
+          ) : (
+            <>
+              {disclosure ? <p className="text-small">{disclosure}</p> : null}
+              <div
+                ref={paypalSlotRef}
+                className={styles.paypalSlot}
+                data-paypal-button
+                data-paypal-ready={paypalReady ? "true" : "false"}
+                aria-busy={paymentBusy}
+              />
+              <p id="checkout-payment-next" className="text-small">
+                {paymentUi === "verified" ? PAYMENT_VERIFIED_NEXT : PAYMENT_NEXT_BODY}
               </p>
-            ) : null}
-            {paymentUi === "error" && paymentError ? <InlineError>{paymentError}</InlineError> : null}
-          </>
+              {paymentUi === "cancelled" ? (
+                <p className="text-small" role="status">
+                  {PAYMENT_CANCELLED}
+                </p>
+              ) : null}
+              {paymentUi === "error" && paymentError ? <InlineError>{paymentError}</InlineError> : null}
+            </>
+          )
         ) : null}
       </section>
 
@@ -355,6 +395,35 @@ export function CheckoutReview({
           Return to bag
         </ButtonLink>
       </div>
+    </div>
+  );
+}
+
+function paypalQuoteMoved(status: string): boolean {
+  return status === "expired" || status === "stale";
+}
+
+function QuoteHold({
+  message,
+  canRefresh,
+  pending,
+  onUpdateTotal,
+}: {
+  message: string;
+  canRefresh: boolean;
+  pending: boolean;
+  onUpdateTotal?: () => void;
+}) {
+  return (
+    <div>
+      <p className="text-small" role="status">
+        {message}
+      </p>
+      {canRefresh && onUpdateTotal ? (
+        <Button type="button" variant="primary" onClick={onUpdateTotal} disabled={pending}>
+          {UPDATE_TOTAL}
+        </Button>
+      ) : null}
     </div>
   );
 }

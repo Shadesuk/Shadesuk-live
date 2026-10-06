@@ -9,15 +9,17 @@ import {
 } from "@/app/(storefront)/checkout/payment-actions";
 import { Button } from "@/components/ui/Button";
 import { InlineError } from "@/components/ui/InlineError";
+import { IndiaCardPaymentNotice } from "@/components/checkout/IndiaCardPaymentNotice";
 import {
-  CHECKOUT_LOCK_EXPIRED,
-  CHECKOUT_PRICE_CONFIRM,
   CHECKOUT_QUOTE_STALE,
+  CHECKOUT_TOTAL_UPDATED,
   CONTINUE_TO_PAYMENT,
+  INDIA_CARD_PAYMENT_UNAVAILABLE,
   PAYMENT_CANCELLED,
   PAYMENT_CONFIRM_ERROR,
   PAYMENT_NEXT_BODY,
   PAYMENT_START_ERROR,
+  UPDATE_TOTAL,
 } from "@/lib/checkout-copy";
 import { orderConfirmationPath } from "@/lib/navigation";
 
@@ -26,6 +28,7 @@ const CHECKOUT_SCRIPT = "https://checkout.razorpay.com/v1/checkout.js";
 type IndiaPaymentProps = {
   amountMinor: number;
   disabled?: boolean;
+  onUpdateTotal?: () => void;
 };
 
 type CheckoutResponse = {
@@ -50,11 +53,12 @@ declare global {
  * India review payment. The server creates the order. This file only opens
  * checkout.js and sends the signature home. A dismiss does not capture.
  */
-export function IndiaPayment({ amountMinor, disabled = false }: IndiaPaymentProps) {
+export function IndiaPayment({ amountMinor, disabled = false, onUpdateTotal }: IndiaPaymentProps) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [failed, setFailed] = useState(false);
+  const [offerUpdate, setOfferUpdate] = useState(false);
   const [configured, setConfigured] = useState<"loading" | "ok" | "unavailable">("loading");
 
   useEffect(() => {
@@ -75,16 +79,20 @@ export function IndiaPayment({ amountMinor, disabled = false }: IndiaPaymentProp
     }
     setBusy(true);
     setFailed(false);
+    setOfferUpdate(false);
     setStatus("");
     const started = await initiateIndiaCheckoutAction();
     if (started.status !== "ok") {
+      const quoteMoved = started.status === "expired" || started.status === "stale";
+      setOfferUpdate(quoteMoved);
       setStatus(statusForStart(started.status));
       setFailed(started.status === "error");
       setBusy(false);
       return;
     }
     if (started.amountMinor !== amountMinor || started.currency !== "INR") {
-      setStatus(CHECKOUT_QUOTE_STALE);
+      setOfferUpdate(true);
+      setStatus(CHECKOUT_TOTAL_UPDATED);
       setBusy(false);
       return;
     }
@@ -151,11 +159,7 @@ export function IndiaPayment({ amountMinor, disabled = false }: IndiaPaymentProp
     return null;
   }
   if (configured === "unavailable") {
-    return (
-      <p className="text-small" role="status">
-        {CHECKOUT_QUOTE_STALE}
-      </p>
-    );
+    return <IndiaCardPaymentNotice returnToBag />;
   }
 
   return (
@@ -173,16 +177,21 @@ export function IndiaPayment({ amountMinor, disabled = false }: IndiaPaymentProp
           </p>
         )
       ) : null}
+      {offerUpdate && onUpdateTotal ? (
+        <Button type="button" variant="primary" onClick={onUpdateTotal} disabled={disabled || busy}>
+          {UPDATE_TOTAL}
+        </Button>
+      ) : null}
     </div>
   );
 }
 
 function statusForStart(status: string): string {
-  if (status === "expired") {
-    return CHECKOUT_LOCK_EXPIRED;
+  if (status === "expired" || status === "stale") {
+    return CHECKOUT_TOTAL_UPDATED;
   }
-  if (status === "stale") {
-    return CHECKOUT_PRICE_CONFIRM;
+  if (status === "unavailable") {
+    return INDIA_CARD_PAYMENT_UNAVAILABLE;
   }
   if (status === "error") {
     return PAYMENT_START_ERROR;

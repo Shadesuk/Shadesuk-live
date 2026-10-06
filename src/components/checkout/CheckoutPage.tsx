@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   retrieveCheckoutAddressAction,
+  refreshCheckoutTotalAction,
   saveCheckoutAddressAction,
   saveCheckoutContactAction,
   searchCheckoutAddressAction,
   setCheckoutStepAction,
 } from "@/app/(storefront)/checkout/actions";
 import { CheckoutAddress } from "@/components/checkout/CheckoutAddress";
+import { IndiaCardPaymentNotice } from "@/components/checkout/IndiaCardPaymentNotice";
 import { CheckoutContact } from "@/components/checkout/CheckoutContact";
 import { CheckoutExpired } from "@/components/checkout/CheckoutExpired";
 import { CheckoutReview } from "@/components/checkout/CheckoutReview";
@@ -26,13 +28,13 @@ import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/car
 import {
   CHECKOUT_CART_UNAVAILABLE,
   CHECKOUT_ITEM_UNAVAILABLE,
-  CHECKOUT_LOCK_EXPIRED,
   CHECKOUT_PRICE_CHANGED,
   CHECKOUT_PRICE_CONFIRM,
   CHECKOUT_REQUEST_ERROR,
   CHECKOUT_STEPS,
   CHECKOUT_TITLE,
 } from "@/lib/checkout-copy";
+import { normalizeCountry } from "@/lib/checkout-validate";
 import { liveTotalUndercutsLock, quoteMatchesLock } from "@/lib/checkout-quote-lock";
 import {
   checkoutHasPriceChange,
@@ -59,6 +61,7 @@ type CheckoutPageProps = {
   accountEmail?: string;
   authNotice?: string;
   paymentRail?: "paypal" | "india" | "unavailable";
+  indiaCardPaymentReady?: boolean;
 };
 
 export function CheckoutPage({
@@ -68,6 +71,7 @@ export function CheckoutPage({
   accountEmail = "",
   authNotice = "",
   paymentRail = "paypal",
+  indiaCardPaymentReady = true,
 }: CheckoutPageProps) {
   const router = useRouter();
   const { applyCart } = useCart();
@@ -76,7 +80,7 @@ export function CheckoutPage({
   const [draft, setDraft] = useState(initialDraft);
   const [quote, setQuote] = useState(initialQuote);
   const [email, setEmail] = useState(initialDraft.email || accountEmail);
-  const [address, setAddress] = useState<AddressFormValue>(toAddressValue(initialDraft));
+  const [address, setAddress] = useState<AddressFormValue>(() => toAddressValue(initialDraft, marketCountry));
   const [query, setQuery] = useState(initialDraft.postcode);
   const [showForm, setShowForm] = useState(
     initialDraft.addressEntry === "manual" || Boolean(initialDraft.line1),
@@ -87,9 +91,9 @@ export function CheckoutPage({
   const [cartGone, setCartGone] = useState(false);
   const blocked = checkoutUnavailableBlocked(view);
   const step = draft.step;
-  const activeCountry =
-    step === "review" || draft.line1 ? address.country || draft.country : marketCountry;
-  const deliveryAddress = address.country === activeCountry ? address : { ...address, country: activeCountry };
+  const activeCountry = address.country || marketCountry;
+  const indiaCardNotice =
+    !indiaCardPaymentReady && normalizeCountry(activeCountry) === "IN";
   const summaryQuote = step === "address" ? checkoutQuoteFromCart(view, activeCountry) : quote;
   const reviewLock =
     step !== "address" && draft.quoteLock && quoteMatchesLock(draft.quoteLock, quote) ? draft.quoteLock : null;
@@ -166,7 +170,14 @@ export function CheckoutPage({
     setDraft(result.draft);
     setQuote(result.quote);
     setEmail(result.draft.email);
-    setAddress(toAddressValue(result.draft));
+    setAddress((current) => {
+      const next = toAddressValue(result.draft, marketCountry);
+      if (current.line1.trim() && !next.line1.trim()) {
+        return current;
+      }
+      return next;
+    });
+    setShowForm((open) => open || result.draft.addressEntry === "manual" || Boolean(result.draft.line1));
     if (result.draft.postcode) {
       setQuery(result.draft.postcode);
     }
@@ -221,6 +232,19 @@ export function CheckoutPage({
 
   async function goTo(next: CheckoutStepId) {
     await runMutation(() => setCheckoutStepAction({ step: next }));
+  }
+
+  async function updateTotal() {
+    await runMutation(() => refreshCheckoutTotalAction());
+  }
+
+  function revealManualAddress() {
+    setShowForm(true);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById("checkout-line1")?.focus();
+      });
+    });
   }
 
   function handleSelect(selected: PostalAddress) {
@@ -280,11 +304,6 @@ export function CheckoutPage({
           </ButtonLink>
         </p>
       ) : null}
-      {draft.lockExpired ? (
-        <p className="text-small" role="status">
-          {CHECKOUT_LOCK_EXPIRED}
-        </p>
-      ) : null}
       {liveCheaper ? (
         <p className="text-small" role="status">
           {CHECKOUT_PRICE_CONFIRM}
@@ -305,6 +324,7 @@ export function CheckoutPage({
       ) : null}
       <div className={styles.layout}>
         <div className={styles.main}>
+          {step === "address" && indiaCardNotice ? <IndiaCardPaymentNotice /> : null}
           <div className={styles.mobileSummary}>
             <CheckoutSummary
               cart={view}
@@ -329,7 +349,7 @@ export function CheckoutPage({
           ) : null}
           {step === "address" ? (
             <CheckoutAddress
-              value={deliveryAddress}
+              value={address}
               query={query}
               showForm={showForm}
               errors={errors}
@@ -340,6 +360,7 @@ export function CheckoutPage({
                 setShowForm(true);
                 track("address_manual_entry");
               }}
+              onLookupFailed={revealManualAddress}
               onSelect={handleSelect}
               onBack={() => void goTo("contact")}
               onSubmit={submitAddress}
@@ -356,9 +377,11 @@ export function CheckoutPage({
               chargeReady={chargeReady}
               hideQuoteStale={liveCheaper}
               paymentRail={paymentRail}
+              indiaCardPaymentReady={indiaCardPaymentReady}
               frozenCharge={frozenCharge}
               pending={pending}
               onBack={() => void goTo("address")}
+              onUpdateTotal={() => void updateTotal()}
             />
           ) : null}
         </div>
@@ -377,7 +400,18 @@ export function CheckoutPage({
   );
 }
 
-function toAddressValue(draft: PublicCheckoutDraft): AddressFormValue {
+function toAddressValue(draft: PublicCheckoutDraft, marketCountry?: string): AddressFormValue {
+  const untouched =
+    !draft.firstName &&
+    !draft.lastName &&
+    !draft.line1 &&
+    !draft.line2 &&
+    !draft.city &&
+    !draft.county &&
+    !draft.postcode;
+  const country = untouched
+    ? marketCountry || draft.country
+    : draft.country || marketCountry || draft.country;
   return {
     firstName: draft.firstName,
     lastName: draft.lastName,
@@ -386,6 +420,6 @@ function toAddressValue(draft: PublicCheckoutDraft): AddressFormValue {
     city: draft.city,
     county: draft.county,
     postcode: draft.postcode,
-    country: draft.country,
+    country,
   };
 }
