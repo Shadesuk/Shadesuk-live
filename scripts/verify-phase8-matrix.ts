@@ -700,9 +700,9 @@ void (async () => {
       paypalStart.indexOf('started.status === "empty"') < paypalStart.indexOf("showPricesMoved()") &&
       !paypalStart.includes("PAYMENT_START_ERROR") &&
       !paypalStart.slice(0, paypalStart.indexOf("showPricesMoved()")).includes("UPDATE_TOTAL") &&
-      review.includes("function showPricesMoved()") &&
-      review.slice(review.indexOf("function showPricesMoved()"), review.indexOf("const india")).includes("setOfferTotalRefresh(true)") &&
-      review.slice(review.indexOf("function showPricesMoved()"), review.indexOf("const india")).includes("notePayPalFocus()") &&
+      review.includes("const showPricesMoved = useCallback") &&
+      review.slice(review.indexOf("const showPricesMoved = useCallback"), review.indexOf("const india")).includes("setOfferTotalRefresh(true)") &&
+      review.slice(review.indexOf("const showPricesMoved = useCallback"), review.indexOf("const india")).includes("notePayPalFocus()") &&
       review.includes("slot.contains(active)") &&
       review.includes('getElementById("checkout-update-total")') &&
       review.includes('updateTotalId="checkout-update-total"') &&

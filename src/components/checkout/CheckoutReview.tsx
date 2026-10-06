@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -106,25 +106,24 @@ export function CheckoutReview({
     setSeenRefreshLock(refreshLock);
     setOfferTotalRefresh(false);
     setBagEmpty(false);
-    focusUpdateTotalRef.current = false;
   }
 
-  function notePayPalFocus() {
+  const notePayPalFocus = useCallback(() => {
     const slot = paypalSlotRef.current;
     const active = document.activeElement;
     if (slot && active instanceof Node && slot.contains(active)) {
       focusUpdateTotalRef.current = true;
     }
-  }
+  }, []);
 
-  function showPricesMoved() {
+  const showPricesMoved = useCallback(() => {
     notePayPalFocus();
     setBagEmpty(false);
     setOfferTotalRefresh(true);
     setPaymentError("");
     setPaymentUi("idle");
     setPaymentBusy(false);
-  }
+  }, [notePayPalFocus]);
   const india = paymentRail === "india";
   const paypalCurrency =
     route?.provider === "paypal" && isPayPalChargeCurrency(route.paymentCurrency)
@@ -169,7 +168,7 @@ export function CheckoutReview({
     }
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [paypalFrozenAt]);
+  }, [paypalFrozenAt, showPricesMoved]);
 
   useEffect(() => {
     if (!offerTotalRefresh) {
@@ -181,6 +180,10 @@ export function CheckoutReview({
       document.getElementById("checkout-update-total")?.focus();
     }
   }, [offerTotalRefresh]);
+
+  useEffect(() => {
+    focusUpdateTotalRef.current = false;
+  }, [refreshLock]);
 
   useEffect(() => {
     const slot = paypalSlotRef.current;
@@ -291,7 +294,7 @@ export function CheckoutReview({
       cancelled = true;
       unmount();
     };
-  }, [bagEmpty, offerTotalRefresh, payable, paypalCurrency, paypalFrozenAt, pending, router]);
+  }, [bagEmpty, offerTotalRefresh, payable, paypalCurrency, paypalFrozenAt, pending, router, showPricesMoved]);
 
   return (
     <div className={styles.review} data-checkout-review>
