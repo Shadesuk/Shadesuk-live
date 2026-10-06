@@ -12,12 +12,13 @@ export function BrandMark({ priority = false }: BrandMarkProps) {
   return (
     <Link href={routes.home} className={styles.mark} aria-label={site.name}>
       <Image
-        src="/brand/shadesuk-wordmark.jpg"
+        src="/brand/shadesuk-wordmark.svg"
         alt=""
-        width={1099}
-        height={253}
+        width={712}
+        height={92}
         className={styles.image}
         priority={priority}
+        unoptimized
       />
     </Link>
   );

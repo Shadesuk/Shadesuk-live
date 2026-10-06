@@ -1,14 +1,21 @@
 .mark {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
   min-height: var(--touch-min);
   text-decoration: none;
 }
 
 .image {
+  display: block;
   width: auto;
   height: 1.75rem;
+  max-width: 100%;
+  min-width: 0;
   object-fit: contain;
+  object-position: center;
 }
 
 @media (max-width: 359px) {
