@@ -14,7 +14,9 @@ import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { InlineError } from "@/components/ui/InlineError";
 import { PaymentMethods } from "@/components/payment/PaymentMethods";
+import { IndiaCardPaymentNotice } from "@/components/checkout/IndiaCardPaymentNotice";
 import { IndiaPayment } from "@/components/checkout/IndiaPayment";
+import { supportedCountry } from "@/contracts/countries";
 import {
   BACK,
   EDIT,
@@ -31,13 +33,10 @@ import {
   PAYMENT_VERIFIED_NEXT,
   REVIEW_HEADING,
   SHIPPING_HEADING,
-  CHECKOUT_LOCK_EXPIRED,
-  CHECKOUT_PRICE_CONFIRM,
-  CHECKOUT_QUOTE_STALE,
+  CHECKOUT_TOTAL_UPDATED,
   SHIPPING_UNAVAILABLE,
   UPDATE_TOTAL,
   UK_STANDARD_DELIVERY,
-  UNITED_KINGDOM,
 } from "@/lib/checkout-copy";
 import { useMarket } from "@/components/market/MarketProvider";
 import { chargeDisclosure, presentCheckoutAmount } from "@/lib/market/prices";
@@ -64,6 +63,7 @@ type CheckoutReviewProps = {
   chargeReady?: boolean;
   hideQuoteStale?: boolean;
   paymentRail?: "paypal" | "india" | "unavailable";
+  indiaCardPaymentReady?: boolean;
   frozenCharge?: FrozenCharge | null;
   pending?: boolean;
   onBack: () => void;
@@ -78,8 +78,8 @@ export function CheckoutReview({
   quote,
   lineLock = null,
   chargeReady = true,
-  hideQuoteStale = false,
   paymentRail = "paypal",
+  indiaCardPaymentReady = true,
   frozenCharge = null,
   pending = false,
   onBack,
@@ -122,7 +122,7 @@ export function CheckoutReview({
     draft.line2,
     [draft.city, draft.county].filter(Boolean).join(", "),
     draft.postcode,
-    draft.country === "GB" ? UNITED_KINGDOM : draft.country,
+    supportedCountry(draft.country)?.name ?? draft.country,
   ].filter(Boolean);
 
   useEffect(() => {
@@ -309,20 +309,20 @@ export function CheckoutReview({
         </h3>
         {india ? null : <PaymentMethods />}
         {india ? (
-          indiaReady && frozenCharge ? (
+          !indiaCardPaymentReady ? (
+            <IndiaCardPaymentNotice returnToBag />
+          ) : indiaReady && frozenCharge ? (
             <>
               {disclosure ? <p className="text-small">{disclosure}</p> : null}
-              <IndiaPayment amountMinor={frozenCharge.totalMinor} disabled={pending} />
+              <IndiaPayment
+                amountMinor={frozenCharge.totalMinor}
+                disabled={pending}
+                onUpdateTotal={onUpdateTotal}
+              />
             </>
           ) : (
             <QuoteHold
-              message={
-                quote.shippingStatus === "priced"
-                  ? draft.lockExpired
-                    ? CHECKOUT_LOCK_EXPIRED
-                    : CHECKOUT_QUOTE_STALE
-                  : SHIPPING_UNAVAILABLE
-              }
+              message={quote.shippingStatus === "priced" ? CHECKOUT_TOTAL_UPDATED : SHIPPING_UNAVAILABLE}
               canRefresh={quote.shippingStatus === "priced"}
               pending={pending}
               onUpdateTotal={onUpdateTotal}
@@ -330,13 +330,7 @@ export function CheckoutReview({
           )
         ) : payable ? null : (
           <QuoteHold
-            message={
-              quote.shippingStatus !== "priced"
-                ? SHIPPING_UNAVAILABLE
-                : hideQuoteStale
-                  ? CHECKOUT_PRICE_CONFIRM
-                  : CHECKOUT_QUOTE_STALE
-            }
+            message={quote.shippingStatus === "priced" ? CHECKOUT_TOTAL_UPDATED : SHIPPING_UNAVAILABLE}
             canRefresh={quote.shippingStatus === "priced"}
             pending={pending}
             onUpdateTotal={onUpdateTotal}

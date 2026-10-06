@@ -3,6 +3,7 @@ import { CartPage } from "@/components/cart/CartPage";
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { routes } from "@/lib/navigation";
+import { indiaCardPaymentConfigured } from "@/lib/payment/india-card-availability";
 import { privatePathMetadata } from "@/lib/seo";
 import { getCartSuggestions, getPublicCart } from "@/services/cart";
 import { getStorefrontCatalogue } from "@/services/storefront-catalogue";
@@ -25,6 +26,7 @@ export default async function CartRoute() {
           <CartPage
             initialCart={cart}
             suggestions={getCartSuggestions(cart, catalogue.products)}
+            indiaCardPaymentReady={indiaCardPaymentConfigured()}
           />
         </ContentWidth>
       </main>

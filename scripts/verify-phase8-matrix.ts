@@ -601,6 +601,63 @@ void (async () => {
     "The India branch renders IndiaPayment and does not mount PayPal. PayPal stays behind the payable gate. DE and US without an FX lock cannot start a payment attempt.",
   );
 
+  const indiaNotice = read("src/components/checkout/IndiaCardPaymentNotice.tsx");
+  const indiaCopy = read("src/lib/checkout-copy.ts");
+  const indiaAvailability = read("src/lib/payment/india-card-availability.ts");
+  const razorpayConfig = read("src/lib/razorpay/config.ts");
+  const cartRoute = read("src/app/(storefront)/cart/page.tsx");
+  const cartUi = read("src/components/cart/CartPage.tsx");
+  const checkoutRoute = read("src/app/(storefront)/checkout/page.tsx");
+  const checkoutUi = read("src/components/checkout/CheckoutPage.tsx");
+  const unavailableUi = indiaUi.slice(
+    indiaUi.indexOf('if (configured === "unavailable")'),
+    indiaUi.indexOf("return (\n    <div>"),
+  );
+  const addressStep = checkoutUi.slice(
+    checkoutUi.indexOf('{step === "address" && indiaCardNotice'),
+    checkoutUi.indexOf("{step === \"contact\""),
+  );
+  const statusForStart = indiaUi.slice(indiaUi.indexOf("function statusForStart"));
+  expect(
+    "India card notice",
+    indiaCopy.includes(
+      "Card payment for India isn't available right now. Your bag is saved. Please try again shortly.",
+    ) &&
+      indiaCopy.includes("Your total has been updated.") &&
+      indiaNotice.includes("INDIA_CARD_PAYMENT_UNAVAILABLE") &&
+      indiaNotice.includes('role="status"') &&
+      !indiaNotice.includes("InlineError") &&
+      !indiaNotice.includes('role="alert"') &&
+      indiaAvailability.includes("resolveRazorpayServerConfig().ok") &&
+      !indiaAvailability.includes("INDIA_PAYMENTS") &&
+      razorpayConfig.includes("rzp_test_") &&
+      razorpayConfig.includes('reason: "live_key"') &&
+      cartRoute.includes("indiaCardPaymentConfigured()") &&
+      checkoutRoute.includes("indiaCardPaymentConfigured()") &&
+      !checkoutRoute.toLowerCase().includes("razorpay") &&
+      !checkoutUi.toLowerCase().includes("razorpay") &&
+      cartUi.includes("IndiaCardPaymentNotice") &&
+      cartUi.includes('normalizeCountry(country) === "IN"') &&
+      checkoutUi.includes("IndiaCardPaymentNotice") &&
+      addressStep.includes("<IndiaCardPaymentNotice />") &&
+      indiaBranch.includes("!indiaCardPaymentReady") &&
+      indiaBranch.includes("<IndiaCardPaymentNotice") &&
+      indiaBranch.indexOf("<IndiaCardPaymentNotice") < indiaBranch.indexOf("<IndiaPayment") &&
+      indiaBranch.includes("CHECKOUT_TOTAL_UPDATED") &&
+      indiaBranch.includes("<QuoteHold") &&
+      !indiaBranch.includes("CHECKOUT_QUOTE_STALE") &&
+      !indiaBranch.includes("UPDATE_TOTAL") &&
+      review.includes("supportedCountry(draft.country)?.name") &&
+      !review.includes("UNITED_KINGDOM") &&
+      unavailableUi.includes("<IndiaCardPaymentNotice") &&
+      !unavailableUi.includes("CHECKOUT_QUOTE_STALE") &&
+      !unavailableUi.includes("UPDATE_TOTAL") &&
+      statusForStart.includes('status === "unavailable"') &&
+      statusForStart.includes("INDIA_CARD_PAYMENT_UNAVAILABLE") &&
+      statusForStart.indexOf('status === "unavailable"') < statusForStart.indexOf("return CHECKOUT_QUOTE_STALE"),
+    "India card payment uses the server config check. Unavailable is a quiet notice on the bag, Delivery, and Review. A moved total still offers Update total. The test-key guard stays.",
+  );
+
   const grants = read("supabase/migrations/20261005210000_customer_role_checkout_grants.sql");
   const snapshot = read("supabase/migrations/20261005200000_order_charge_snapshots.sql");
   const initial = read("supabase/migrations/20260914230750_initial_production_schema.sql");

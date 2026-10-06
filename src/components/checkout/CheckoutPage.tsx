@@ -11,6 +11,7 @@ import {
   setCheckoutStepAction,
 } from "@/app/(storefront)/checkout/actions";
 import { CheckoutAddress } from "@/components/checkout/CheckoutAddress";
+import { IndiaCardPaymentNotice } from "@/components/checkout/IndiaCardPaymentNotice";
 import { CheckoutContact } from "@/components/checkout/CheckoutContact";
 import { CheckoutExpired } from "@/components/checkout/CheckoutExpired";
 import { CheckoutReview } from "@/components/checkout/CheckoutReview";
@@ -34,6 +35,7 @@ import {
   CHECKOUT_STEPS,
   CHECKOUT_TITLE,
 } from "@/lib/checkout-copy";
+import { normalizeCountry } from "@/lib/checkout-validate";
 import { liveTotalUndercutsLock, quoteMatchesLock } from "@/lib/checkout-quote-lock";
 import {
   checkoutHasPriceChange,
@@ -60,6 +62,7 @@ type CheckoutPageProps = {
   accountEmail?: string;
   authNotice?: string;
   paymentRail?: "paypal" | "india" | "unavailable";
+  indiaCardPaymentReady?: boolean;
 };
 
 export function CheckoutPage({
@@ -69,6 +72,7 @@ export function CheckoutPage({
   accountEmail = "",
   authNotice = "",
   paymentRail = "paypal",
+  indiaCardPaymentReady = true,
 }: CheckoutPageProps) {
   const router = useRouter();
   const { applyCart } = useCart();
@@ -89,6 +93,8 @@ export function CheckoutPage({
   const blocked = checkoutUnavailableBlocked(view);
   const step = draft.step;
   const activeCountry = address.country || marketCountry;
+  const indiaCardNotice =
+    !indiaCardPaymentReady && normalizeCountry(activeCountry) === "IN";
   const summaryQuote = step === "address" ? checkoutQuoteFromCart(view, activeCountry) : quote;
   const reviewLock =
     step !== "address" && draft.quoteLock && quoteMatchesLock(draft.quoteLock, quote) ? draft.quoteLock : null;
@@ -324,6 +330,7 @@ export function CheckoutPage({
       ) : null}
       <div className={styles.layout}>
         <div className={styles.main}>
+          {step === "address" && indiaCardNotice ? <IndiaCardPaymentNotice /> : null}
           <div className={styles.mobileSummary}>
             <CheckoutSummary
               cart={view}
@@ -376,6 +383,7 @@ export function CheckoutPage({
               chargeReady={chargeReady}
               hideQuoteStale={liveCheaper}
               paymentRail={paymentRail}
+              indiaCardPaymentReady={indiaCardPaymentReady}
               frozenCharge={frozenCharge}
               pending={pending}
               onBack={() => void goTo("address")}
