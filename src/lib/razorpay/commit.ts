@@ -16,16 +16,20 @@ import { resolveRazorpayServerConfig } from "./config";
 import { isRazorpayOrderId, isRazorpayPaymentId } from "./ids";
 import { captureRazorpayPayment, createRazorpayOrder, fetchRazorpayPayment } from "./order";
 import { assessRazorpayCapture } from "./assess";
+import { indiaCaptureStep } from "./capture-claim";
 import { decideIndiaAttemptReuse } from "./reuse";
 import { indiaCheckoutWindow } from "./window";
 import { razorpayCheckoutSignatureMatches } from "./signature";
 import {
   attachIndiaProviderOrder,
+  claimIndiaPaymentForCapture,
+  flagIndiaCaptureUnrecorded,
   insertIndiaPayment,
   loadOpenIndiaAttempt,
   loadStoredIndiaPayment,
   markIndiaPaymentCaptured,
   markIndiaPaymentFailed,
+  releaseIndiaCaptureClaim,
 } from "./persist";
 import { onVerifiedPaymentCaptured } from "@/lib/payment/after-captured";
 
@@ -275,16 +279,77 @@ export async function settleIndiaPayment(input: {
     }
     return { status: "error", terminal: true };
   }
+  let providerPaymentId = remote.id;
+  let moneyCaptured = remote.status === "captured";
   if (remote.status === "authorized") {
-    const captured = await captureRazorpayPayment({
-      paymentId: remote.id,
-      amountMinor: stored.amountMinor,
-      currency: "INR",
-      config: input.config,
-      fetchImpl: input.fetchImpl,
+    const claim = await claimIndiaPaymentForCapture({
+      paymentId: stored.paymentId,
+      orderId: stored.orderId,
+      providerPaymentId: remote.id,
     });
-    if (!captured) {
+    const step = indiaCaptureStep({ claim, remoteStatus: remote.status });
+    if (step === "duplicate") {
+      return { status: "already_processed", orderReference: stored.orderReference };
+    }
+    if (step === "reject") {
+      return { status: "error", terminal: true };
+    }
+    if (step === "error") {
       return { status: "error", terminal: false };
+    }
+    if (step === "retry") {
+      const again = await fetchRazorpayPayment({
+        paymentId: remote.id,
+        config: input.config,
+        fetchImpl: input.fetchImpl,
+      });
+      const follow = indiaCaptureStep({ claim: "in_progress", remoteStatus: again?.status ?? "" });
+      if (
+        follow !== "mark" ||
+        !again ||
+        again.orderId !== input.providerOrderId ||
+        again.amountMinor !== stored.amountMinor
+      ) {
+        return { status: "error", terminal: false };
+      }
+      moneyCaptured = true;
+      providerPaymentId = again.id;
+    } else if (step === "capture") {
+      const captured = await captureRazorpayPayment({
+        paymentId: remote.id,
+        amountMinor: stored.amountMinor,
+        currency: "INR",
+        config: input.config,
+        fetchImpl: input.fetchImpl,
+      });
+      if (!captured) {
+        const again = await fetchRazorpayPayment({
+          paymentId: remote.id,
+          config: input.config,
+          fetchImpl: input.fetchImpl,
+        });
+        if (
+          again?.status === "captured" &&
+          again.orderId === input.providerOrderId &&
+          again.amountMinor === stored.amountMinor
+        ) {
+          moneyCaptured = true;
+          providerPaymentId = again.id;
+        } else {
+          if (!again || again.status === "authorized") {
+            await releaseIndiaCaptureClaim({
+              paymentId: stored.paymentId,
+              orderId: stored.orderId,
+              providerPaymentId: remote.id,
+            });
+          }
+          return { status: "error", terminal: false };
+        }
+      } else {
+        moneyCaptured = true;
+      }
+    } else {
+      return { status: "error", terminal: true };
     }
   } else if (remote.status !== "captured") {
     await markIndiaPaymentFailed(stored.paymentId, "Razorpay did not authorize that payment.");
@@ -293,13 +358,18 @@ export async function settleIndiaPayment(input: {
   const marked = await markIndiaPaymentCaptured({
     paymentId: stored.paymentId,
     orderId: stored.orderId,
-    providerPaymentId: remote.id,
+    providerPaymentId,
   });
-  if (marked === "error") {
-    return { status: "error", terminal: false };
-  }
-  if (marked === "rejected") {
-    return { status: "error", terminal: true };
+  if (marked === "error" || marked === "rejected") {
+    if (moneyCaptured) {
+      await flagIndiaCaptureUnrecorded({
+        paymentId: stored.paymentId,
+        orderId: stored.orderId,
+        providerPaymentId,
+        orderReference: stored.orderReference,
+      });
+    }
+    return { status: "error", terminal: marked === "rejected" };
   }
   if (marked === "captured") {
     try {

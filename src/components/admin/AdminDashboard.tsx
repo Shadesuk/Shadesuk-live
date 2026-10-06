@@ -10,6 +10,7 @@ import {
 import { AdminDashboardKpis } from "./AdminDashboardKpis";
 import { AdminDashboardPeriodNav } from "./AdminDashboardPeriodNav";
 import { AdminOperationalAlerts } from "./AdminOperationalAlerts";
+import { AdminIndiaCaptureAlerts } from "./AdminIndiaCaptureAlerts";
 import { AdminPendingRefunds } from "./AdminPendingRefunds";
 import { AdminRecentOrders } from "./AdminRecentOrders";
 import { AdminSalesOverview } from "./AdminSalesOverview";
@@ -47,6 +48,9 @@ export function AdminDashboard({
         </Suspense>
         <Suspense fallback={<AdminSalesSkeleton />}>
           <AdminSalesOverview period={period} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AdminIndiaCaptureAlerts />
         </Suspense>
         <Suspense fallback={null}>
           <AdminPendingRefunds />

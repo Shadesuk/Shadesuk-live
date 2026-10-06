@@ -10,7 +10,9 @@ function methodNotAllowed() {
 }
 
 /**
- * Razorpay recovery. The signature is checked against the raw body.
+ * Razorpay recovery at POST /api/webhooks/razorpay.
+ * The signature is checked against the raw body with the mode-resolved webhook secret.
+ * Register that URL in the Razorpay dashboard. This route does not register it.
  * Does not expose GET. Does not mark an order captured from a redirect.
  */
 export async function POST(request: Request) {

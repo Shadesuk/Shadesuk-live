@@ -40,6 +40,13 @@ export const ADMIN_ORDER_COL_PAYMENT = "Payment";
 export const ADMIN_ORDER_COL_STATUS = "Status";
 export const ADMIN_NO_ORDERS_TITLE = "No orders yet";
 export const ADMIN_NO_ORDERS_BODY = "New orders will appear here.";
+export const ADMIN_INDIA_CAPTURE_ALERTS_TITLE = "India payments to reconcile";
+export const ADMIN_INDIA_CAPTURE_ALERTS_BODY =
+  "Razorpay captured these payments, but the order was not recorded. Match each payment in the Razorpay dashboard. This screen does not send a refund.";
+export const ADMIN_INDIA_CAPTURE_ALERTS_UNAVAILABLE = "India payment alerts could not be loaded.";
+export const ADMIN_INDIA_CAPTURE_PAYMENT = "Payment";
+export const ADMIN_INDIA_CAPTURE_AMOUNT = "Amount";
+export const ADMIN_INDIA_CAPTURE_VIEW = "View order";
 export const ADMIN_REFUND_ALERTS_TITLE = "Refunds pending";
 export const ADMIN_REFUND_ALERTS_BODY =
   "Refund these captured payments in PayPal, then mark each order refunded. Overdue refunds stay here until they are marked.";

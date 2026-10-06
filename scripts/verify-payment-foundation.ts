@@ -128,7 +128,7 @@ if (
 ) {
   throw new Error("PayPal secrets must never use a NEXT_PUBLIC_ prefix.");
 }
-for (const name of ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"] as const) {
+for (const name of ["RAZORPAY_MODE", "RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"] as const) {
   if (!envExample.includes(`\n${name}=`)) {
     throw new Error(`.env.example must document server-only ${name}.`);
   }
@@ -138,7 +138,7 @@ if (envExample.includes("NEXT_PUBLIC_RAZORPAY")) {
 }
 const razorpayConfig = read("src/lib/razorpay/config.ts");
 if (!razorpayConfig.includes('import "server-only"') || !razorpayConfig.includes("rzp_test_") || !razorpayConfig.includes("rzp_live_")) {
-  throw new Error("Razorpay config must stay server-only and reject live keys.");
+  throw new Error("Razorpay config must stay server-only and name both key prefixes.");
 }
 if (read("package.json").includes('"razorpay"')) {
   throw new Error("npm razorpay dependency must stay absent. Use the REST API.");
