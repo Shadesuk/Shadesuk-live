@@ -32,12 +32,10 @@ export async function loadIndiaCaptureAlerts(): Promise<IndiaCaptureAlertLoadRes
   try {
     const admin = createSupabaseAdminClient();
     const result = await admin
-      .from("payments")
-      .select("id, order_id, provider_payment_id, amount_minor, currency, orders(order_reference)")
-      .eq("provider", "razorpay")
-      .eq("failure_reason", INDIA_CAPTURE_UNRECORDED)
-      .is("captured_at", null)
-      .order("updated_at", { ascending: true })
+      .from("order_events")
+      .select("id, order_id, metadata, orders(order_reference)")
+      .eq("event_type", INDIA_CAPTURE_UNRECORDED)
+      .order("created_at", { ascending: true })
       .limit(50);
     if (result.error || !Array.isArray(result.data)) {
       return { status: "error" };
@@ -60,11 +58,12 @@ function parseAlert(value: unknown): IndiaCaptureAlert | null {
     return null;
   }
   const row = value as Record<string, unknown>;
+  const metadata = row.metadata && typeof row.metadata === "object" ? (row.metadata as Record<string, unknown>) : {};
   const id = typeof row.id === "string" ? row.id : "";
   const orderId = typeof row.order_id === "string" ? row.order_id : "";
-  const providerPaymentId = typeof row.provider_payment_id === "string" ? row.provider_payment_id : "";
-  const amountMinor = row.amount_minor;
-  if (!isUuid(id) || !isUuid(orderId) || !providerPaymentId || row.currency !== "INR" || !Number.isInteger(amountMinor)) {
+  const providerPaymentId = typeof metadata.provider_payment_id === "string" ? metadata.provider_payment_id : "";
+  const amountMinor = metadata.amount_minor;
+  if (!isUuid(id) || !isUuid(orderId) || !providerPaymentId || metadata.currency !== "INR" || !Number.isInteger(amountMinor)) {
     return null;
   }
   const orderReference = readOrderReference(row.orders);

@@ -382,17 +382,25 @@ if (!settleBody.includes('step === "reject"') || !settleBody.includes("releaseIn
   throw new Error("A rejected India claim must return before capture, and a failed capture must release the claim.");
 }
 const claimMigration = read("supabase/migrations/20261006120000_india_capture_claim.sql");
+const flagFn = claimMigration.slice(
+  claimMigration.indexOf("function public.flag_india_capture_unrecorded"),
+  claimMigration.indexOf("function public.mark_india_payment_captured"),
+);
 if (
   !claimMigration.includes("claim_india_payment_for_capture") ||
   !claimMigration.includes("payments_one_open_india_attempt_key") ||
+  !claimMigration.includes("on public.payments (order_id)") ||
   !claimMigration.includes("flag_india_capture_unrecorded") ||
   !claimMigration.includes("razorpay_captured_unrecorded") ||
   !claimMigration.includes("status in ('created', 'authorized')") ||
   !claimMigration.includes("and captured_at is null") ||
   claimMigration.includes("fx_rate_id") ||
-  !claimMigration.includes("grant execute on function public.claim_india_payment_for_capture(uuid, uuid, text) to service_role")
+  !claimMigration.includes("grant execute on function public.claim_india_payment_for_capture(uuid, uuid, text) to service_role") ||
+  !flagFn.includes("insert into public.order_events") ||
+  flagFn.includes("failure_reason") ||
+  flagFn.includes("status not in ('created', 'authorized')")
 ) {
-  throw new Error("India capture must claim before the provider call and allow only one open attempt per order.");
+  throw new Error("India capture must claim before the provider call, allow one open attempt per order, and keep the reconcile alert on an order event.");
 }
 if (indiaWebhookHttpStatus({ status: "error", terminal: true }) !== 200) {
   throw new Error("A terminal India webhook failure must return 200 so Razorpay stops retrying.");
@@ -445,6 +453,18 @@ if (
   }) !== "close"
 ) {
   throw new Error("A different frozen quote must close the earlier open attempt.");
+}
+if (
+  decideIndiaAttemptReuse({
+    open: null,
+    ownerUserId: null,
+    email: openAttempt.email,
+    frozenAt: india.frozenAt,
+    amountMinor: india.chargeTotalMinor,
+    lines: openAttempt.lines,
+  }) !== "ignore"
+) {
+  throw new Error("A missing cookie attempt must not block a new India order.");
 }
 const priced = {
   status: "priced" as const,
@@ -583,6 +603,8 @@ if (
   !indiaAlert.includes("data-india-capture-alerts") ||
   !indiaAlertService.includes("getAdminGate") ||
   !indiaAlertService.includes("INDIA_CAPTURE_UNRECORDED") ||
+  !indiaAlertService.includes("order_events") ||
+  indiaAlertService.includes('eq("failure_reason"') ||
   indiaAlertService.includes("/refund")
 ) {
   throw new Error("A Razorpay capture that never became an order must show an admin reconcile alert.");

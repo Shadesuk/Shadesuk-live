@@ -229,8 +229,8 @@ export async function releaseIndiaCaptureClaim(input: {
 
 /**
  * Razorpay has the money and our order write failed.
- * Logs an ops alert and stores a stable failure reason so the row can be reconciled.
- * Does not mark the payment failed and does not place the order.
+ * Appends an order event the admin dashboard can list. Does not refund.
+ * The log is the fallback when that event is not stored.
  */
 export async function flagIndiaCaptureUnrecorded(input: {
   paymentId: string;
@@ -238,28 +238,33 @@ export async function flagIndiaCaptureUnrecorded(input: {
   providerPaymentId: string;
   orderReference: string;
 }): Promise<void> {
-  console.error(
-    "Razorpay captured funds but the order was not recorded. The admin dashboard lists it for a manual reconcile. This app does not refund the payment.",
-    {
-      orderId: input.orderId,
-      paymentId: input.paymentId,
-      providerPaymentId: input.providerPaymentId,
-      orderReference: input.orderReference,
-      failureReason: INDIA_CAPTURE_UNRECORDED,
-    },
-  );
-  if (!isUuid(input.paymentId) || !isUuid(input.orderId) || !isRazorpayPaymentId(input.providerPaymentId)) {
-    return;
-  }
-  if (!indiaPaymentWritesAvailable()) {
+  const detail = {
+    orderId: input.orderId,
+    paymentId: input.paymentId,
+    providerPaymentId: input.providerPaymentId,
+    orderReference: input.orderReference,
+    failureReason: INDIA_CAPTURE_UNRECORDED,
+  };
+  if (!isUuid(input.paymentId) || !isUuid(input.orderId) || !isRazorpayPaymentId(input.providerPaymentId) || !indiaPaymentWritesAvailable()) {
+    console.error(
+      "Razorpay captured funds but the order was not recorded. The reconcile alert was not stored. Match this payment in the Razorpay dashboard. This app does not refund it.",
+      detail,
+    );
     return;
   }
   const admin = createSupabaseAdminClient();
-  await admin.rpc("flag_india_capture_unrecorded", {
+  const result = await admin.rpc("flag_india_capture_unrecorded", {
     p_payment_id: input.paymentId,
     p_order_id: input.orderId,
     p_provider_payment_id: input.providerPaymentId,
   });
+  const status = rpcRow(result.data).status;
+  if (result.error || (status !== "flagged" && status !== "already_flagged")) {
+    console.error(
+      "Razorpay captured funds but the order was not recorded. The reconcile alert was not stored. Match this payment in the Razorpay dashboard. This app does not refund it.",
+      { ...detail, flagStatus: typeof status === "string" ? status : "error" },
+    );
+  }
 }
 
 export async function markIndiaPaymentCaptured(input: {

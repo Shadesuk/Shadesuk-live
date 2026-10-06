@@ -18,8 +18,10 @@ export type IndiaOpenAttempt = {
 
 /**
  * One open India attempt per browser cookie and frozen quote.
- * A matching attempt is reused. A different attempt owned by this shopper is closed first.
+ * A matching attempt is reused, so the same shopper does not open a second order.
+ * A changed quote is closed first; the caller then inserts a new order.
  * Another shopper's attempt is left alone.
+ * The payments unique index only stops a second open row on the same order.
  */
 export function decideIndiaAttemptReuse(input: {
   open: IndiaOpenAttempt | null;

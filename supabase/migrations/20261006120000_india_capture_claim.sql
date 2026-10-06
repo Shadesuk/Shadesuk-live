@@ -179,26 +179,42 @@ begin
     return jsonb_build_object('status', 'rejected');
   end if;
 
-  if v_payment.status not in ('created', 'authorized') then
-    return jsonb_build_object('status', 'rejected');
-  end if;
-
   if v_payment.provider_payment_id is not null
     and v_payment.provider_payment_id is distinct from p_provider_payment_id
   then
     return jsonb_build_object('status', 'rejected');
   end if;
 
-  update public.payments
-  set failure_reason = 'razorpay_captured_unrecorded',
-      updated_at = now()
-  where id = v_payment.id
-    and captured_at is null
-    and status in ('created', 'authorized');
-
-  if not found then
-    return jsonb_build_object('status', 'rejected');
+  -- Any uncaptured row, including failed and cancelled. The event is append-only
+  -- so a later close or fail cannot wipe the reconcile alert.
+  if exists (
+    select 1
+    from public.order_events
+    where order_id = p_order_id
+      and event_type = 'razorpay_captured_unrecorded'
+      and metadata->>'payment_id' = p_payment_id::text
+      and metadata->>'provider_payment_id' = p_provider_payment_id
+  ) then
+    return jsonb_build_object('status', 'already_flagged', 'order_id', p_order_id);
   end if;
+
+  insert into public.order_events (
+    order_id,
+    event_type,
+    metadata,
+    customer_visible
+  ) values (
+    p_order_id,
+    'razorpay_captured_unrecorded',
+    jsonb_build_object(
+      'payment_id', p_payment_id,
+      'provider_payment_id', p_provider_payment_id,
+      'amount_minor', v_payment.amount_minor,
+      'currency', v_payment.currency,
+      'payment_status', v_payment.status
+    ),
+    false
+  );
 
   return jsonb_build_object('status', 'flagged', 'order_id', p_order_id);
 end;
@@ -210,7 +226,7 @@ revoke all on function public.flag_india_capture_unrecorded(uuid, uuid, text) fr
 grant execute on function public.flag_india_capture_unrecorded(uuid, uuid, text) to service_role;
 
 comment on function public.flag_india_capture_unrecorded(uuid, uuid, text) is
-  'Marks an India payment whose Razorpay capture succeeded but the order write failed. Leaves the row open for a retry. Does not place, cancel, or refund the order.';
+  'Appends an order event when Razorpay captured funds and the order write did not. Flags any uncaptured India payment, including failed and cancelled. Does not place the order or refund.';
 
 create or replace function public.mark_india_payment_captured(
   p_payment_id uuid,
