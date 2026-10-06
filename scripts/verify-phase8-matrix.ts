@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { isGuestCartSessionId } from "../src/contracts/cart/session";
 import { UK_SHIPPING_RATE_MINOR } from "../src/contracts/markets";
 import { captureVerifiedPayment } from "../src/lib/payment/capture-verified";
-import { closeCheckoutPaymentAttempt } from "../src/services/pending-payment";
+import { closeCheckoutPaymentAttempt, initiatePendingPayPalPayment } from "../src/services/pending-payment";
 import type { PendingPaymentStore } from "../src/lib/payment/pending-store";
 import type { PaymentCaptureStore } from "../src/lib/payment/capture-store";
 import type { PaymentRow } from "../src/contracts/payment/schema";
@@ -663,18 +663,54 @@ void (async () => {
   );
 
   const payableExpr = review.slice(review.indexOf("const payable ="), review.indexOf("const disclosure"));
-  const paypalStart = review.slice(
-    review.indexOf('if (started.status !== "ok")'),
-    review.indexOf("paymentIdRef.current = started.paymentId"),
+  const createOrder = review.slice(review.indexOf("createOrder: async"), review.indexOf("onApprove:"));
+  const paypalStart = createOrder.slice(createOrder.indexOf('if (started.status !== "ok")'));
+  const paymentAction = read("src/app/(storefront)/checkout/payment-actions.ts");
+  const initiateAction = paymentAction.slice(
+    paymentAction.indexOf("export async function initiateCheckoutPaymentAction"),
+    paymentAction.indexOf("export async function verifyCheckoutPaymentAction"),
   );
+  const expiredStart = ukLock
+    ? await initiatePendingPayPalPayment({
+        cart: { items: [{ id: "bag-1" }], itemCount: 1, subtotal: 0, currency: "GBP", issues: [] } as never,
+        draft: draft(ukLock),
+        userId: null,
+        loadLines: async () => [line(4900)],
+        store: {
+          insertAttempt: async () => {
+            throw new Error("An expired GB lock must not create a PayPal order.");
+          },
+        } as unknown as PendingPaymentStore,
+        readAttemptId: async () => null,
+      })
+    : { status: "error" as const };
   expect(
     "GB expired lock recovery",
     payableExpr.includes("!draft.lockExpired") &&
       payableExpr.includes('paypalCurrency === "GBP"') &&
-      review.includes("function paypalQuoteMoved") &&
-      paypalStart.includes("paypalQuoteMoved(started.status)") &&
-      paypalStart.includes("setOfferTotalRefresh(true)") &&
-      paypalStart.indexOf("setOfferTotalRefresh(true)") < paypalStart.indexOf("PAYMENT_START_ERROR") &&
+      review.includes("function paypalLockClockExpired") &&
+      review.includes("visibilitychange") &&
+      review.includes("frozenAt + QUOTE_LOCK_TTL_MS") &&
+      createOrder.indexOf("paypalLockClockExpired") >= 0 &&
+      createOrder.indexOf("paypalLockClockExpired") < createOrder.indexOf("initiateCheckoutPaymentAction") &&
+      paypalStart.includes('started.status === "unavailable"') &&
+      paypalStart.includes('started.status === "empty"') &&
+      paypalStart.includes("showPricesMoved()") &&
+      paypalStart.indexOf('started.status === "unavailable"') < paypalStart.indexOf('started.status === "empty"') &&
+      paypalStart.indexOf('started.status === "empty"') < paypalStart.indexOf("showPricesMoved()") &&
+      !paypalStart.includes("PAYMENT_START_ERROR") &&
+      !paypalStart.slice(0, paypalStart.indexOf("showPricesMoved()")).includes("UPDATE_TOTAL") &&
+      review.includes("const showPricesMoved = useCallback") &&
+      review.slice(review.indexOf("const showPricesMoved = useCallback"), review.indexOf("const india")).includes("setOfferTotalRefresh(true)") &&
+      review.slice(review.indexOf("const showPricesMoved = useCallback"), review.indexOf("const india")).includes("notePayPalFocus()") &&
+      review.includes("slot.contains(active)") &&
+      review.includes('getElementById("checkout-update-total")') &&
+      review.includes('updateTotalId="checkout-update-total"') &&
+      review.slice(review.indexOf("function QuoteHold")).includes('role="status"') &&
+      read("src/lib/checkout-copy.ts").includes('export const EMPTY_BAG_REVIEW = "Your bag is empty."') &&
+      initiateAction.includes('started.status === "expired"') &&
+      initiateAction.includes('started.status === "stale"') &&
+      expiredStart.status === "expired" &&
       review.includes("<QuoteHold") &&
       review.includes("CHECKOUT_TOTAL_UPDATED") &&
       review.includes("UPDATE_TOTAL") &&
@@ -682,10 +718,24 @@ void (async () => {
       review.includes("if (!slot || pending || !payable)") &&
       review.includes("{payable ? (") &&
       review.slice(review.indexOf("{payable ? (")).includes("offerTotalRefresh") &&
+      review.slice(review.indexOf("{payable ? (")).indexOf("styles.paypalSlot") <
+        review.slice(review.indexOf("{payable ? (")).indexOf("offerTotalRefresh") &&
       review.slice(review.indexOf("{payable ? (")).indexOf("offerTotalRefresh") <
         review.slice(review.indexOf("{payable ? (")).indexOf("data-paypal-button") &&
+      review.slice(review.indexOf("{payable ? (")).indexOf("data-paypal-button") <
+        review.slice(review.indexOf("{payable ? (")).indexOf("checkout-payment-next") &&
+      review.slice(review.indexOf("{payable ? (")).includes("EMPTY_BAG_REVIEW") &&
+      review.slice(review.indexOf("{payable ? (")).includes("RETURN_TO_BAG") &&
+      review.slice(
+        review.indexOf("bagEmpty ? ("),
+        review.indexOf("offerTotalRefresh ? ("),
+      ).includes("EMPTY_BAG_REVIEW") &&
+      !review.slice(
+        review.indexOf("bagEmpty ? ("),
+        review.indexOf("offerTotalRefresh ? ("),
+      ).includes("UPDATE_TOTAL") &&
       review.includes("data-paypal-button"),
-    "An expired GB lock is not a live PayPal button. Review keeps Update total, including when PayPal start returns expired or stale.",
+    "An expired GB lock returns expired, not a generic error. The prices-moved prompt stays in the PayPal slot, keeps role status, and takes focus from the PayPal button. An empty bag shows Your bag is empty and Return to bag, without Update total.",
   );
 
   const grants = read("supabase/migrations/20261005210000_customer_role_checkout_grants.sql");

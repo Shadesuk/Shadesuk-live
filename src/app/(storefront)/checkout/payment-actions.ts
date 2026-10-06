@@ -31,6 +31,7 @@ export type CheckoutPaymentStartResult =
   | { status: "invalid" }
   | { status: "empty" }
   | { status: "expired" }
+  | { status: "stale" }
   | { status: "blocked" }
   | { status: "unavailable" }
   | { status: "error" };
@@ -128,6 +129,7 @@ export async function initiateCheckoutPaymentAction(
       started.status === "invalid" ||
       started.status === "empty" ||
       started.status === "expired" ||
+      started.status === "stale" ||
       started.status === "blocked" ||
       started.status === "unavailable"
     ) {
