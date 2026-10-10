@@ -7,8 +7,9 @@ import { getCollections } from "@/services/collections";
 import { listPublishedAssignedCollections } from "@/services/storefront-collections";
 import { getStorefrontCatalogue } from "@/services/storefront-catalogue";
 
+type SitemapEntry = MetadataRoute.Sitemap[number];
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const lastModified = new Date();
   const catalogue = await getStorefrontCatalogue();
 
   const assignedCollections =
@@ -17,12 +18,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       : [];
 
   const staticRoutes: MetadataRoute.Sitemap = [
-    {
+    entry({
       url: site.url,
-      lastModified,
       changeFrequency: "weekly",
       priority: 1,
-    },
+    }),
     ...[
       routes.shop,
       routes.men,
@@ -32,32 +32,39 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       routes.bestSellers,
       routes.collections,
       routes.brands,
-    ].map((path) => ({
-      url: absoluteUrl(path),
-      lastModified,
-      changeFrequency: "daily" as const,
-      priority: 0.8,
-    })),
+    ].map((path) =>
+      entry({
+        url: absoluteUrl(path),
+        changeFrequency: "daily",
+        priority: 0.8,
+      }),
+    ),
     ...getCollections()
       .filter((collection) => collection.kind === "shape")
-      .map((collection) => ({
-        url: absoluteUrl(collection.href),
-        lastModified,
-        changeFrequency: "weekly" as const,
-        priority: 0.7,
-      })),
-    ...assignedCollections.map((collection) => ({
-      url: absoluteUrl(collection.href),
-      lastModified,
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
-    })),
-    ...INFO_PAGES.map((page) => ({
-      url: absoluteUrl(page.href),
-      lastModified,
-      changeFrequency: "monthly" as const,
-      priority: 0.4,
-    })),
+      .map((collection) =>
+        entry({
+          url: absoluteUrl(collection.href),
+          changeFrequency: "weekly",
+          priority: 0.7,
+        }),
+      ),
+    ...assignedCollections.map((collection) =>
+      entry(
+        {
+          url: absoluteUrl(collection.href),
+          changeFrequency: "weekly",
+          priority: 0.7,
+        },
+        collection.updatedAt,
+      ),
+    ),
+    ...INFO_PAGES.map((page) =>
+      entry({
+        url: absoluteUrl(page.href),
+        changeFrequency: "monthly",
+        priority: 0.4,
+      }),
+    ),
   ];
 
   if (catalogue.source !== "live") {
@@ -66,19 +73,43 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const brands = catalogue.brands
     .filter((brand) => brand.status === "active")
-    .map((brand) => ({
-      url: absoluteUrl(brandPath(brand.slug)),
-      lastModified,
-      changeFrequency: "weekly" as const,
-      priority: 0.6,
-    }));
+    .map((brand) =>
+      entry({
+        url: absoluteUrl(brandPath(brand.slug)),
+        changeFrequency: "weekly",
+        priority: 0.6,
+      }),
+    );
 
-  const products = catalogue.products.map((product) => ({
-    url: absoluteUrl(productPath(product.slug)),
-    lastModified,
-    changeFrequency: "daily" as const,
-    priority: 0.9,
-  }));
+  const products = catalogue.products
+    .filter((product) => !isSitemapTestProduct(product))
+    .map((product) =>
+      entry(
+        {
+          url: absoluteUrl(productPath(product.slug)),
+          changeFrequency: "daily",
+          priority: 0.9,
+        },
+        product.updatedAt,
+      ),
+    );
 
   return [...staticRoutes, ...brands, ...products];
+}
+
+function isSitemapTestProduct(product: { slug: string; isDemo: boolean }): boolean {
+  if (product.isDemo) {
+    return true;
+  }
+  return /^test\d*$/i.test(product.slug.trim());
+}
+
+function entry(item: Omit<SitemapEntry, "lastModified">, updatedAt?: string): SitemapEntry {
+  const lastModified = updatedAt ? parseTimestamp(updatedAt) : undefined;
+  return lastModified ? { ...item, lastModified } : item;
+}
+
+function parseTimestamp(value: string): Date | undefined {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
 }

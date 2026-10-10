@@ -31,6 +31,7 @@ export const routes = {
   cookies: "/cookie-policy",
   admin: "/admin",
   adminOrders: "/admin/orders",
+  adminLedger: "/admin/ledger",
   adminProducts: "/admin/products",
   adminProductsNew: "/admin/products/new",
   adminCollections: "/admin/collections",
@@ -114,8 +115,7 @@ export const footerNav = {
 } as const;
 
 /** Official Instagram destination supplied for production. */
-export const INSTAGRAM_URL =
-  "https://www.instagram.com/shades.uk?stkn=cHRzcDN6MGduW2Rq&utm_source=qr";
+export const INSTAGRAM_URL = "https://instagram.com/shadess.uk";
 
 /** Shop, Help, Company, and Social. Rendered expanded from 768px and as accordions below that. */
 export const footerSections = [

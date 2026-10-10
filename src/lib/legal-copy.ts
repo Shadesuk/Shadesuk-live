@@ -204,7 +204,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "How do I pay?",
         paragraphs: [
-          "Checkout takes payment with PayPal. SHADESUK does not store raw card numbers. PayPal handles the payment.",
+          "Checkout takes payment with PayPal, or with Razorpay for India. SHADESUK does not store raw card numbers. PayPal and Razorpay handle the payment.",
           "An order is confirmed only after our server verifies the payment. A browser message on its own is not proof that the order is paid.",
         ],
       },
@@ -276,6 +276,7 @@ export const SHIPPING_POLICY: PolicyDocument = {
       title: "Timeframe",
       paragraphs: [
         SHIPPING_BODY,
+        "UK standard delivery is £4.65.",
         "Transit times vary. An estimated week range is not a guaranteed arrival date.",
       ],
     },
@@ -383,7 +384,7 @@ export const REFUND_POLICY: PolicyDocument = {
       id: "refunds",
       title: "How refunds are paid",
       paragraphs: [
-        "Where a refund is due, it should return to the original payment method once payment is in use on the storefront.",
+        "Where a refund is due, it is refunded manually to the original PayPal or Razorpay payment. This storefront records that the refund was made. It does not send the refund.",
         "This page does not treat a checkout screen as proof that a payment has been taken or refunded.",
       ],
     },
@@ -428,7 +429,7 @@ export const TERMS: PolicyDocument = {
       title: "Orders",
       paragraphs: [
         "Submitting checkout is a request to buy. A contract is formed when we accept the order after payment is confirmed — not because a screen said the next step was payment.",
-        "Prices are shown in pounds sterling. The amount charged is calculated on the server from live catalogue prices and any stated shipping, not from a figure edited in the browser.",
+        "Catalogue prices are shown in pounds sterling. India payments are charged in Indian rupees. The amount charged is calculated on the server from live catalogue prices and any stated shipping, not from a figure edited in the browser.",
         "We may refuse or cancel an order where an item cannot be fulfilled, a price is clearly wrong, or the order fails verification.",
       ],
     },
@@ -507,7 +508,7 @@ export const PRIVACY_POLICY: PolicyDocument = {
       id: "share",
       title: "Who we share it with",
       paragraphs: [
-        "Payment details, when payment is live, go to the payment provider — not into a SHADESUK card vault.",
+        "Payment details go to PayPal or Razorpay, not into a SHADESUK card vault.",
         "Carriers and fulfilment partners receive what they need to move a parcel.",
         "Hosting and authentication providers process data to run the site.",
         "We do not sell personal data.",

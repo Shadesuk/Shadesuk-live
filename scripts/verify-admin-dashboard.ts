@@ -22,7 +22,9 @@ import {
   ADMIN_NO_SALES_TITLE,
   ADMIN_ALL_CLEAR_TITLE,
 } from "../src/lib/admin-copy";
-import { formatGbpMinor } from "../src/lib/money";
+import { formatChargeMinor, formatGbpMinor } from "../src/lib/money";
+import { buildPaymentPeriodReport } from "../src/contracts/admin/payment-report";
+import { PAYMENT_REPORT_UNAVAILABLE } from "../src/contracts/admin/payment-report";
 import { adminOrderPath, routes } from "../src/lib/navigation";
 
 const root = resolve(process.cwd());
@@ -198,6 +200,147 @@ if (service.includes("createSupabaseAdminClient") || service.includes("SUPABASE_
 }
 if (!service.includes("from(\"orders\")") || !service.includes("from(\"order_items\")")) {
   throw new Error("Dashboard must read orders and order items from the live schema.");
+}
+if (!service.includes("loadPaymentPeriod") || !read("src/services/admin-payment-ledger.ts").includes("is_test")) {
+  throw new Error("Dashboard totals must exclude test ledger rows.");
+}
+if (service.includes("formatGbpMinor")) {
+  throw new Error("Dashboard totals must not format every currency as GBP.");
+}
+const mixedCurrency = buildPaymentPeriodReport({
+  payments: [
+    {
+      id: "pay-gbp",
+      orderId: "order-gbp",
+      status: "captured",
+      currency: "GBP",
+      createdAt: "2026-09-16T10:00:00.000Z",
+    },
+    {
+      id: "pay-inr",
+      orderId: "order-inr",
+      status: "captured",
+      currency: "INR",
+      createdAt: "2026-09-16T11:00:00.000Z",
+    },
+    {
+      id: "pay-pending",
+      orderId: "order-pending",
+      status: "created",
+      currency: "GBP",
+      createdAt: "2026-09-16T12:00:00.000Z",
+    },
+    {
+      id: "pay-failed",
+      orderId: "order-failed",
+      status: "failed",
+      currency: "EUR",
+      createdAt: "2026-09-16T12:30:00.000Z",
+    },
+    {
+      id: "pay-cancelled",
+      orderId: "order-cancelled",
+      status: "cancelled",
+      currency: "USD",
+      createdAt: "2026-09-16T13:00:00.000Z",
+    },
+  ],
+  ledger: [
+    {
+      paymentId: "pay-gbp",
+      orderId: "order-gbp",
+      entryType: "charge",
+      amountMinor: 4900,
+      currency: "GBP",
+      occurredAt: "2026-09-16T10:00:00.000Z",
+      isTest: false,
+    },
+    {
+      paymentId: "pay-gbp",
+      orderId: "order-gbp",
+      entryType: "refund",
+      amountMinor: -4900,
+      currency: "GBP",
+      occurredAt: "2026-09-16T15:00:00.000Z",
+      isTest: false,
+    },
+    {
+      paymentId: "pay-inr",
+      orderId: "order-inr",
+      entryType: "charge",
+      amountMinor: 20000,
+      currency: "INR",
+      occurredAt: "2026-09-16T11:00:00.000Z",
+      isTest: false,
+    },
+    {
+      paymentId: "pay-test",
+      orderId: "order-test",
+      entryType: "charge",
+      amountMinor: 100,
+      currency: "GBP",
+      occurredAt: "2026-09-16T16:00:00.000Z",
+      isTest: true,
+    },
+  ],
+  testPaymentIds: ["pay-test"],
+});
+const gbp = mixedCurrency.currencies.find((total) => total.currency === "GBP");
+const inr = mixedCurrency.currencies.find((total) => total.currency === "INR");
+if (!gbp || gbp.capturedMinor !== 4900 || gbp.refundedMinor !== 4900 || gbp.capturedMinor + (inr?.capturedMinor ?? 0) === gbp.capturedMinor) {
+  throw new Error("Captured totals must stay in their own currency and must not add GBP to INR.");
+}
+if (!inr || inr.capturedMinor !== 20000 || inr.refundedMinor !== 0) {
+  throw new Error("INR captured totals must stay in rupees.");
+}
+if (mixedCurrency.currencies.some((total) => total.capturedMinor === 100)) {
+  throw new Error("Test ledger rows must be excluded from totals.");
+}
+if (
+  mixedCurrency.counts.captured !== 1 ||
+  mixedCurrency.counts.pending !== 1 ||
+  mixedCurrency.counts.failed !== 1 ||
+  mixedCurrency.counts.cancelled !== 1 ||
+  mixedCurrency.counts.refunded !== 1
+) {
+  throw new Error("Status counts must separate captured, pending, failed, cancelled, and refunded.");
+}
+if (mixedCurrency.capturedOrderIds.includes("order-gbp") || mixedCurrency.capturedOrderIds.includes("order-test")) {
+  throw new Error("Refunded and test charges must not count as products sold.");
+}
+if (!mixedCurrency.capturedOrderIds.includes("order-inr")) {
+  throw new Error("A live captured charge must count toward products sold.");
+}
+if (formatChargeMinor(20000, "INR").includes("£") || !formatChargeMinor(4900, "GBP").includes("£")) {
+  throw new Error("INR must not be formatted as GBP.");
+}
+if (PAYMENT_REPORT_UNAVAILABLE !== "Not available") {
+  throw new Error("Settlement and fees must be shown as Not available.");
+}
+const ledgerMigration = read("supabase/migrations/20261010120000_payment_ledger.sql");
+if (
+  !ledgerMigration.includes("revoke all on table public.payment_ledger from anon") ||
+  !ledgerMigration.includes("revoke all on table public.payment_ledger from authenticated") ||
+  !ledgerMigration.includes("grant select on table public.payment_ledger to service_role") ||
+  ledgerMigration.includes("grant insert") ||
+  ledgerMigration.includes("grant update") ||
+  ledgerMigration.includes("grant delete")
+) {
+  throw new Error("The ledger must not be granted to anon or authenticated, and must not grant writes.");
+}
+if (!ledgerMigration.includes("payment_ledger is append-only") || !ledgerMigration.includes("before update or delete")) {
+  throw new Error("The ledger must reject update and delete.");
+}
+if (!ledgerMigration.includes("on conflict (provider, entry_type, provider_ref) do nothing")) {
+  throw new Error("Capture writes must insert a charge idempotently.");
+}
+const ledgerService = read("src/services/admin-payment-ledger.ts");
+if (!ledgerService.includes("getAdminGate") || !ledgerService.includes("isStaffAdmin")) {
+  throw new Error("Ledger reads must check the admin role on the server.");
+}
+const ledgerPage = read("src/app/admin/ledger/page.tsx");
+if (!ledgerPage.includes("getAdminGate") || !ledgerPage.includes("AdminAuthScreen")) {
+  throw new Error("The ledger page must stay behind the Admin gate.");
 }
 if (service.includes("from(\"carts\")") || service.includes("stock_quantity as productsSold")) {
   throw new Error("Dashboard must not treat carts or inventory as products sold.");

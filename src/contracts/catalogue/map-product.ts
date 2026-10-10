@@ -96,6 +96,7 @@ export function mapProductAggregateToStorefront(
     images: storefrontImages,
     isDemo: false,
     variants: storefrontVariants,
+    updatedAt: product.updated_at,
   };
 
   if (product.published_at) {
