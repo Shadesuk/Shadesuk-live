@@ -2,7 +2,7 @@ import type { DashboardPeriod } from "@/contracts/admin/dashboard";
 import { adminPaymentStatusLabel } from "@/contracts/admin/dashboard";
 import {
   ADMIN_KPI_AOV,
-  ADMIN_KPI_AOV_EMPTY,
+  ADMIN_KPI_EMPTY,
   ADMIN_KPI_FEES,
   ADMIN_KPI_HINT,
   ADMIN_KPI_NOT_AVAILABLE,
@@ -41,7 +41,7 @@ export async function AdminDashboardKpis({
       label: ADMIN_KPI_REVENUE,
       value:
         captured.length === 0
-          ? ADMIN_KPI_AOV_EMPTY
+          ? ADMIN_KPI_EMPTY
           : captured.map((total) => formatChargeMinor(total.capturedMinor, total.currency)).join(" · "),
     },
     {
@@ -54,7 +54,7 @@ export async function AdminDashboardKpis({
       label: ADMIN_KPI_AOV,
       value:
         averages.length === 0
-          ? ADMIN_KPI_AOV_EMPTY
+          ? ADMIN_KPI_EMPTY
           : averages
               .map((total) => formatChargeMinor(total.aovMinor ?? 0, total.currency))
               .join(" · "),
@@ -101,7 +101,7 @@ export async function AdminDashboardKpis({
         </p>
       ) : (
         <p className={`text-small ${styles.hint}`}>
-          {ADMIN_KPI_REFUNDED}: {ADMIN_KPI_AOV_EMPTY}
+          {ADMIN_KPI_REFUNDED}: {ADMIN_KPI_EMPTY}
         </p>
       )}
       <p className={`text-small ${styles.hint}`}>

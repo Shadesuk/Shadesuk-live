@@ -21,7 +21,8 @@ export const ADMIN_KPI_REVENUE = "Revenue";
 export const ADMIN_KPI_ORDERS = "Orders";
 export const ADMIN_KPI_AOV = "AOV";
 export const ADMIN_KPI_PRODUCTS_SOLD = "Products sold";
-export const ADMIN_KPI_AOV_EMPTY = "—";
+export const ADMIN_KPI_EMPTY = "—";
+export const ADMIN_KPI_AOV_EMPTY = ADMIN_KPI_EMPTY;
 export const ADMIN_KPI_HINT =
   "Captured and refunded amounts are payment ledger rows in the payment currency for this date range. Test rows are excluded. Pending is created or authorised. A payment with a refund in the range counts as refunded, not captured. Currencies are not added together.";
 export const ADMIN_KPI_REFUNDED = "Refunded";

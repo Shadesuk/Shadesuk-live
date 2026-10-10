@@ -10,6 +10,7 @@ import {
   productJsonLd,
   storefrontMetadata,
 } from "@/lib/seo";
+import { isSitemapTestProduct } from "@/lib/test-product";
 import { getStorefrontCatalogue } from "@/services/storefront-catalogue";
 import { getStorefrontProductPage } from "@/services/product";
 import { notFound } from "next/navigation";
@@ -37,10 +38,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const description =
     record.product.description?.trim() ||
     `${record.product.name}${brand ? ` by ${brand}` : ""}.`;
+  const testProduct = isSitemapTestProduct(record.product);
   return storefrontMetadata({
     title: record.product.name,
     description,
     path: productPath(record.product.slug),
+    index: !testProduct,
+    follow: !testProduct,
     image:
       image?.src
         ? {

@@ -10,7 +10,8 @@ function resolveSiteUrl(): string {
       // An unusable configured URL falls through to the environment default.
     }
   }
-  if (process.env.NODE_ENV === "production") {
+  const runtimeEnv = process.env.VERCEL_ENV ?? process.env.NODE_ENV;
+  if (runtimeEnv === "production") {
     return PRODUCTION_SITE_URL;
   }
   return LOCAL_SITE_URL;

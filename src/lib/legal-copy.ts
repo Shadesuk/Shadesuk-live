@@ -204,7 +204,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       {
         question: "How do I pay?",
         paragraphs: [
-          "Checkout takes payment with PayPal, or with Razorpay for India. SHADESUK does not store raw card numbers. PayPal and Razorpay handle the payment.",
+          "Checkout takes payment with PayPal, or with Razorpay for India in INR. SHADESUK does not store raw card numbers. PayPal and Razorpay handle the payment.",
           "An order is confirmed only after our server verifies the payment. A browser message on its own is not proof that the order is paid.",
         ],
       },
@@ -276,7 +276,7 @@ export const SHIPPING_POLICY: PolicyDocument = {
       title: "Timeframe",
       paragraphs: [
         SHIPPING_BODY,
-        "UK standard delivery is £4.65.",
+        "UK standard delivery is a fixed £4.65 per order.",
         "Transit times vary. An estimated week range is not a guaranteed arrival date.",
       ],
     },
@@ -384,7 +384,7 @@ export const REFUND_POLICY: PolicyDocument = {
       id: "refunds",
       title: "How refunds are paid",
       paragraphs: [
-        "Where a refund is due, it is refunded manually to the original PayPal or Razorpay payment. This storefront records that the refund was made. It does not send the refund.",
+        "We process it manually to the original payment method. It is not automatic.",
         "This page does not treat a checkout screen as proof that a payment has been taken or refunded.",
       ],
     },

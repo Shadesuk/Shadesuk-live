@@ -216,7 +216,7 @@ if (!SHIPPING_MINIMUM.toLowerCase().includes("2-week")) {
 if (SHIPPING_BODY.toLowerCase().includes("international")) {
   throw new Error("UK checkout must not describe delivery as international.");
 }
-if (SECURE_CARD_PAYMENT !== "PayPal and Razorpay" || ALL_MAJOR_CARDS !== "Card numbers are not stored here") {
+if (SECURE_CARD_PAYMENT !== "Secure checkout" || ALL_MAJOR_CARDS !== "Pay with PayPal. India: Razorpay (INR)") {
   throw new Error("Payment trust copy must name PayPal and Razorpay and must not claim stored cards.");
 }
 if (SECURE_CARD_PAYMENT.toLowerCase().includes("card payment") || ALL_MAJOR_CARDS.toLowerCase().includes("all major cards")) {

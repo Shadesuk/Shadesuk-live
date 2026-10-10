@@ -38,7 +38,13 @@ create table public.payment_ledger (
 );
 
 comment on table public.payment_ledger is
-  'Append-only payment amounts in the payment currency. Charge rows are written when a payment is captured. Refund rows are written when a manual refund is marked. Fees and settlements are not inferred. Test rows are excluded from admin totals.';
+  'Append-only payment amounts in the payment currency. Charge rows are written when a payment is captured. Refund rows are written when a manual refund is marked. Fees and settlements are not inferred. Test rows are excluded from admin totals. payment_id and order_id use ON DELETE RESTRICT, so a payment or order that has ledger rows cannot be deleted until those ledger rows are removed. The append-only trigger blocks UPDATE, DELETE, and TRUNCATE, so cleanup has to disable that trigger before deleting ledger rows.';
+
+comment on constraint payment_ledger_payment_id_fkey on public.payment_ledger is
+  'ON DELETE RESTRICT. Delete payment_ledger rows for this payment before deleting the payment. The append-only trigger blocks that delete until it is disabled.';
+
+comment on constraint payment_ledger_order_id_fkey on public.payment_ledger is
+  'ON DELETE RESTRICT. Delete payment_ledger rows for this order before deleting the order. The append-only trigger blocks that delete until it is disabled.';
 
 comment on column public.payment_ledger.amount_minor is
   'Signed minor units of currency. A charge is positive. A refund is negative. The currency is payments.currency, not orders.currency.';
@@ -90,13 +96,13 @@ create or replace function public.mark_india_payment_captured(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_payment public.payments%rowtype;
 begin
   if p_provider_payment_id is null or p_provider_payment_id !~ '^pay_[A-Za-z0-9]+$' then
-    return jsonb_build_object('status', 'rejected');
+    return pg_catalog.jsonb_build_object('status', 'rejected');
   end if;
 
   select *
@@ -108,57 +114,62 @@ begin
   for update;
 
   if not found then
-    return jsonb_build_object('status', 'rejected');
+    return pg_catalog.jsonb_build_object('status', 'rejected');
   end if;
 
   if v_payment.captured_at is not null or v_payment.status = 'captured' then
     if v_payment.provider_payment_id = p_provider_payment_id then
       perform private.insert_order_charge_snapshot(v_payment.id);
-      insert into public.payment_ledger (
-        payment_id,
-        order_id,
-        provider,
-        entry_type,
-        amount_minor,
-        currency,
-        provider_ref,
-        provider_event_id,
-        occurred_at,
-        is_test
-      ) values (
-        v_payment.id,
-        v_payment.order_id,
-        v_payment.provider,
-        'charge',
-        v_payment.amount_minor,
-        v_payment.currency,
-        p_provider_payment_id,
-        null,
-        coalesce(v_payment.captured_at, now()),
-        false
-      )
-      on conflict (provider, entry_type, provider_ref) do nothing;
-      return jsonb_build_object('status', 'duplicate');
+      begin
+        insert into public.payment_ledger (
+          payment_id,
+          order_id,
+          provider,
+          entry_type,
+          amount_minor,
+          currency,
+          provider_ref,
+          provider_event_id,
+          occurred_at,
+          is_test
+        ) values (
+          v_payment.id,
+          v_payment.order_id,
+          v_payment.provider,
+          'charge',
+          v_payment.amount_minor,
+          v_payment.currency,
+          p_provider_payment_id,
+          null,
+          pg_catalog.coalesce(v_payment.captured_at, pg_catalog.now()),
+          false
+        )
+        on conflict (provider, entry_type, provider_ref) do nothing;
+      exception
+        when others then
+          raise warning 'payment_ledger insert failed: %', sqlerrm;
+      end;
+      return pg_catalog.jsonb_build_object('status', 'duplicate');
     end if;
-    return jsonb_build_object('status', 'rejected');
+    return pg_catalog.jsonb_build_object('status', 'rejected');
   end if;
 
   if v_payment.status not in ('created', 'authorized') then
-    return jsonb_build_object('status', 'rejected');
+    return pg_catalog.jsonb_build_object('status', 'rejected');
   end if;
 
   if v_payment.provider_payment_id is not null
     and v_payment.provider_payment_id is distinct from p_provider_payment_id
   then
-    return jsonb_build_object('status', 'rejected');
+    return pg_catalog.jsonb_build_object('status', 'rejected');
   end if;
 
   update public.payments
   set status = 'captured',
-      captured_at = now(),
+      captured_at = pg_catalog.now(),
       provider_payment_id = p_provider_payment_id,
       failure_reason = null,
-      updated_at = now()
+      updated_at = pg_catalog.now()
   where id = v_payment.id
     and provider = 'razorpay'
     and status in ('created', 'authorized')
@@ -175,7 +186,7 @@ begin
   update public.orders
   set payment_status = 'captured',
       status = 'placed',
-      updated_at = now()
+      updated_at = pg_catalog.now()
   where id = p_order_id
     and currency = 'GBP'
     and payment_status = 'created'
@@ -186,31 +197,36 @@ begin
   end if;
 
   perform private.insert_order_charge_snapshot(v_payment.id);
-  insert into public.payment_ledger (
-    payment_id,
-    order_id,
-    provider,
-    entry_type,
-    amount_minor,
-    currency,
-    provider_ref,
-    provider_event_id,
-    occurred_at,
-    is_test
-  ) values (
-    v_payment.id,
-    v_payment.order_id,
-    v_payment.provider,
-    'charge',
-    v_payment.amount_minor,
-    v_payment.currency,
-    p_provider_payment_id,
-    null,
-    coalesce(v_payment.captured_at, now()),
-    false
-  )
-  on conflict (provider, entry_type, provider_ref) do nothing;
-  return jsonb_build_object('status', 'captured');
+  begin
+    insert into public.payment_ledger (
+      payment_id,
+      order_id,
+      provider,
+      entry_type,
+      amount_minor,
+      currency,
+      provider_ref,
+      provider_event_id,
+      occurred_at,
+      is_test
+    ) values (
+      v_payment.id,
+      v_payment.order_id,
+      v_payment.provider,
+      'charge',
+      v_payment.amount_minor,
+      v_payment.currency,
+      p_provider_payment_id,
+      null,
+      pg_catalog.coalesce(v_payment.captured_at, pg_catalog.now()),
+      false
+    )
+    on conflict (provider, entry_type, provider_ref) do nothing;
+  exception
+    when others then
+      raise warning 'payment_ledger insert failed: %', sqlerrm;
+  end;
+  return pg_catalog.jsonb_build_object('status', 'captured');
 end;
 $$;
 
@@ -230,15 +246,15 @@ create or replace function public.mark_paypal_payment_captured(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_payment public.payments%rowtype;
 begin
-  if p_provider_payment_id is null or btrim(p_provider_payment_id) = ''
-    or p_provider_order_id is null or btrim(p_provider_order_id) = ''
+  if p_provider_payment_id is null or pg_catalog.btrim(p_provider_payment_id) = ''
+    or p_provider_order_id is null or pg_catalog.btrim(p_provider_order_id) = ''
   then
-    return jsonb_build_object('status', 'rejected');
+    return pg_catalog.jsonb_build_object('status', 'rejected');
   end if;
 
   select *
@@ -249,7 +265,7 @@ begin
   for update;
 
   if not found then
-    return jsonb_build_object('status', 'rejected');
+    return pg_catalog.jsonb_build_object('status', 'rejected');
   end if;
 
   if v_payment.captured_at is not null or v_payment.status = 'captured' then
@@ -257,33 +273,38 @@ begin
       and v_payment.provider_order_id is not distinct from p_provider_order_id
     then
       perform private.insert_order_charge_snapshot(v_payment.id);
-      insert into public.payment_ledger (
-        payment_id,
-        order_id,
-        provider,
-        entry_type,
-        amount_minor,
-        currency,
-        provider_ref,
-        provider_event_id,
-        occurred_at,
-        is_test
-      ) values (
-        v_payment.id,
-        v_payment.order_id,
-        v_payment.provider,
-        'charge',
-        v_payment.amount_minor,
-        v_payment.currency,
-        p_provider_payment_id,
-        null,
-        coalesce(v_payment.captured_at, now()),
-        false
-      )
-      on conflict (provider, entry_type, provider_ref) do nothing;
-      return jsonb_build_object('status', 'duplicate');
+      begin
+        insert into public.payment_ledger (
+          payment_id,
+          order_id,
+          provider,
+          entry_type,
+          amount_minor,
+          currency,
+          provider_ref,
+          provider_event_id,
+          occurred_at,
+          is_test
+        ) values (
+          v_payment.id,
+          v_payment.order_id,
+          v_payment.provider,
+          'charge',
+          v_payment.amount_minor,
+          v_payment.currency,
+          p_provider_payment_id,
+          null,
+          pg_catalog.coalesce(v_payment.captured_at, pg_catalog.now()),
+          false
+        )
+        on conflict (provider, entry_type, provider_ref) do nothing;
+      exception
+        when others then
+          raise warning 'payment_ledger insert failed: %', sqlerrm;
+      end;
+      return pg_catalog.jsonb_build_object('status', 'duplicate');
     end if;
-    return jsonb_build_object('status', 'rejected');
+    return pg_catalog.jsonb_build_object('status', 'rejected');
   end if;
 
   if v_payment.status not in ('created', 'authorized')
@@ -293,14 +314,14 @@ begin
       and v_payment.provider_payment_id is distinct from p_provider_payment_id
     )
   then
-    return jsonb_build_object('status', 'rejected');
+    return pg_catalog.jsonb_build_object('status', 'rejected');
   end if;
 
   update public.payments
   set status = 'captured',
-      captured_at = now(),
+      captured_at = pg_catalog.now(),
       provider_payment_id = p_provider_payment_id,
-      updated_at = now()
+      updated_at = pg_catalog.now()
   where id = v_payment.id
     and provider = 'paypal'
     and status in ('created', 'authorized')
@@ -313,7 +334,7 @@ begin
   update public.orders
   set payment_status = 'captured',
       status = case when status = 'checkout' then 'placed'::public.order_status else status end,
-      updated_at = now()
+      updated_at = pg_catalog.now()
   where id = v_payment.order_id
     and currency = 'GBP'
     and payment_status in ('created', 'authorized');
@@ -323,31 +344,36 @@ begin
   end if;
 
   perform private.insert_order_charge_snapshot(v_payment.id);
-  insert into public.payment_ledger (
-    payment_id,
-    order_id,
-    provider,
-    entry_type,
-    amount_minor,
-    currency,
-    provider_ref,
-    provider_event_id,
-    occurred_at,
-    is_test
-  ) values (
-    v_payment.id,
-    v_payment.order_id,
-    v_payment.provider,
-    'charge',
-    v_payment.amount_minor,
-    v_payment.currency,
-    p_provider_payment_id,
-    null,
-    coalesce(v_payment.captured_at, now()),
-    false
-  )
-  on conflict (provider, entry_type, provider_ref) do nothing;
-  return jsonb_build_object('status', 'captured');
+  begin
+    insert into public.payment_ledger (
+      payment_id,
+      order_id,
+      provider,
+      entry_type,
+      amount_minor,
+      currency,
+      provider_ref,
+      provider_event_id,
+      occurred_at,
+      is_test
+    ) values (
+      v_payment.id,
+      v_payment.order_id,
+      v_payment.provider,
+      'charge',
+      v_payment.amount_minor,
+      v_payment.currency,
+      p_provider_payment_id,
+      null,
+      pg_catalog.coalesce(v_payment.captured_at, pg_catalog.now()),
+      false
+    )
+    on conflict (provider, entry_type, provider_ref) do nothing;
+  exception
+    when others then
+      raise warning 'payment_ledger insert failed: %', sqlerrm;
+  end;
+  return pg_catalog.jsonb_build_object('status', 'captured');
 end;
 $$;
 
@@ -366,16 +392,16 @@ create or replace function public.mark_order_refunded(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_order public.orders%rowtype;
-  v_amount integer;
-  v_reference text;
-  v_marked timestamptz;
+  v_amount pg_catalog.integer;
+  v_reference pg_catalog.text;
+  v_marked pg_catalog.timestamptz;
 begin
   if p_actor_user_id is null then
-    return jsonb_build_object('status', 'unauthorized');
+    return pg_catalog.jsonb_build_object('status', 'unauthorized');
   end if;
 
   select *
@@ -385,11 +411,11 @@ begin
   for update;
 
   if not found then
-    return jsonb_build_object('status', 'not_found');
+    return pg_catalog.jsonb_build_object('status', 'not_found');
   end if;
 
   if v_order.refund_status = 'refunded' and v_order.cancelled_at is not null then
-    return jsonb_build_object(
+    return pg_catalog.jsonb_build_object(
       'status', 'already_refunded',
       'amount_minor', v_order.refund_amount_minor,
       'payment_reference', v_order.refund_payment_reference,
@@ -398,7 +424,7 @@ begin
     );
   end if;
 
-  v_marked := now();
+  v_marked := pg_catalog.now();
 
   update public.orders
   set refund_status = 'refunded',
@@ -413,9 +439,9 @@ begin
 
   if not found then
     if v_order.cancelled_at is null then
-      return jsonb_build_object('status', 'ineligible', 'reason', 'not_cancelled');
+      return pg_catalog.jsonb_build_object('status', 'ineligible', 'reason', 'not_cancelled');
     end if;
-    return jsonb_build_object('status', 'ineligible', 'reason', 'not_pending');
+    return pg_catalog.jsonb_build_object('status', 'ineligible', 'reason', 'not_pending');
   end if;
 
   insert into public.order_events (
@@ -432,7 +458,7 @@ begin
     v_order.status,
     v_order.status,
     p_actor_user_id,
-    jsonb_strip_nulls(jsonb_build_object(
+    pg_catalog.jsonb_strip_nulls(pg_catalog.jsonb_build_object(
       'previous_refund_status', 'refund_pending',
       'refund_status', 'refunded',
       'amount_minor', v_amount,
@@ -444,40 +470,57 @@ begin
     false
   );
 
-  insert into public.payment_ledger (
-    payment_id,
-    order_id,
-    provider,
-    entry_type,
-    amount_minor,
-    currency,
-    provider_ref,
-    provider_event_id,
-    occurred_at,
-    is_test
-  )
-  select
-    p.id,
-    p.order_id,
-    p.provider,
-    'refund',
-    -p.amount_minor,
-    p.currency,
-    p.provider_payment_id,
-    null,
-    v_marked,
-    false
-  from public.payments p
-  where p.order_id = p_order_id
-    and p.status = 'captured'
-    and p.provider_payment_id is not null
-    and p.amount_minor > 0
-    and (v_reference is null or p.provider_payment_id = v_reference)
-  order by p.captured_at desc nulls last
-  limit 1
-  on conflict (provider, entry_type, provider_ref) do nothing;
+  if v_amount is not null and v_amount > 0 then
+    if exists (
+      select 1
+      from public.payments p
+      where p.order_id = p_order_id
+        and p.status = 'captured'
+        and p.provider_payment_id is not null
+        and p.provider_payment_id = v_reference
+    ) then
+      begin
+        insert into public.payment_ledger (
+          payment_id,
+          order_id,
+          provider,
+          entry_type,
+          amount_minor,
+          currency,
+          provider_ref,
+          provider_event_id,
+          occurred_at,
+          is_test
+        )
+        select
+          p.id,
+          p.order_id,
+          p.provider,
+          'refund',
+          -v_amount,
+          p.currency,
+          p.provider_payment_id,
+          null,
+          v_marked,
+          false
+        from public.payments p
+        where p.order_id = p_order_id
+          and p.status = 'captured'
+          and p.provider_payment_id is not null
+          and p.provider_payment_id = v_reference
+        order by p.captured_at desc nulls last
+        limit 1
+        on conflict (provider, entry_type, provider_ref) do nothing;
+      exception
+        when others then
+          raise warning 'payment_ledger insert failed: %', sqlerrm;
+      end;
+    else
+      raise warning 'mark_order_refunded: refund reference % did not match a captured payment for order %', v_reference, p_order_id;
+    end if;
+  end if;
 
-  return jsonb_build_object(
+  return pg_catalog.jsonb_build_object(
     'status', 'refunded',
     'amount_minor', v_amount,
     'payment_reference', v_reference,
@@ -493,4 +536,4 @@ revoke all on function public.mark_order_refunded(uuid, uuid) from authenticated
 grant execute on function public.mark_order_refunded(uuid, uuid) to service_role;
 
 comment on function public.mark_order_refunded(uuid, uuid) is
-  'Admin confirmation that a refund was already completed outside this app. Inserts one negative payment_ledger refund in the captured payment currency. Idempotent when the obligation is already refunded. Does not call a provider and does not change the captured payment reference or amount.';
+  'Admin confirmation that a refund was already completed outside this app. Inserts one negative payment_ledger refund for the order refund amount, in the captured payment currency, when that amount is positive and the refund reference matches a captured payment. A reference that matches no payment raises a warning and writes no ledger row. Idempotent when the obligation is already refunded. Does not call a provider and does not change the captured payment reference or amount.';

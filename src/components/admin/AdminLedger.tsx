@@ -156,28 +156,24 @@ async function LedgerTable({ query }: { query: LedgerListQuery }) {
             <th scope="col">Order</th>
             <th scope="col">Provider</th>
             <th scope="col">Entry</th>
-            <th scope="col">Amount</th>
+            <th scope="col" className={styles.money}>Amount</th>
             <th scope="col">Payment</th>
             <th scope="col">Reference</th>
-            <th scope="col">{ADMIN_KPI_SETTLEMENT}</th>
-            <th scope="col">{ADMIN_KPI_FEES}</th>
             <th scope="col">{ADMIN_LEDGER_TEST}</th>
           </tr>
         </thead>
         <tbody>
           {result.rows.map((row) => (
             <tr key={row.id}>
-              <td>{formatAdminDateTime(row.occurredAt)}</td>
+              <th scope="row">{formatAdminDateTime(row.occurredAt)}</th>
               <td>
                 <Link href={adminOrderPath(row.orderId)}>{row.orderReference}</Link>
               </td>
               <td>{row.provider === "paypal" ? "PayPal" : row.provider === "razorpay" ? "Razorpay" : row.provider}</td>
               <td>{STATUS_LABELS[row.entryType]}</td>
-              <td>{formatChargeMinor(row.amountMinor, row.currency)}</td>
+              <td className={styles.money}>{formatChargeMinor(row.amountMinor, row.currency)}</td>
               <td>{isPaymentStatus(row.paymentStatus) ? adminPaymentStatusLabel(row.paymentStatus) : row.paymentStatus}</td>
               <td>{row.providerRef}</td>
-              <td>{ADMIN_KPI_NOT_AVAILABLE}</td>
-              <td>{ADMIN_KPI_NOT_AVAILABLE}</td>
               <td>{row.isTest ? ADMIN_LEDGER_TEST : ADMIN_LEDGER_LIVE}</td>
             </tr>
           ))}

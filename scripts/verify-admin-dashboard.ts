@@ -18,6 +18,7 @@ import {
   ADMIN_DASHBOARD_UNAVAILABLE_TITLE,
   ADMIN_HOME_TITLE,
   ADMIN_KPI_AOV_EMPTY,
+  ADMIN_KPI_EMPTY,
   ADMIN_NO_ORDERS_TITLE,
   ADMIN_NO_SALES_TITLE,
   ADMIN_ALL_CLEAR_TITLE,
@@ -122,7 +123,7 @@ if (populated.aovMinor !== 4000 || populated.productsSold !== 3) {
 if (formatGbpMinor(0) !== "£0" || formatGbpMinor(4900) !== "£49") {
   throw new Error("Dashboard money must use existing GBP minor-unit formatting.");
 }
-if (ADMIN_KPI_AOV_EMPTY !== "—") {
+if (ADMIN_KPI_EMPTY !== "—" || ADMIN_KPI_AOV_EMPTY !== ADMIN_KPI_EMPTY) {
   throw new Error("Empty AOV copy must be an em dash.");
 }
 
@@ -352,7 +353,7 @@ if (!page.includes("getAdminGate") || !page.includes("AdminAuthScreen")) {
 }
 
 const kpis = read("src/components/admin/AdminDashboardKpis.tsx");
-if (!kpis.includes("data-kpi") || !kpis.includes("ADMIN_KPI_AOV_EMPTY")) {
+if (!kpis.includes("data-kpi") || !kpis.includes("ADMIN_KPI_EMPTY")) {
   throw new Error("KPI row must render real values and the empty AOV dash.");
 }
 

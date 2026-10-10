@@ -3,6 +3,7 @@ import { INFO_PAGES } from "@/lib/legal-copy";
 import { brandPath, productPath, routes } from "@/lib/navigation";
 import { absoluteUrl } from "@/lib/seo";
 import { site } from "@/lib/site";
+import { isSitemapTestProduct } from "@/lib/test-product";
 import { getCollections } from "@/services/collections";
 import { listPublishedAssignedCollections } from "@/services/storefront-collections";
 import { getStorefrontCatalogue } from "@/services/storefront-catalogue";
@@ -95,13 +96,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     );
 
   return [...staticRoutes, ...brands, ...products];
-}
-
-function isSitemapTestProduct(product: { slug: string; isDemo: boolean }): boolean {
-  if (product.isDemo) {
-    return true;
-  }
-  return /^test\d*$/i.test(product.slug.trim());
 }
 
 function entry(item: Omit<SitemapEntry, "lastModified">, updatedAt?: string): SitemapEntry {
