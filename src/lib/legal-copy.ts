@@ -384,7 +384,7 @@ export const REFUND_POLICY: PolicyDocument = {
       id: "refunds",
       title: "How refunds are paid",
       paragraphs: [
-        "We process it manually to the original payment method. It is not automatic.",
+        "Where a refund is due, we process it manually to the original payment method. It is not automatic.",
         "This page does not treat a checkout screen as proof that a payment has been taken or refunded.",
       ],
     },

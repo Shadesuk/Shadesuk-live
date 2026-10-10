@@ -141,7 +141,7 @@ begin
           v_payment.currency,
           p_provider_payment_id,
           null,
-          pg_catalog.coalesce(v_payment.captured_at, pg_catalog.now()),
+          coalesce(v_payment.captured_at, pg_catalog.now()),
           false
         )
         on conflict (provider, entry_type, provider_ref) do nothing;
@@ -218,7 +218,7 @@ begin
       v_payment.currency,
       p_provider_payment_id,
       null,
-      pg_catalog.coalesce(v_payment.captured_at, pg_catalog.now()),
+      coalesce(v_payment.captured_at, pg_catalog.now()),
       false
     )
     on conflict (provider, entry_type, provider_ref) do nothing;
@@ -294,7 +294,7 @@ begin
           v_payment.currency,
           p_provider_payment_id,
           null,
-          pg_catalog.coalesce(v_payment.captured_at, pg_catalog.now()),
+          coalesce(v_payment.captured_at, pg_catalog.now()),
           false
         )
         on conflict (provider, entry_type, provider_ref) do nothing;
@@ -365,7 +365,7 @@ begin
       v_payment.currency,
       p_provider_payment_id,
       null,
-      pg_catalog.coalesce(v_payment.captured_at, pg_catalog.now()),
+      coalesce(v_payment.captured_at, pg_catalog.now()),
       false
     )
     on conflict (provider, entry_type, provider_ref) do nothing;
@@ -396,9 +396,10 @@ set search_path = ''
 as $$
 declare
   v_order public.orders%rowtype;
-  v_amount pg_catalog.integer;
-  v_reference pg_catalog.text;
-  v_marked pg_catalog.timestamptz;
+  v_payment public.payments%rowtype;
+  v_amount integer;
+  v_reference text;
+  v_marked timestamptz;
 begin
   if p_actor_user_id is null then
     return pg_catalog.jsonb_build_object('status', 'unauthorized');
@@ -471,14 +472,21 @@ begin
   );
 
   if v_amount is not null and v_amount > 0 then
-    if exists (
-      select 1
-      from public.payments p
-      where p.order_id = p_order_id
-        and p.status = 'captured'
-        and p.provider_payment_id is not null
-        and p.provider_payment_id = v_reference
-    ) then
+    select *
+      into v_payment
+    from public.payments p
+    where p.order_id = p_order_id
+      and p.status = 'captured'
+      and p.provider_payment_id is not null
+      and p.provider_payment_id = v_reference
+    order by p.captured_at desc nulls last
+    limit 1;
+
+    if not found then
+      raise warning 'mark_order_refunded: refund reference % did not match a captured payment for order %', v_reference, p_order_id;
+    elsif v_payment.currency is distinct from v_order.currency then
+      raise warning 'mark_order_refunded: order refund currency % does not match payment currency % for order %', v_order.currency, v_payment.currency, p_order_id;
+    else
       begin
         insert into public.payment_ledger (
           payment_id,
@@ -491,32 +499,23 @@ begin
           provider_event_id,
           occurred_at,
           is_test
-        )
-        select
-          p.id,
-          p.order_id,
-          p.provider,
+        ) values (
+          v_payment.id,
+          v_payment.order_id,
+          v_payment.provider,
           'refund',
           -v_amount,
-          p.currency,
-          p.provider_payment_id,
+          v_payment.currency,
+          v_payment.provider_payment_id,
           null,
           v_marked,
           false
-        from public.payments p
-        where p.order_id = p_order_id
-          and p.status = 'captured'
-          and p.provider_payment_id is not null
-          and p.provider_payment_id = v_reference
-        order by p.captured_at desc nulls last
-        limit 1
+        )
         on conflict (provider, entry_type, provider_ref) do nothing;
       exception
         when others then
           raise warning 'payment_ledger insert failed: %', sqlerrm;
       end;
-    else
-      raise warning 'mark_order_refunded: refund reference % did not match a captured payment for order %', v_reference, p_order_id;
     end if;
   end if;
 
@@ -536,4 +535,4 @@ revoke all on function public.mark_order_refunded(uuid, uuid) from authenticated
 grant execute on function public.mark_order_refunded(uuid, uuid) to service_role;
 
 comment on function public.mark_order_refunded(uuid, uuid) is
-  'Admin confirmation that a refund was already completed outside this app. Inserts one negative payment_ledger refund for the order refund amount, in the captured payment currency, when that amount is positive and the refund reference matches a captured payment. A reference that matches no payment raises a warning and writes no ledger row. Idempotent when the obligation is already refunded. Does not call a provider and does not change the captured payment reference or amount.';
+  'Admin confirmation that a refund was already completed outside this app. Inserts one negative payment_ledger refund for the order refund amount, in the captured payment currency, when that amount is positive, the refund reference matches a captured payment, and that payment currency matches the order currency. A missing reference or a currency mismatch raises a warning and writes no ledger row. Idempotent when the obligation is already refunded. Does not call a provider and does not change the captured payment reference or amount.';
