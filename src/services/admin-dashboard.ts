@@ -3,24 +3,23 @@ import "server-only";
 import { cache } from "react";
 import { COMMITTED_PURCHASE_PAYMENT_STATUSES } from "@/contracts/order/lifecycle";
 import {
-  buildDashboardKpis,
   dashboardPeriodRange,
+  formatDashboardRangeLabel,
   groupSalesByDay,
   hasSalesActivity,
   isOrderStatus,
   isPaymentStatus,
-  isQualifyingRevenuePayment,
   RECENT_ORDERS_LIMIT,
   type DashboardDayPoint,
-  type DashboardKpis,
-  type DashboardOrderMetricRow,
   type DashboardPeriod,
 } from "@/contracts/admin/dashboard";
+import type { PaymentCurrencyTotal, PaymentStatusCounts } from "@/contracts/admin/payment-report";
+import { PAYMENT_REPORT_UNAVAILABLE } from "@/contracts/admin/payment-report";
+import { loadPaymentPeriod } from "@/services/admin-payment-ledger";
 import type { OrderStatus, PaymentStatus } from "@/contracts/order/schema";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const PERIOD_ORDER_COLUMNS = "id, payment_status, total_minor, created_at";
 const RECENT_ORDER_COLUMNS =
   "id, order_reference, customer_first_name, customer_last_name, status, payment_status, total_minor, created_at";
 const PAGE_SIZE = 1000;
@@ -29,11 +28,21 @@ export type DashboardLoadResult<T> =
   | { status: "ok"; data: T }
   | { status: "error" };
 
+export type DashboardCurrencySeries = {
+  currency: string;
+  points: DashboardDayPoint[];
+};
+
 export type DashboardPeriodSnapshot = {
   period: DashboardPeriod;
-  kpis: DashboardKpis;
-  series: DashboardDayPoint[];
+  rangeLabel: string;
+  currencies: PaymentCurrencyTotal[];
+  counts: PaymentStatusCounts;
+  series: DashboardCurrencySeries[];
   hasSales: boolean;
+  productsSold: number;
+  settlement: typeof PAYMENT_REPORT_UNAVAILABLE;
+  fees: typeof PAYMENT_REPORT_UNAVAILABLE;
 };
 
 export type DashboardRecentOrder = {
@@ -54,50 +63,43 @@ export const loadDashboardPeriodSnapshot = cache(async function loadDashboardPer
   }
   try {
     const range = dashboardPeriodRange(period, new Date());
-    const supabase = await createSupabaseServerClient();
-    const orders: DashboardOrderMetricRow[] = [];
-    let from = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from("orders")
-        .select(PERIOD_ORDER_COLUMNS)
-        .gte("created_at", range.startIso)
-        .lt("created_at", range.endIso)
-        .order("created_at", { ascending: true })
-        .range(from, from + PAGE_SIZE - 1);
-      if (error) {
-        return { status: "error" };
-      }
-      const chunk = Array.isArray(data) ? data : [];
-      for (const row of chunk) {
-        const parsed = parseMetricRow(row);
-        if (parsed) {
-          orders.push(parsed);
-        }
-      }
-      if (chunk.length < PAGE_SIZE) {
-        break;
-      }
-      from += PAGE_SIZE;
+    const loaded = await loadPaymentPeriod(range);
+    if (loaded.status !== "ok") {
+      return { status: "error" };
     }
-
-    const capturedIds = orders
-      .filter((order) => isQualifyingRevenuePayment(order.payment_status))
-      .map((order) => order.id);
-    const productsSold = await sumCapturedQuantities(capturedIds);
+    const { report } = loaded;
+    const productsSold = await sumCapturedQuantities(report.capturedOrderIds);
     if (productsSold === null) {
       return { status: "error" };
     }
-
-    const kpis = buildDashboardKpis({ orders, productsSold });
-    const series = groupSalesByDay(orders, range);
+    const series = report.currencies
+      .filter((total) => total.capturedMinor > 0)
+      .map((total) => ({
+        currency: total.currency,
+        points: groupSalesByDay(
+          report.charges
+            .filter((charge) => charge.currency === total.currency)
+            .map((charge) => ({
+              id: charge.occurredAt,
+              payment_status: "captured" as const,
+              total_minor: charge.amountMinor,
+              created_at: charge.occurredAt,
+            })),
+          range,
+        ),
+      }));
     return {
       status: "ok",
       data: {
         period,
-        kpis,
+        rangeLabel: formatDashboardRangeLabel(range),
+        currencies: report.currencies,
+        counts: report.counts,
         series,
-        hasSales: hasSalesActivity(series),
+        hasSales: series.some((item) => hasSalesActivity(item.points)),
+        productsSold,
+        settlement: PAYMENT_REPORT_UNAVAILABLE,
+        fees: PAYMENT_REPORT_UNAVAILABLE,
       },
     };
   } catch {
@@ -165,31 +167,6 @@ async function sumCapturedQuantities(orderIds: string[]): Promise<number | null>
   } catch {
     return null;
   }
-}
-
-function parseMetricRow(value: unknown): DashboardOrderMetricRow | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-  const row = value as Record<string, unknown>;
-  if (typeof row.id !== "string" || row.id.length === 0) {
-    return null;
-  }
-  if (!isPaymentStatus(row.payment_status)) {
-    return null;
-  }
-  if (!Number.isInteger(row.total_minor) || (row.total_minor as number) < 0) {
-    return null;
-  }
-  if (typeof row.created_at !== "string" || Number.isNaN(new Date(row.created_at).getTime())) {
-    return null;
-  }
-  return {
-    id: row.id,
-    payment_status: row.payment_status,
-    total_minor: row.total_minor as number,
-    created_at: row.created_at,
-  };
 }
 
 function parseRecentOrder(value: unknown): DashboardRecentOrder | null {

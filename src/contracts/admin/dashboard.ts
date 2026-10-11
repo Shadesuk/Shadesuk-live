@@ -195,6 +195,37 @@ export function dashboardPeriodRange(
   };
 }
 
+export function formatDashboardRangeLabel(range: DashboardDateRange): string {
+  const first = range.dayKeys[0];
+  const last = range.dayKeys[range.dayKeys.length - 1];
+  if (!first || !last) {
+    return "";
+  }
+  if (first === last) {
+    return formatDayLabel(first);
+  }
+  return `${formatDayLabel(first)} – ${formatDayLabel(last)}`;
+}
+
+/** Inclusive London calendar dates. `endIso` is the following midnight. */
+export function londonInclusiveDateRange(
+  startYmd: string,
+  endYmd: string,
+  timeZone = ADMIN_DASHBOARD_TIME_ZONE,
+): { startIso: string; endIso: string } | null {
+  const start = parseYmd(startYmd);
+  const end = parseYmd(endYmd);
+  if (!start || !end) {
+    return null;
+  }
+  const startDate = zonedMidnight(start, timeZone);
+  const endDate = zonedMidnight(addDaysToYmd(end, 1), timeZone);
+  if (endDate.getTime() <= startDate.getTime()) {
+    return null;
+  }
+  return { startIso: startDate.toISOString(), endIso: endDate.toISOString() };
+}
+
 export function groupSalesByDay(
   rows: readonly DashboardOrderMetricRow[],
   range: DashboardDateRange,
@@ -284,6 +315,25 @@ function addDaysToYmd(ymd: Ymd, days: number): Ymd {
 
 function ymdKey(ymd: Ymd): string {
   return `${ymd.year}-${String(ymd.month).padStart(2, "0")}-${String(ymd.day).padStart(2, "0")}`;
+}
+
+function parseYmd(value: string): Ymd | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return { year, month, day };
 }
 
 function zonedMidnight(ymd: Ymd, timeZone: string): Date {

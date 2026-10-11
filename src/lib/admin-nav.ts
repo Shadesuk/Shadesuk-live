@@ -17,6 +17,7 @@ export const ADMIN_NAV_PRIMARY: readonly AdminNavItem[] = [
   { href: routes.adminFulfilment, label: "Fulfilment" },
   { href: routes.adminInventory, label: "Inventory" },
   { href: routes.adminCommunications, label: "Communications" },
+  { href: routes.adminLedger, label: "Ledger" },
 ];
 
 export const ADMIN_NAV_SETTINGS: AdminNavItem = {

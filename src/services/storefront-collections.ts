@@ -11,6 +11,7 @@ import { isCollectionSlug } from "@/contracts/admin/collections";
 export type AssignedStorefrontCollection = CollectionDefinition & {
   kind: "assigned";
   productIds: string[];
+  updatedAt?: string;
 };
 
 function toAssignedCollection(row: {
@@ -19,6 +20,7 @@ function toAssignedCollection(row: {
   name: string;
   description: string | null;
   productIds: string[];
+  updatedAt?: string | null;
 }): AssignedStorefrontCollection {
   return {
     id: row.id,
@@ -28,6 +30,7 @@ function toAssignedCollection(row: {
     description: row.description?.trim() || undefined,
     kind: "assigned",
     productIds: row.productIds,
+    ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
   };
 }
 
@@ -42,7 +45,7 @@ export const loadPublishedAssignedCollection = cache(async function loadPublishe
     const supabase = createSupabasePublicClient();
     const collection = await supabase
       .from("collections")
-      .select("id, slug, name, description, status")
+      .select("id, slug, name, description, status, updated_at")
       .eq("slug", trimmed)
       .eq("status", "published")
       .maybeSingle();
@@ -65,6 +68,7 @@ export const loadPublishedAssignedCollection = cache(async function loadPublishe
       name: collection.data.name,
       description: typeof collection.data.description === "string" ? collection.data.description : null,
       productIds,
+      updatedAt: typeof collection.data.updated_at === "string" ? collection.data.updated_at : null,
     });
   } catch {
     return null;
@@ -81,7 +85,7 @@ export const listPublishedAssignedCollections = cache(async function listPublish
     const supabase = createSupabasePublicClient();
     const collections = await supabase
       .from("collections")
-      .select("id, slug, name, description, status, sort_order")
+      .select("id, slug, name, description, status, sort_order, updated_at")
       .eq("status", "published")
       .order("sort_order")
       .order("name");
@@ -130,6 +134,7 @@ export const listPublishedAssignedCollections = cache(async function listPublish
           name: row.name,
           description: typeof row.description === "string" ? row.description : null,
           productIds,
+          updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
         }),
       ];
     });

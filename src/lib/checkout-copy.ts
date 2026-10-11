@@ -113,8 +113,8 @@ export const EDIT = "Edit";
 export const ESTIMATED_DELIVERY_LABEL = "Estimated delivery:";
 export const ESTIMATED_DELIVERY_WINDOW = "2+ weeks";
 export const CONTINUE_TO_PAYMENT = "Continue to payment";
-export const SECURE_CARD_PAYMENT = "Secure card payment";
-export const ALL_MAJOR_CARDS = "All major cards accepted";
+export const SECURE_CARD_PAYMENT = "Secure checkout";
+export const ALL_MAJOR_CARDS = "Pay with PayPal. India: Razorpay (INR)";
 
 export const ORDER_SUMMARY_HEADING = "Order summary";
 export const SUBTOTAL_LABEL = "Subtotal";

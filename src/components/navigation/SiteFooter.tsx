@@ -5,7 +5,7 @@ import {
   SECURE_CARD_PAYMENT,
 } from "@/lib/checkout-copy";
 import { footerSections } from "@/lib/navigation";
-import { enabledPaymentMethods } from "@/lib/payment-methods";
+import { enabledPaymentMethods, type PaymentMethod } from "@/lib/payment-methods";
 import { CookieSettingsButton } from "@/components/consent/CookieSettingsButton";
 import { BrandMark } from "./BrandMark";
 import { NavLink } from "./NavLink";
@@ -14,9 +14,27 @@ import { CountrySelector } from "@/components/market/CountrySelector";
 import { useMarket } from "@/components/market/MarketProvider";
 import styles from "./SiteFooter.module.css";
 
-const paymentLine = `${SECURE_CARD_PAYMENT}. ${ALL_MAJOR_CARDS}.`;
-
 type FooterSection = (typeof footerSections)[number];
+
+function PaymentMethodMarks({ methods }: { methods: readonly PaymentMethod[] }) {
+  if (methods.length === 0) {
+    return null;
+  }
+  return (
+    <ul className={styles.marks} aria-label={PAYMENTS_ACCEPTED}>
+      {methods.map((method) => (
+        <li key={method.id} className={styles.markItem} data-method={method.id}>
+          {method.markSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className={styles.mark} src={method.markSrc} alt={method.label} />
+          ) : (
+            <span className="text-micro">{method.label}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function FooterLinkList({
   links,
@@ -71,27 +89,12 @@ function MobileGroup({ section }: { section: FooterSection }) {
   );
 }
 
-function MobilePaymentTrust() {
-  const methods = enabledPaymentMethods();
-
+function MobilePaymentTrust({ methods }: { methods: readonly PaymentMethod[] }) {
   return (
     <div className={styles.trust}>
       <p className={`text-micro ${styles.trustHeading}`}>{SECURE_CARD_PAYMENT}</p>
       <p className={`text-small ${styles.note}`}>{ALL_MAJOR_CARDS}</p>
-      {methods.length > 0 ? (
-        <ul className={styles.marks} aria-label={PAYMENTS_ACCEPTED}>
-          {methods.map((method) => (
-            <li key={method.id} className={styles.markItem} data-method={method.id}>
-              {method.markSrc ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className={styles.mark} src={method.markSrc} alt={method.label} />
-              ) : (
-                <span className="text-micro">{method.label}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <PaymentMethodMarks methods={methods} />
     </div>
   );
 }
@@ -99,6 +102,7 @@ function MobilePaymentTrust() {
 export function SiteFooter({ reduced = false }: { reduced?: boolean }) {
   const year = new Date().getFullYear();
   const { country, setCountry } = useMarket();
+  const methods = enabledPaymentMethods();
 
   return (
     <footer className={styles.footer} data-reduced={reduced || undefined}>
@@ -124,7 +128,7 @@ export function SiteFooter({ reduced = false }: { reduced?: boolean }) {
           </div>
         )}
 
-        {reduced ? null : <MobilePaymentTrust />}
+        {reduced ? null : <MobilePaymentTrust methods={methods} />}
 
         <div className={styles.bottom}>
           {reduced ? null : (
@@ -136,11 +140,12 @@ export function SiteFooter({ reduced = false }: { reduced?: boolean }) {
             © {year} SHADESUK. All rights reserved.
           </p>
           <CookieSettingsButton />
-          <p
-            className={`text-small ${styles.legal}${reduced ? "" : ` ${styles.desktopPayment}`}`}
-          >
-            {paymentLine}
-          </p>
+          <div className={reduced ? undefined : styles.desktopPayment}>
+            <p className={`text-small ${styles.legal}`}>
+              {SECURE_CARD_PAYMENT}. {ALL_MAJOR_CARDS}.
+            </p>
+            <PaymentMethodMarks methods={methods} />
+          </div>
         </div>
       </ContentWidth>
     </footer>

@@ -7,6 +7,8 @@
  */
 
 export const PAYMENT_METHOD_IDS = [
+  "paypal",
+  "razorpay",
   "visa",
   "mastercard",
   "amex",
@@ -25,9 +27,11 @@ export type PaymentMethod = {
 };
 
 export const PAYMENT_METHODS: readonly PaymentMethod[] = [
-  { id: "visa", label: "Visa", enabled: true, markSrc: "/payment/visa.jpg" },
-  { id: "mastercard", label: "Mastercard", enabled: true, markSrc: "/payment/mastercard.jpg" },
-  { id: "amex", label: "American Express", enabled: true, markSrc: "/payment/amex.png" },
+  { id: "paypal", label: "PayPal", enabled: true },
+  { id: "razorpay", label: "Razorpay", enabled: true },
+  { id: "visa", label: "Visa", enabled: false, markSrc: "/payment/visa.jpg" },
+  { id: "mastercard", label: "Mastercard", enabled: false, markSrc: "/payment/mastercard.jpg" },
+  { id: "amex", label: "American Express", enabled: false, markSrc: "/payment/amex.png" },
   { id: "apple_pay", label: "Apple Pay", enabled: false },
   { id: "google_pay", label: "Google Pay", enabled: false },
   { id: "klarna", label: "Klarna", enabled: false },

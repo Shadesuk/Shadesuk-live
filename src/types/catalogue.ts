@@ -125,6 +125,7 @@ export type Product = {
   isNewArrival: boolean;
   isBestSeller: boolean;
   publishedAt?: string;
+  updatedAt?: string;
   images: ProductImage[];
   isDemo: boolean;
   compareAtPrice?: number;

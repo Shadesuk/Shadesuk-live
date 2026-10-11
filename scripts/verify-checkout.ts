@@ -216,8 +216,11 @@ if (!SHIPPING_MINIMUM.toLowerCase().includes("2-week")) {
 if (SHIPPING_BODY.toLowerCase().includes("international")) {
   throw new Error("UK checkout must not describe delivery as international.");
 }
-if (SECURE_CARD_PAYMENT !== "Secure card payment" || ALL_MAJOR_CARDS !== "All major cards accepted") {
-  throw new Error("Payment trust copy must stay locked.");
+if (SECURE_CARD_PAYMENT !== "Secure checkout" || ALL_MAJOR_CARDS !== "Pay with PayPal. India: Razorpay (INR)") {
+  throw new Error("Payment trust copy must name PayPal and Razorpay and must not claim stored cards.");
+}
+if (SECURE_CARD_PAYMENT.toLowerCase().includes("card payment") || ALL_MAJOR_CARDS.toLowerCase().includes("all major cards")) {
+  throw new Error("Payment trust copy must not claim that every major card is accepted.");
 }
 if (!PAYMENT_NEXT_BODY.includes("Nothing has been charged")) {
   throw new Error("Payment stub must state that nothing has been charged.");
@@ -646,17 +649,23 @@ if (
 }
 
 const enabledMethods = enabledPaymentMethods();
-if (enabledMethods.map((method) => method.id).join(",") !== "visa,mastercard,amex") {
-  throw new Error("Active payment presentation must be Visa, Mastercard, and American Express.");
+if (enabledMethods.map((method) => method.id).join(",") !== "paypal,razorpay") {
+  throw new Error("Active payment presentation must be PayPal and Razorpay text, not card logos.");
+}
+if (enabledMethods.some((method) => method.markSrc)) {
+  throw new Error("PayPal and Razorpay must be shown as text, without card logos.");
+}
+for (const card of ["visa", "mastercard", "amex"] as const) {
+  const method = PAYMENT_METHODS.find((item) => item.id === card);
+  if (!method || method.enabled) {
+    throw new Error(`${card} logos must stay off.`);
+  }
 }
 for (const reserved of ["apple_pay", "google_pay", "klarna"] as const) {
   const method = PAYMENT_METHODS.find((item) => item.id === reserved);
   if (!method || method.enabled) {
     throw new Error(`${reserved} must stay reserved until PayPal enables it.`);
   }
-}
-if (enabledMethods.some((method) => !method.markSrc)) {
-  throw new Error("Active card methods must use the supplied brand artwork.");
 }
 for (const required of [
   ["visa", "/payment/visa.jpg"],
@@ -665,7 +674,7 @@ for (const required of [
 ] as const) {
   const method = PAYMENT_METHODS.find((item) => item.id === required[0]);
   if (!method?.markSrc || method.markSrc !== required[1]) {
-    throw new Error(`${required[0]} must use the supplied ${required[1]} asset.`);
+    throw new Error(`${required[0]} must keep the supplied ${required[1]} asset.`);
   }
   if (!existsSync(resolve(`public${required[1]}`))) {
     throw new Error(`Missing supplied payment mark public${required[1]}.`);
