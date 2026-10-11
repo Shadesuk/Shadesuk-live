@@ -1,5 +1,6 @@
 import { ContentWidth } from "@/components/layout/ContentWidth";
 import { Section } from "@/components/layout/Section";
+import { ALL_MAJOR_CARDS, SECURE_CARD_PAYMENT } from "@/lib/checkout-copy";
 import styles from "./TrustSection.module.css";
 
 const messages = [
@@ -11,7 +12,7 @@ const messages = [
   {
     id: "payment",
     title: "Payment",
-    body: "Secure card payments.",
+    body: `${SECURE_CARD_PAYMENT}. ${ALL_MAJOR_CARDS}.`,
   },
   {
     id: "tracking",

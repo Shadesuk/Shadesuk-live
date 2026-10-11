@@ -14,6 +14,7 @@ import {
   EMPTY_BAG_DESCRIPTION,
   EMPTY_BAG_TITLE,
 } from "@/lib/cart-copy";
+import { ALL_MAJOR_CARDS, SECURE_CARD_PAYMENT } from "@/lib/checkout-copy";
 import { normalizeCountry } from "@/lib/checkout-validate";
 import { DisplayPrice } from "@/components/market/DisplayPrice";
 import { routes } from "@/lib/navigation";
@@ -103,8 +104,8 @@ export function CartPage({ initialCart, suggestions, indiaCardPaymentReady = tru
                   <DisplayPrice amountMajor={view.subtotal} />
                 </p>
               </div>
-              <p className={`text-micro ${styles.note}`}>Secure card payment</p>
-              <p className={`text-small ${styles.note}`}>All major cards accepted</p>
+              <p className={`text-micro ${styles.note}`}>{SECURE_CARD_PAYMENT}</p>
+              <p className={`text-small ${styles.note}`}>{ALL_MAJOR_CARDS}</p>
               <div className={styles.actions}>
                 <ButtonLink href={routes.checkout}>Checkout</ButtonLink>
                 <ButtonLink href={routes.shop} variant="tertiary">

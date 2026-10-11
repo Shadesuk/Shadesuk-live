@@ -18,6 +18,7 @@ import { useCart } from "@/components/cart/CartProvider";
 import { track } from "@/lib/analytics";
 import type { PublicAddToBagResult } from "@/types/pdp";
 import { PaymentMethods } from "@/components/payment/PaymentMethods";
+import { ALL_MAJOR_CARDS, SECURE_CARD_PAYMENT } from "@/lib/checkout-copy";
 import { ProductContent } from "./ProductContent";
 import { ProductGallery } from "./ProductGallery";
 import { SizeFaceGuide } from "./SizeFaceGuide";
@@ -330,7 +331,8 @@ export function ProductHero({ product, brandName }: ProductHeroProps) {
           </div>
           <div className={styles.payment}>
             <p className="text-micro">Payment</p>
-            <p className="text-small">Secure card payment</p>
+            <p className="text-small">{SECURE_CARD_PAYMENT}</p>
+            <p className="text-small">{ALL_MAJOR_CARDS}</p>
             <PaymentMethods />
           </div>
         </div>
