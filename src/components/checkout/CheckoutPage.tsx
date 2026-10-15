@@ -22,7 +22,7 @@ import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { InlineError } from "@/components/ui/InlineError";
 import type { AddressFormValue } from "@/components/address/AddressForm";
-import { track } from "@/lib/analytics";
+import { cartCommercePayload, track } from "@/lib/analytics";
 import { mergeLookupPostalAddress } from "@/lib/address-merge";
 import { EMPTY_BAG_CTA, EMPTY_BAG_DESCRIPTION, EMPTY_BAG_TITLE } from "@/lib/cart-copy";
 import {
@@ -121,11 +121,18 @@ export function CheckoutPage({
     if (view.items.length === 0) {
       return;
     }
-    track("begin_checkout", {
-      count: view.items.length,
-      value: quote.total,
-      currency: "GBP",
-    });
+    try {
+      track("begin_checkout", cartCommercePayload(
+        view.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        })),
+        quote.total,
+      ));
+    } catch {
+      // Tracking must never block checkout.
+    }
     // Fire once per checkout visit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

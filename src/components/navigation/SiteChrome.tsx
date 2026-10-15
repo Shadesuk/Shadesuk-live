@@ -3,6 +3,7 @@
 import { Suspense, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { AnalyticsPageView } from "@/components/analytics/AnalyticsPageView";
+import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { BagDrawer } from "@/components/cart/BagDrawer";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { routes } from "@/lib/navigation";
@@ -46,6 +47,7 @@ export function SiteChrome({
         <div className={styles.shell} data-checkout={checkout ? "" : undefined}>
           <Suspense fallback={null}>
             <AnalyticsPageView />
+            <MetaPixel />
           </Suspense>
           <div className={styles.lock} inert={pageLocked || undefined}>
             <SiteHeader

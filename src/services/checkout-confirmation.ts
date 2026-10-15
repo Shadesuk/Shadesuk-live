@@ -23,6 +23,7 @@ export type CheckoutConfirmationView = {
   orderReference: string;
   customerEmail: string;
   items: Array<{
+    productId: string;
     productName: string;
     colourName: string;
     variantName: string | null;
@@ -166,6 +167,7 @@ function accountView(
     orderReference: string;
     placedAt: string;
     items: Array<{
+      productId?: string;
       productName: string;
       colourName: string;
       variantName: string | null;
@@ -184,6 +186,7 @@ function accountView(
     orderReference: order.orderReference,
     customerEmail: email,
     items: order.items.map((item) => ({
+      productId: item.productId ?? "",
       productName: item.productName,
       colourName: item.colourName,
       variantName: item.variantName,
@@ -205,6 +208,7 @@ function orderView(order: OrderRow, items: OrderItemRow[]): CheckoutConfirmation
     orderReference: order.order_reference,
     customerEmail: order.customer_email,
     items: items.map((item) => ({
+      productId: item.product_id,
       productName: item.product_name,
       colourName: item.colour_name,
       variantName: item.variant_name,

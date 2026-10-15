@@ -182,8 +182,14 @@ for (const cookieName of [
   }
 }
 
-if (/advertising cookie/i.test(JSON.stringify(COOKIE_POLICY)) === false) {
-  throw new Error("Cookie policy must state advertising cookies are not set.");
+if (!/advertising cookie/i.test(JSON.stringify(COOKIE_POLICY))) {
+  throw new Error("Cookie policy must describe advertising cookies.");
+}
+if (!JSON.stringify(COOKIE_POLICY).includes("Meta Pixel")) {
+  throw new Error("Cookie policy must name Meta Pixel.");
+}
+if (!JSON.stringify(COOKIE_POLICY).toLowerCase().includes("stay off until")) {
+  throw new Error("Cookie policy must keep advertising cookies off until consent.");
 }
 
 const sitemapSource = readFileSync(resolve(root, "src/app/sitemap.ts"), "utf8");

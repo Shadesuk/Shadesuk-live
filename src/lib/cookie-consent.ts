@@ -1,13 +1,17 @@
 /**
  * First-party cookie consent. Strictly necessary cookies are not gated.
- * Analytics must not run until analytics is true.
+ * Analytics and Meta Pixel advertising measurement stay off until analytics is true.
+ *
+ * Version 2 re-prompts a stored v1 choice because advertising measurement (Meta Pixel)
+ * is a new optional purpose. The stored shape is still a single analytics boolean:
+ * Accept all / saved analytics-on enables Pixel; Reject / analytics-off disables it.
  */
 
 export const COOKIE_CONSENT_STORAGE_KEY = "shadesuk.cookie-consent";
 export const COOKIE_CONSENT_COOKIE_NAME = "shadesuk_cookie_consent";
 export const COOKIE_SETTINGS_EVENT = "shadesuk:cookie-settings";
 export const COOKIE_CONSENT_CHANGED_EVENT = "shadesuk:cookie-consent-changed";
-export const COOKIE_CONSENT_VERSION = 1;
+export const COOKIE_CONSENT_VERSION = 2;
 export const COOKIE_CONSENT_MAX_AGE_SECONDS = 60 * 60 * 24 * 180;
 
 export type CookieConsentState = {
@@ -52,6 +56,11 @@ export function hasAnalyticsConsent(): boolean {
   return readCookieConsent()?.analytics === true;
 }
 
+/** Meta Pixel is advertising measurement. It uses the existing analytics consent flag. */
+export function hasAdvertisingConsent(): boolean {
+  return hasAnalyticsConsent();
+}
+
 export function writeCookieConsent(analytics: boolean): CookieConsentState {
   const state: CookieConsentState = {
     version: COOKIE_CONSENT_VERSION,
@@ -78,7 +87,7 @@ function parseConsent(value: string | null): CookieConsentState | null {
   if (!value) {
     return null;
   }
-  const match = /^v1\.(0|1)\.(.+)$/.exec(value);
+  const match = /^v2\.(0|1)\.(.+)$/.exec(value);
   if (!match) {
     return null;
   }
