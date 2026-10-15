@@ -310,6 +310,9 @@ export function CheckoutReview({
       cancelled = true;
       unmount();
     };
+    // cart/quote are read only when the customer starts PayPal. Remounting the
+    // buttons on every quote render would restart checkout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bagEmpty, offerTotalRefresh, payable, paypalCurrency, paypalFrozenAt, pending, router, showPricesMoved]);
 
   return (

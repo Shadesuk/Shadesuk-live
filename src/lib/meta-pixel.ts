@@ -522,12 +522,12 @@ function ensureFbqStub(): void {
   if (typeof window === "undefined" || typeof window.fbq === "function") {
     return;
   }
-  const fbq = function fbqStub(...args: unknown[]) {
-    if (typeof fbqStub.callMethod === "function") {
-      fbqStub.callMethod(...args);
+  const fbq = function (...args: unknown[]) {
+    if (typeof fbq.callMethod === "function") {
+      fbq.callMethod(...args);
       return;
     }
-    fbqStub.queue.push(args);
+    fbq.queue.push(args);
   } as FacebookPixelFn;
   fbq.queue = [];
   fbq.loaded = false;

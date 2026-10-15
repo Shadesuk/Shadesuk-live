@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 import { registerAnalyticsProvider, track } from "@/lib/analytics";
 import { hasAdvertisingConsent, subscribeCookieConsent } from "@/lib/cookie-consent";
 import {
@@ -16,15 +15,12 @@ import {
  * Route-change PageViews stay on AnalyticsPageView so this file does not double-fire them.
  */
 export function MetaPixel() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const search = searchParams.toString();
-  const path = search ? `${pathname}?${search}` : pathname;
-  const pathRef = useRef(path);
-  pathRef.current = path;
-
   useEffect(() => {
     let cancelled = false;
+
+    function currentPath(): string {
+      return `${window.location.pathname}${window.location.search}`;
+    }
 
     function applyConsent() {
       if (!readMetaPixelId() || !hasAdvertisingConsent()) {
@@ -36,12 +32,16 @@ export function MetaPixel() {
           return;
         }
         registerAnalyticsProvider(metaPixelAnalyticsProvider);
-        track("page_view", { path: pathRef.current });
+        track("page_view", { path: currentPath() });
       });
     }
 
     applyConsent();
-    return subscribeCookieConsent(applyConsent);
+    const unsubscribe = subscribeCookieConsent(applyConsent);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   return null;

@@ -261,9 +261,9 @@ function sourceGuards(): void {
     "Confirmation must stay on the captured-order loader.",
   );
 
-  assert(readMetaPixelId({} as NodeJS.ProcessEnv) === "", "An unset Pixel ID must be empty, never invented.");
+  assert(readMetaPixelId({} as unknown as NodeJS.ProcessEnv) === "", "An unset Pixel ID must be empty, never invented.");
   assert(
-    readMetaPixelId({ NEXT_PUBLIC_META_PIXEL_ID: "  240000000000001  " } as NodeJS.ProcessEnv) === "240000000000001",
+    readMetaPixelId({ NEXT_PUBLIC_META_PIXEL_ID: "  240000000000001  " } as unknown as NodeJS.ProcessEnv) === "240000000000001",
     "Pixel ID must trim the env value.",
   );
   assert(META_PIXEL_SCRIPT_SRC === "https://connect.facebook.net/en_US/fbevents.js", "Pixel script URL must stay the official host.");

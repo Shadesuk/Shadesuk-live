@@ -99,7 +99,28 @@ No server secrets were added. CAPI access tokens are intentionally absent.
 
 ## Test results
 
-Commands and results will be recorded after `tsc`, lint, `verify:meta-pixel`, related verify scripts, and `npm run build` on this branch.
+Ran on this branch after `npm install`:
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit` | Pass |
+| `npx eslint` on the files this branch changed | Pass |
+| `npm run lint` | Pass (empty output, exit 0) |
+| `npm run verify:meta-pixel` | Pass (`verify-meta-pixel: ok`) |
+| `npm run verify:legal` | Pass (`verify-legal: ok`) |
+| `npm run verify:payment-final` | Pass (`verify-payment-final: ok`) |
+| `npm run verify:completion` | Pass (`verify-storefront-completion: ok`) |
+| `npm run verify:checkout` | Pass |
+| `npm run verify:pdp` | Pass |
+| `npm run verify:payment-capture` | Pass |
+| `npm run build` | Pass — Next.js 16.3.4, compiled successfully, TypeScript finished, 30 static pages generated |
+
+`npm run verify:payment` (`scripts/verify-payment-foundation.ts`) failed with `Pending PayPal payment must reject DE until a later quote phase.` That script and the pending-payment builder were not changed on this branch. The failure is outside Meta Pixel scope.
+
+Not run here:
+
+- Meta Events Manager Test Events against a deployed host
+- A browser session with a real `NEXT_PUBLIC_META_PIXEL_ID` (unset in this environment, so the Pixel correctly stays disabled)
 
 ## Unresolved limitations
 
