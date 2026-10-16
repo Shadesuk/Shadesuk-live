@@ -117,6 +117,8 @@ Ran on this branch after `npm install`:
 
 `npm run verify:payment` (`scripts/verify-payment-foundation.ts`) failed with `Pending PayPal payment must reject DE until a later quote phase.` That script and the pending-payment builder were not changed on this branch. The failure is outside Meta Pixel scope.
 
+Browser check of the production build on `http://localhost:3000`: the existing cookie banner, preferences modal, and `/cookie-policy` disclose Meta Pixel. There is still one banner. `/checkout/confirmation` returns 200 for the unpaid state.
+
 Not run here:
 
 - Meta Events Manager Test Events against a deployed host
