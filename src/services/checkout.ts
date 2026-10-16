@@ -188,8 +188,12 @@ export async function setCheckoutStep(step: CheckoutStepId): Promise<CheckoutMut
   if (current.expired) {
     return { status: "expired", cart, draft: current, quote };
   }
+  const keepExpiredGbReview =
+    current.lockExpired && normalizeCountry(current.country) === CHECKOUT_COUNTRY_GB;
   const requested =
-    step === "review" && (checkoutUnavailableBlocked(cart) || current.lockExpired) ? "address" : step;
+    step === "review" && (checkoutUnavailableBlocked(cart) || (current.lockExpired && !keepExpiredGbReview))
+      ? "address"
+      : step;
   const draft = constrainStep({ ...current, step: requested });
   try {
     await persistDraft(sessionId, draft);
