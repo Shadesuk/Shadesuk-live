@@ -49,7 +49,11 @@ export function OrderConfirmation({ order }: OrderConfirmationProps) {
   return (
     <div className={styles.review} data-order-confirmation>
       <PinPageStart focusId="order-confirmation-heading" />
-      <OrderConfirmationPurchase orderReference={order.orderReference} total={order.total} />
+      <OrderConfirmationPurchase
+        orderReference={order.orderReference}
+        total={order.total}
+        items={order.items}
+      />
       <section className={styles.block} aria-labelledby="order-confirmation-heading">
         <h1 id="order-confirmation-heading" tabIndex={-1} className="text-h3">
           {ORDER_CONFIRMATION_TITLE}

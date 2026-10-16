@@ -1,3 +1,9 @@
+import {
+  META_PIXEL_CSP_CONNECT,
+  META_PIXEL_CSP_FRAME,
+  META_PIXEL_CSP_SCRIPT,
+} from "../meta-pixel-hosts";
+
 /**
  * Mode-aware PayPal CSP host fragments for Next.js headers.
  * Used by `next.config.ts`. Keep narrow: sandbox XOR live (+ shared objects CDN).
@@ -67,12 +73,12 @@ export function buildStorefrontContentSecurityPolicy(options?: {
 
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${paypal.script} ${razorpayScript}`,
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${paypal.script} ${razorpayScript} ${META_PIXEL_CSP_SCRIPT}`,
     `style-src 'self' 'unsafe-inline' ${paypal.style}`,
     `img-src 'self' data: blob: https: ${paypal.img}`,
     "font-src 'self' data:",
-    `connect-src 'self'${connectExtra} ${paypal.connect} ${razorpayApi}`,
-    `frame-src 'self' ${paypal.frame} ${razorpayScript} ${razorpayApi}`,
+    `connect-src 'self'${connectExtra} ${paypal.connect} ${razorpayApi} ${META_PIXEL_CSP_CONNECT}`,
+    `frame-src 'self' ${paypal.frame} ${razorpayScript} ${razorpayApi} ${META_PIXEL_CSP_FRAME}`,
     `child-src 'self' ${paypal.child}`,
     `form-action 'self' ${paypal.formAction}`,
     "base-uri 'self'",

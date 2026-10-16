@@ -47,7 +47,8 @@ export function CookieConsent() {
             </h2>
             <p className={`text-small ${styles.copy}`}>
               We use strictly necessary cookies to run the bag, checkout, account, and order
-              lookup. Analytics cookies are optional and stay off until you allow them.{" "}
+              lookup. Analytics and advertising cookies (Meta Pixel) stay off until you allow
+              them.{" "}
               <a href={routes.cookies}>Cookie policy</a>
             </p>
             <div className={styles.actions}>
@@ -102,9 +103,10 @@ export function CookieConsent() {
                 onChange={(event) => setAnalytics(event.target.checked)}
               />
               <span>
-                <strong>Analytics</strong>
+                <strong>Analytics and advertising</strong>
                 <span className="text-small">
-                  Helps us see which pages are used. Off until you allow it. No advertising cookies.
+                  Helps us see which pages are used and measures ads with Meta Pixel. Off until
+                  you allow it.
                 </span>
               </span>
             </label>

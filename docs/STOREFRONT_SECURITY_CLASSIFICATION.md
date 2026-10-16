@@ -84,7 +84,7 @@ Prior Mediums carried from PRs #15–#19 and the 3.1 security appendix.
 
 | Item | Class | Phase reason |
 | --- | --- | --- |
-| Invented GA / GTM / pixel ids | **BLOCKING** if added | **Not added.** Provider-agnostic event bus no-ops until a provider is registered. |
+| Invented GA / GTM / pixel ids | **BLOCKING** if added | Pixel ID is read only from `NEXT_PUBLIC_META_PIXEL_ID`. It is not hardcoded. The analytics bus still no-ops until a provider is registered and consent is granted. |
 | Indexing filter/search/account URLs | **NON-BLOCKING** | Search is noindex + robots disallow. Filter query strings canonicalise to the clean collection path and are noindex. |
 | Canonical production origin | **NON-BLOCKING** | `NEXT_PUBLIC_SITE_URL` still a human lock-in. Sitemap/robots/metadataBase stay provisional until the HTTPS origin is confirmed. |
 

@@ -47,6 +47,7 @@ import { isPayPalChargeCurrency, resolvePaymentRoute } from "@/lib/payment/payme
 import { mountPayPalCheckout } from "@/lib/paypal/open-buttons";
 import { displayLineTotal, displayLockedChargeMinor, type CheckoutQuoteLock } from "@/lib/checkout-quote-lock";
 import type { CheckoutQuote } from "@/lib/checkout-quote";
+import { cartCommercePayload, track } from "@/lib/analytics";
 import { orderConfirmationPath, routes } from "@/lib/navigation";
 import type { PublicCheckoutDraft } from "@/types/checkout";
 import type { PublicCart } from "@/types/cart";
@@ -239,6 +240,21 @@ export function CheckoutReview({
           }
           paymentIdRef.current = started.paymentId;
           setPaymentUi("checkout");
+          try {
+            track(
+              "add_payment_info",
+              cartCommercePayload(
+                cart.items.map((item) => ({
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                })),
+                quote.total,
+              ),
+            );
+          } catch {
+            // Tracking must never block PayPal order creation.
+          }
           return { orderId: started.providerOrderId };
         },
         onApprove: async (paypalOrderId) => {
@@ -294,6 +310,9 @@ export function CheckoutReview({
       cancelled = true;
       unmount();
     };
+    // cart/quote are read only when the customer starts PayPal. Remounting the
+    // buttons on every quote render would restart checkout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bagEmpty, offerTotalRefresh, payable, paypalCurrency, paypalFrozenAt, pending, router, showPricesMoved]);
 
   return (
@@ -396,6 +415,19 @@ export function CheckoutReview({
                 amountMinor={frozenCharge.totalMinor}
                 disabled={pending}
                 onUpdateTotal={onUpdateTotal}
+                onPaymentStarted={() => {
+                  track(
+                    "add_payment_info",
+                    cartCommercePayload(
+                      cart.items.map((item) => ({
+                        productId: item.productId,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                      })),
+                      quote.total,
+                    ),
+                  );
+                }}
               />
             </>
           ) : (

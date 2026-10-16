@@ -20,6 +20,7 @@
     "verify:account": "npm run verify:run -- scripts/verify-account.ts",
     "verify:account-orders": "npm run verify:run -- scripts/verify-account-orders.ts",
     "verify:tracking": "npm run verify:run -- scripts/verify-tracking.ts",
+    "verify:meta-pixel": "npm run verify:run -- scripts/verify-meta-pixel.ts",
     "verify:legal": "npm run verify:run -- scripts/verify-legal.ts",
     "verify:storefront": "npm run verify:run -- scripts/verify-storefront-catalogue.ts",
     "verify:search": "npm run verify:run -- scripts/verify-search.ts",

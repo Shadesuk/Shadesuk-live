@@ -511,6 +511,7 @@ export const PRIVACY_POLICY: PolicyDocument = {
         "Payment details go to PayPal or Razorpay, not into a SHADESUK card vault.",
         "Carriers and fulfilment partners receive what they need to move a parcel.",
         "Hosting and authentication providers process data to run the site.",
+        "If you allow analytics cookies, Meta Pixel sends product, basket, and purchase measurement events to Meta. We do not send payment-card numbers, email, phone, or full addresses through Pixel parameters.",
         "We do not sell personal data.",
       ],
     },
@@ -548,8 +549,8 @@ export const PRIVACY_POLICY: PolicyDocument = {
 export const COOKIE_POLICY: PolicyDocument = {
   title: "Cookie policy",
   description:
-    "Cookies used by SHADESUK: guest bag, checkout, account session, and order-tracking limits. No advertising cookies are set today.",
-  lede: "The storefront uses cookies that are needed to shop, check out, stay signed in, and protect order lookup.",
+    "Cookies used by SHADESUK: guest bag, checkout, account session, order-tracking limits, and optional Meta Pixel advertising cookies after consent.",
+  lede: "The storefront uses cookies that are needed to shop, check out, stay signed in, and protect order lookup. Optional analytics and advertising cookies stay off until you allow them.",
   notice: LEGAL_NOTICE,
   related: [
     { href: routes.privacy, label: "Privacy" },
@@ -561,7 +562,7 @@ export const COOKIE_POLICY: PolicyDocument = {
       title: "What we use cookies for",
       paragraphs: [
         "Essential cookies keep your bag, remember checkout progress, keep an account session, and slow repeated order-tracking attempts.",
-        "Advertising cookies are not set. Analytics cookies stay off until you choose Accept all or turn analytics on in Cookie settings.",
+        "Advertising cookies (Meta Pixel) and analytics cookies stay off until you choose Accept all or turn analytics on in Cookie settings. Reject non-essential, or turn that choice off later, and Meta Pixel does not run.",
       ],
     },
     {
@@ -577,6 +578,7 @@ export const COOKIE_POLICY: PolicyDocument = {
         "shadesuk_track_rl — order-tracking rate limit. HttpOnly. About 12 hours.",
         "Account session cookies — keep you signed in. HttpOnly. Set only if you use account.",
         "shadesuk_cookie_consent — records Accept all, Reject non-essential, or a saved analytics preference. Not HttpOnly. About 180 days. Necessary so the choice survives a refresh.",
+        "_fbp — Meta Pixel browser identifier. Set only after you allow analytics and advertising cookies. About 90 days.",
       ],
     },
     {
@@ -584,7 +586,7 @@ export const COOKIE_POLICY: PolicyDocument = {
       title: "Your controls",
       paragraphs: [
         "You can block or delete cookies in your browser. Blocking essential cookies will stop the bag, checkout, or account from working as intended.",
-        "Use Cookie settings in the footer to accept all, reject non-essential cookies, or change an analytics choice later. Advertising cookies are not set.",
+        "Use Cookie settings in the footer to accept all, reject non-essential cookies, or change an analytics choice later. Advertising cookies from Meta Pixel are set only after that consent.",
       ],
     },
   ],

@@ -29,6 +29,7 @@ type IndiaPaymentProps = {
   amountMinor: number;
   disabled?: boolean;
   onUpdateTotal?: () => void;
+  onPaymentStarted?: () => void;
 };
 
 type CheckoutResponse = {
@@ -53,7 +54,12 @@ declare global {
  * India review payment. The server creates the order. This file only opens
  * checkout.js and sends the signature home. A dismiss does not capture.
  */
-export function IndiaPayment({ amountMinor, disabled = false, onUpdateTotal }: IndiaPaymentProps) {
+export function IndiaPayment({
+  amountMinor,
+  disabled = false,
+  onUpdateTotal,
+  onPaymentStarted,
+}: IndiaPaymentProps) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -95,6 +101,11 @@ export function IndiaPayment({ amountMinor, disabled = false, onUpdateTotal }: I
       setStatus(CHECKOUT_TOTAL_UPDATED);
       setBusy(false);
       return;
+    }
+    try {
+      onPaymentStarted?.();
+    } catch {
+      // Tracking must never block Razorpay checkout.
     }
     try {
       await loadCheckoutScript();
